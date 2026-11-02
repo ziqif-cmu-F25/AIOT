@@ -1,0 +1,7 @@
+$ stage2/.venv/Scripts/python stage2/driver/run_task.py demo-pattern
+{"run_dir": "C:\\Users\\alber\\Documents\\GitHub\\AIOT\\stage2\\results\\ai-runs\\run-001", "status": "api_error", "candidates": 0, "model_requested": "anthropic/claude-3.5-haiku", "model_resolved": [], "attempts": 0}
+exit=1
+# run-001 (no --model): OPENROUTER_MODEL in .env = anthropic/claude-3.5-haiku -> 404 retired; recorded as api_error
+$ stage2/.venv/Scripts/python stage2/driver/run_task.py demo-pattern --model anthropic/claude-haiku-5.5
+{"run_dir": "C:\\Users\\alber\\Documents\\GitHub\\AIOT\\stage2\\results\\ai-runs\\run-002", "status": "candidate", "candidates": 2, "model_requested": "anthropic/claude-haiku-5.5", "model_resolved": ["anthropic/claude-haiku-5.5"], "attempts": 1}
+exit=0

@@ -1,0 +1,26 @@
+# Evaluator-side ground truth for tasks/demo-pattern.yaml.
+# REFERENCE EXAMPLE: every task's scoring/ground_truth/<task_id>.yaml copies
+# this shape. score_run.py has no per-task logic; everything it needs to
+# score a task lives in that task's file.
+task_id: demo-pattern
+
+# The single expected finding. A candidate is:
+#   validated    — file, function and vulnerability_class match exactly and
+#                  line is within lines[0]-line_tolerance .. lines[1]+line_tolerance
+#   inconclusive — file, function and class match but line is out of range
+#   rejected     — anything else (oracle_verdict: false_positive, relative to
+#                  this task's ground truth; it may still be a different real bug)
+expected:
+  file: demo_snippet.c                # path as named in the task's allow-list
+  function: handle_header
+  lines: [3, 3]                       # memcpy(buf, field, field_len)
+  line_tolerance: 1
+  vulnerability_class: buffer-overflow
+  rationale: >
+    memcpy copies caller-controlled field_len bytes into the 64-byte stack
+    buffer buf with no check against sizeof(buf).
+
+# Other evaluator files this ground truth depends on. score_run.py records
+# each file's SHA-256 and the listed record_keys in verdict.md, and fails if
+# any consistency pair disagrees ("expected.<key>" or "task.<dotted.path>").
+references: []

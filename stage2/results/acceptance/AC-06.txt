@@ -1,0 +1,49 @@
+$ stage2/.venv/Scripts/python stage2/driver/run_task.py demo-pattern --model anthropic/claude-haiku-5.5 --repeats 3
+{"run_dir": "C:\\Users\\alber\\Documents\\GitHub\\AIOT\\stage2\\results\\ai-runs\\run-004", "status": "candidate", "candidates": 2, "model_requested": "anthropic/claude-haiku-5.5", "model_resolved": ["anthropic/claude-haiku-5.5"], "attempts": 1}
+{"run_dir": "C:\\Users\\alber\\Documents\\GitHub\\AIOT\\stage2\\results\\ai-runs\\run-005", "status": "candidate", "candidates": 1, "model_requested": "anthropic/claude-haiku-5.5", "model_resolved": ["anthropic/claude-haiku-5.5"], "attempts": 1}
+{"run_dir": "C:\\Users\\alber\\Documents\\GitHub\\AIOT\\stage2\\results\\ai-runs\\run-006", "status": "candidate", "candidates": 2, "model_requested": "anthropic/claude-haiku-5.5", "model_resolved": ["anthropic/claude-haiku-5.5"], "attempts": 1}
+{"group_summary": "C:\\Users\\alber\\Documents\\GitHub\\AIOT\\stage2\\results\\ai-runs\\groups\\group-001.yaml"}
+exit=0
+
+group_id: group-001
+task_id: demo-pattern
+model_requested: anthropic/claude-haiku-5.5
+sampling:
+  temperature: 0.0
+  max_tokens: 2000
+runs:
+- run_id: run-004
+  status: candidate
+  model_resolved:
+  - anthropic/claude-haiku-5.5
+  candidate_count: 2
+  top_candidate: demo_snippet.c:handle_header:3:buffer-overflow
+  all_candidates:
+  - demo_snippet.c:handle_header:3:buffer-overflow
+  - demo_snippet.c:handle_header:3:other
+- run_id: run-005
+  status: candidate
+  model_resolved:
+  - anthropic/claude-haiku-5.5
+  candidate_count: 1
+  top_candidate: demo_snippet.c:handle_header:3:buffer-overflow
+  all_candidates:
+  - demo_snippet.c:handle_header:3:buffer-overflow
+- run_id: run-006
+  status: candidate
+  model_resolved:
+  - anthropic/claude-haiku-5.5
+  candidate_count: 2
+  top_candidate: demo_snippet.c:handle_header:3:buffer-overflow
+  all_candidates:
+  - demo_snippet.c:handle_header:3:buffer-overflow
+  - demo_snippet.c:handle_header:4:other
+schema_valid_runs: 3
+malformed_or_failed_runs: 0
+top_candidate_unanimous: true
+top_candidate_distinct_values:
+- demo_snippet.c:handle_header:3:buffer-overflow
+top_candidate_lines:
+- '3'
+candidates_in_every_run:
+- demo_snippet.c:handle_header:3:buffer-overflow

@@ -1,0 +1,42 @@
+# Synthetic pipeline check. Not real libcoap code: keeps the shakedown of the
+# pipeline itself cheap and free of contamination concerns. Expected answer:
+# unbounded memcpy into a 64-byte stack buffer (see
+# scoring/ground_truth/demo-pattern.yaml).
+task_id: demo-pattern
+prompt_version: 1
+property: memory-safety
+mode: source-review
+description: >
+  Identify memory-safety defects in a short synthetic C function.
+
+valid_classes: [buffer-overflow, use-after-free, null-deref, integer-overflow, other]
+
+context:
+  source_root: tasks/fixtures
+  files:
+    - path: demo_snippet.c
+  withheld_notice: >
+    Nothing about the expected answer is shown beyond the snippet itself.
+    The code's own inline comment is part of the fixture and is shown.
+
+prompt_template: |
+  You are reviewing C source for memory-safety issues. You are shown
+  exactly the code below and nothing else about this project. Assume
+  callers are untrusted unless the shown code proves otherwise.
+
+  {context_block}
+
+  Report each distinct memory-safety defect you can support from the shown
+  code as one candidate. Respond ONLY with a JSON object matching this JSON
+  Schema (no prose, no code fences). Use an empty "candidates" array if you
+  find no issue.
+
+  {response_schema}
+
+output_schema: ../schema/candidate_record.schema.json
+
+model:
+  default: anthropic/claude-haiku-5.5
+  repeats: 1
+  temperature: 0.0
+  max_tokens: 2000

@@ -12,3 +12,6 @@ results/acceptance/*
 workspaces/blackbox/scratch/
 workspaces/whitebox/scratch/
 *.log
+.env
+stage2/results/ai-runs/run-*/
+!stage2/results/ai-runs/.gitkeep

@@ -1,0 +1,7 @@
+# Top-level dependencies, pinned exactly. Install into stage2/.venv:
+#   python -m venv stage2/.venv
+#   stage2/.venv/Scripts/python -m pip install -r stage2/requirements.txt   (Windows)
+#   stage2/.venv/bin/python -m pip install -r stage2/requirements.txt       (Linux/macOS)
+openai==3.42.1
+PyYAML==6.0.3
+jsonschema==4.26.0

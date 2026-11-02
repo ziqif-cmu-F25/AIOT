@@ -1,0 +1,23 @@
+$ git ls-files --error-unmatch .env
+error: pathspec '.env' did not match any file(s) known to git
+Did you forget to 'git add'?
+exit=1 (non-zero = untracked: required)
+$ git log --all --oneline -- .env   (empty = never committed)
+lines=0
+$ git check-ignore -v .env
+.gitignore:15:.env	.env
+exit=0
+$ git check-ignore -v stage2/.env
+stage2/.gitignore:5:.env	stage2/.env
+exit=0
+$ cat stage2/.env.example
+# Template only. Copy to the REPOSITORY ROOT as .env (not stage2/.env):
+#   cp stage2/.env.example .env
+# The driver reads only <repo-root>/.env. Never commit real values.
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=
+# Secret-content scan: literal key value from .env (value not printed) across tracked + untracked-not-ignored files, and all of stage2/ incl. results (excluding .venv):
+matching files (tracked/untracked): 0
+matching files (stage2/ incl results): 0
+sk-or- pattern hits in stage2/ (excl .venv): 0
+# scan sanity: extracted key length was 73 chars (non-zero, so the scan above was not vacuous)

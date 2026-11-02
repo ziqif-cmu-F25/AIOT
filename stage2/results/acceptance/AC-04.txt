@@ -1,0 +1,4 @@
+# PIPELINE CHECK against a known bug - NOT a contamination-free discovery result.
+$ stage2/.venv/Scripts/python stage2/driver/run_task.py shakedown-proxy-address --model anthropic/claude-haiku-5.5
+{"run_dir": "C:\\Users\\alber\\Documents\\GitHub\\AIOT\\stage2\\results\\ai-runs\\run-007", "status": "candidate", "candidates": 1, "model_requested": "anthropic/claude-haiku-5.5", "model_resolved": ["anthropic/claude-haiku-5.5"], "attempts": 1}
+exit=0

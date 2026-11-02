@@ -1,0 +1,13 @@
+timestamp_utc,run_id,task_id,status,model_requested,model_resolved,attempts,prompt_tokens,completion_tokens,total_tokens,cost_usd
+2026-11-02T06:21:50Z,run-001,demo-pattern,api_error,anthropic/claude-3.5-haiku,,0,0,0,0,
+2026-11-02T06:22:21Z,run-002,demo-pattern,candidate,anthropic/claude-haiku-5.5,anthropic/claude-haiku-5.5,1,996,1088,2084,0.0006436
+2026-11-02T06:22:34Z,run-003,demo-pattern,candidate,openai/gpt-4o-mini,openai/gpt-4o-mini,1,687,170,857,0.00020505
+2026-11-02T06:22:42Z,run-004,demo-pattern,candidate,anthropic/claude-haiku-5.5,anthropic/claude-haiku-5.5,1,996,1195,2191,0.0006971
+2026-11-02T06:22:46Z,run-005,demo-pattern,candidate,anthropic/claude-haiku-5.5,anthropic/claude-haiku-5.5,1,996,730,1726,0.0004646
+2026-11-02T06:22:53Z,run-006,demo-pattern,candidate,anthropic/claude-haiku-5.5,anthropic/claude-haiku-5.5,1,996,1162,2158,0.0006806
+2026-11-02T06:23:02Z,run-007,shakedown-proxy-address,candidate,anthropic/claude-haiku-5.5,anthropic/claude-haiku-5.5,1,16077,1632,17709,0.0024237
+2026-11-02T06:34:31Z,run-008,demo-pattern,candidate,anthropic/claude-haiku-5.5,anthropic/claude-haiku-5.5,1,996,1054,2050,0.0006266
+2026-11-02T06:34:52Z,run-009,shakedown-proxy-address,candidate,anthropic/claude-haiku-5.5,anthropic/claude-haiku-5.5,1,16077,1768,17845,0.0024917
+2026-11-02T06:35:02Z,run-010,shakedown-proxy-address,candidate,anthropic/claude-haiku-5.5,anthropic/claude-haiku-5.5,1,16077,2156,18233,0.0026857
+2026-11-02T06:35:10Z,run-011,shakedown-proxy-address,candidate,anthropic/claude-haiku-5.5,anthropic/claude-haiku-5.5,1,16077,1760,17837,0.0024877
+2026-11-02T06:47:56Z,run-012,demo-pattern,candidate,anthropic/claude-haiku-5.5,anthropic/claude-haiku-5.5,1,996,709,1705,0.0004541

@@ -1,0 +1,13 @@
+{
+  "candidates": [
+    {
+      "hypothesis": "memcpy copies field_len bytes into 64-byte stack buffer buf without a bound check.",
+      "evidence_source": "Line 3: memcpy(buf, field, field_len); buf is char[64] (line 2).",
+      "expected_behavior": "Stack buffer overflow when field_len > 64.",
+      "notes": "Synthetic correct record for scoring tests.",
+      "vulnerability_class": "buffer-overflow",
+      "location": {"file": "demo_snippet.c", "function": "handle_header", "line": 3},
+      "confidence": 0.95
+    }
+  ]
+}

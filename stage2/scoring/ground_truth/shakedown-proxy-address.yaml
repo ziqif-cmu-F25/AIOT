@@ -1,0 +1,25 @@
+# Evaluator-side ground truth for tasks/shakedown-proxy-address.yaml.
+# Copied from the shape of demo-pattern.yaml.
+task_id: shakedown-proxy-address
+
+expected:
+  file: src/coap_address.c
+  function: coap_resolve_address_info
+  lines: [536, 538]                   # memset/bounds-less memcpy into addrstr[256]
+  line_tolerance: 2
+  vulnerability_class: buffer-overflow
+  rationale: >
+    See ground_truth_extra.yaml vulnerable_line_detail (CVE-2025-34468,
+    CWE-121). Known bug: this run is a pipeline check, not discovery.
+
+references:
+  - path: evaluator/ground_truth.yaml           # relative to repository root
+    record_keys: [vulnerability_id, cwe, vulnerable_commit, fix_commit, required_target_config]
+    consistency:
+      vulnerable_commit: task.context.upstream.commit
+  - path: stage2/scoring/ground_truth_extra.yaml
+    record_keys: [known_discrepancy]
+    consistency:
+      file: expected.file
+      function: expected.function
+      vulnerable_lines: expected.lines

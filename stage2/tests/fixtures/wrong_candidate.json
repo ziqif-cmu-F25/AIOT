@@ -1,0 +1,13 @@
+{
+  "candidates": [
+    {
+      "hypothesis": "process(buf) dereferences a NULL pointer when field is NULL.",
+      "evidence_source": "Line 4 passes buf to process() without checking field.",
+      "expected_behavior": "Segmentation fault on NULL field.",
+      "notes": "DELIBERATELY WRONG synthetic record for AC-05: wrong line, wrong class.",
+      "vulnerability_class": "null-deref",
+      "location": {"file": "demo_snippet.c", "function": "handle_header", "line": 4},
+      "confidence": 0.4
+    }
+  ]
+}

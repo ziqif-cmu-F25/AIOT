@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "candidate_record.schema.json",
+  "title": "Stage 2 AI candidate record",
+  "description": "Base fields mirror tools/new_run.py's findings.md template so AI and human candidate records are directly comparable. Fields listed in x-driver-owned are filled by run_task.py, never by the model; the model is asked only for the remaining fields. vulnerability_class.enum is replaced per task with the task's valid_classes before validation.",
+  "x-driver-owned": [
+    "candidate_id",
+    "viewpoint",
+    "property",
+    "input_artifact",
+    "observed_behavior",
+    "status",
+    "oracle_verdict",
+    "model",
+    "prompt_id",
+    "run_index"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "candidate_id",
+    "viewpoint",
+    "property",
+    "hypothesis",
+    "evidence_source",
+    "input_artifact",
+    "expected_behavior",
+    "observed_behavior",
+    "status",
+    "oracle_verdict",
+    "notes",
+    "vulnerability_class",
+    "location",
+    "confidence",
+    "model",
+    "prompt_id",
+    "run_index"
+  ],
+  "properties": {
+    "candidate_id": {"type": "string", "pattern": "^CAND-[0-9]{3}$"},
+    "viewpoint": {"const": "ai-source-review"},
+    "property": {"type": "string", "minLength": 1},
+    "hypothesis": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Testable statement of the suspected defect: what input/condition causes what failure."
+    },
+    "evidence_source": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Which shown code supports the hypothesis (quote or describe the relevant statements)."
+    },
+    "input_artifact": {"type": "string"},
+    "expected_behavior": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Predicted observable behavior if the hypothesis is true (e.g. crash, sanitizer report)."
+    },
+    "observed_behavior": {"type": "string"},
+    "status": {"enum": ["candidate", "validated", "rejected", "inconclusive"]},
+    "oracle_verdict": {"type": "string"},
+    "notes": {"type": "string"},
+    "vulnerability_class": {
+      "type": "string",
+      "enum": ["__REPLACED_PER_TASK__"]
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "function", "line"],
+      "properties": {
+        "file": {"type": "string", "minLength": 1, "description": "Path exactly as shown in the FILE header."},
+        "function": {"type": "string", "minLength": 1, "description": "Enclosing function name, no parentheses."},
+        "line": {"type": "integer", "minimum": 1, "description": "Line number as shown in the left margin."}
+      }
+    },
+    "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+    "model": {"type": "string", "minLength": 1},
+    "prompt_id": {"type": "string", "pattern": "^[a-z0-9-]+@v[0-9]+$"},
+    "run_index": {"type": "integer", "minimum": 1}
+  }
+}

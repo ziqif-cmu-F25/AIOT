@@ -1,0 +1,12 @@
+# AC-03: same task, second model via --model only; code unchanged (git hash-object of driver files below)
+05e4d921a348e42be3bb7c51fbb4ab24f92c5f649d9eb375ba229800c633a269 *stage2/driver/__init__.py
+6ec515582ad66d4071a7505585830506d304adcfa8796f978d88a3b70ed87e24 *stage2/driver/context_loader.py
+7a3837b60f622c9b78220906a6f84bbd2d98ef28deccc99d9157ef8498c42c42 *stage2/driver/openrouter_client.py
+0ceb76100dd239266e52d1f99c9c0c98c731378a3418ea5bc6cf9a6722896281 *stage2/driver/run_task.py
+$ stage2/.venv/Scripts/python stage2/driver/run_task.py demo-pattern --model openai/gpt-4o-mini
+{"run_dir": "C:\\Users\\alber\\Documents\\GitHub\\AIOT\\stage2\\results\\ai-runs\\run-003", "status": "candidate", "candidates": 1, "model_requested": "openai/gpt-4o-mini", "model_resolved": ["openai/gpt-4o-mini"], "attempts": 1}
+exit=0
+05e4d921a348e42be3bb7c51fbb4ab24f92c5f649d9eb375ba229800c633a269 *stage2/driver/__init__.py
+6ec515582ad66d4071a7505585830506d304adcfa8796f978d88a3b70ed87e24 *stage2/driver/context_loader.py
+7a3837b60f622c9b78220906a6f84bbd2d98ef28deccc99d9157ef8498c42c42 *stage2/driver/openrouter_client.py
+0ceb76100dd239266e52d1f99c9c0c98c731378a3418ea5bc6cf9a6722896281 *stage2/driver/run_task.py

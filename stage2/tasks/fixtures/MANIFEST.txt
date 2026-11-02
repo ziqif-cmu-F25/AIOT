@@ -1,0 +1,4 @@
+# SHA-256 of every file a task may show the model. Checked by
+# driver/context_loader.py before any prompt is built.
+# Written by scripts/fetch_source.py. Format: <sha256>  <path>  <origin>
+9467e33c89ac68a88cf4563eaf7697a43e81d10daf574121e98b642cc3825ae3  demo_snippet.c  local

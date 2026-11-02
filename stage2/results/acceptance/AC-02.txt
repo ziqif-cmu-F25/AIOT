@@ -1,0 +1,36 @@
+$ stage2/.venv/Scripts/python -m unittest discover -s stage2/tests -v
+test_cli_exits_before_any_call_on_violation (test_boundary.RealTreeBoundary.test_cli_exits_before_any_call_on_violation) ... ok
+test_committed_tasks_read_only_their_allow_list (test_boundary.RealTreeBoundary.test_committed_tasks_read_only_their_allow_list) ... ok
+test_edited_task_pointing_at_evaluator_is_refused (test_boundary.RealTreeBoundary.test_edited_task_pointing_at_evaluator_is_refused)
+Deliberately edit a copy of a real task file to reach evaluator/. ... ok
+test_allowed_file_loads (test_boundary.SandboxTree.test_allowed_file_loads) ... ok
+test_direct_evaluator_entry_absolute (test_boundary.SandboxTree.test_direct_evaluator_entry_absolute) ... ok
+test_direct_evaluator_entry_repo_relative (test_boundary.SandboxTree.test_direct_evaluator_entry_repo_relative) ... ok
+test_dotdot_traversal (test_boundary.SandboxTree.test_dotdot_traversal) ... ok
+test_file_not_in_manifest (test_boundary.SandboxTree.test_file_not_in_manifest) ... ok
+test_missing_manifest (test_boundary.SandboxTree.test_missing_manifest) ... ok
+test_one_bad_entry_means_nothing_is_read (test_boundary.SandboxTree.test_one_bad_entry_means_nothing_is_read) ... ok
+test_sha_mismatch (test_boundary.SandboxTree.test_sha_mismatch) ... ok
+test_source_root_pointed_at_evaluator (test_boundary.SandboxTree.test_source_root_pointed_at_evaluator) ... ok
+test_symlink_into_evaluator (test_boundary.SandboxTree.test_symlink_into_evaluator) ... ok
+test_traversal_into_scoring (test_boundary.SandboxTree.test_traversal_into_scoring) ... ok
+test_unlisted_existing_file_is_never_read (test_boundary.SandboxTree.test_unlisted_existing_file_is_never_read) ... ok
+test_evaluator_named_only_in_deny_list (test_boundary.StaticSeparation.test_evaluator_named_only_in_deny_list)
+The only path literal naming evaluator/ is the deny list in forbidden_dirs(). ... ok
+test_no_scoring_imports (test_boundary.StaticSeparation.test_no_scoring_imports) ... ok
+test_score_run_is_separate_entry_point (test_boundary.StaticSeparation.test_score_run_is_separate_entry_point) ... ok
+test_invalid_class_retries_once_with_error (test_pipeline.PipelineTest.test_invalid_class_retries_once_with_error) ... ok
+test_model_cannot_set_driver_owned_fields (test_pipeline.PipelineTest.test_model_cannot_set_driver_owned_fields) ... ok
+test_repeats_write_separate_runs_and_summary (test_pipeline.PipelineTest.test_repeats_write_separate_runs_and_summary) ... ok
+test_score_correct_validated_wrong_false_positive (test_pipeline.PipelineTest.test_score_correct_validated_wrong_false_positive) ... ok
+test_score_partial_line_is_inconclusive (test_pipeline.PipelineTest.test_score_partial_line_is_inconclusive) ... ok
+test_score_refuses_task_mismatch (test_pipeline.PipelineTest.test_score_refuses_task_mismatch) ... ok
+test_shakedown_runs_with_no_driver_changes (test_pipeline.PipelineTest.test_shakedown_runs_with_no_driver_changes) ... ok
+test_twice_invalid_is_malformed_output (test_pipeline.PipelineTest.test_twice_invalid_is_malformed_output) ... ok
+test_valid_output_writes_full_run_directory (test_pipeline.PipelineTest.test_valid_output_writes_full_run_directory) ... ok
+
+----------------------------------------------------------------------
+Ran 27 tests in 2.112s
+
+OK
+exit=0

@@ -1,0 +1,4 @@
+# SHA-256 of every file a task may show the model. Checked by
+# driver/context_loader.py before any prompt is built.
+# Written by scripts/fetch_source.py. Format: <sha256>  <path>  <origin>
+23269d6e8fff8c455c4077bdbc29d1b0f747b26e7fac534a11cb929dad3b1f42  src/coap_address.c  obgm/libcoap@7cf7465b784baded4de183290c547d582becfd28

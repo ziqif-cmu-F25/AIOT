@@ -1,0 +1,4 @@
+# Context files are integrity-checked by SHA-256 against MANIFEST.txt.
+# Disable line-ending conversion so checkouts hash identically on every OS.
+vendor/** -text
+tasks/fixtures/** -text

@@ -1,0 +1,74 @@
+# Stage 2 task definition — the reusable pattern.
+#
+# A task is authored by a human. It fixes the scope (what the model may see),
+# the question (what it is asked to judge), and the answer shape. The driver
+# never chooses its own task, target, or scope (SOW §2.1: Stage 2 is not
+# autonomous). Copy this file to tasks/<task_id>.yaml and fill it in.
+#
+# Also create scoring/ground_truth/<task_id>.yaml (copy
+# scoring/ground_truth/demo-pattern.yaml). The driver never reads it.
+
+task_id: example-task            # unique slug; must equal this file's name without .yaml
+prompt_version: 1                # bump whenever prompt_template or context changes;
+                                 # recorded as prompt_id "<task_id>@v<prompt_version>"
+property: memory-safety          # Procedure §4.2 vocabulary: message-syntax-and-length,
+                                 # state-and-message-correlation, memory-safety,
+                                 # error-handling-and-recovery, resource-limits,
+                                 # authentication-and-authorization
+mode: source-review              # only "source-review" exists today. Extension point:
+                                 # a future "fuzzing-assist" mode would drive the live
+                                 # target via tools/coap_client.py instead (not built).
+description: >
+  One sentence on what this task asks the model to do.
+
+# Closed vocabulary for the record's vulnerability_class field. The driver
+# injects this list as the JSON Schema enum before validating model output,
+# so an out-of-list answer goes through the normal retry-with-error path.
+# Scoring compares this field by exact match only.
+valid_classes: [buffer-overflow, use-after-free, null-deref, integer-overflow, other]
+
+# The allow-list. context_loader.py refuses anything not listed here.
+context:
+  # Directory (relative to stage2/) that every path below is resolved
+  # against. Must be one of the loader's approved roots: "vendor" (upstream
+  # files fetched by scripts/fetch_source.py) or "tasks/fixtures" (synthetic
+  # files written by hand). <source_root>/MANIFEST.txt must list the SHA-256
+  # of every file below; the loader refuses to build a prompt on mismatch.
+  source_root: tasks/fixtures
+  # Optional. Only for source_root: vendor. Tells scripts/fetch_source.py
+  # where to download each listed path from (one file per request, at the
+  # exact commit). The driver itself never makes this request.
+  # upstream:
+  #   repository: owner/name
+  #   commit: <full 40-character commit hash>
+  files:
+    - path: example.c              # relative to source_root
+      # line_range: [start, end]   # optional, 1-based inclusive; omit for whole file
+  withheld_notice: >
+    Logged in run.yaml/notes.md, never shown to the model. List what is
+    deliberately withheld, e.g. "CVE identifier, fix commit, function or
+    line hints beyond what is in the shown file."
+
+# {context_block} is replaced with the allow-listed files, each with a
+# "=== FILE: <path> ===" header and line-number margin.
+# {response_schema} is replaced with the JSON Schema the answer must match
+# (derived from schema/candidate_record.schema.json minus driver-owned fields).
+# Both placeholders are required.
+prompt_template: |
+  You are reviewing C source for memory-safety issues. You are shown
+  exactly the code below and nothing else about this project.
+
+  {context_block}
+
+  Respond ONLY with a JSON object matching this JSON Schema (no prose, no
+  code fences). Use an empty "candidates" array if you find no issue.
+
+  {response_schema}
+
+output_schema: ../schema/candidate_record.schema.json   # relative to this file
+
+model:
+  default: anthropic/claude-haiku-5.5   # overridden by --model, then OPENROUTER_MODEL in <repo-root>/.env
+  repeats: 1                            # overridable via --repeats
+  temperature: 0.0                      # REQUIRED; never left to provider default
+  max_tokens: 2000                      # optional

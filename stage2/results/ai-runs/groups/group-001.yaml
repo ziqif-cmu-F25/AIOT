@@ -1,0 +1,41 @@
+group_id: group-001
+task_id: shakedown-proxy-address
+model_requested: anthropic/claude-haiku-5.5
+sampling:
+  temperature: 0.0
+  max_tokens: 4000
+runs:
+- run_id: run-009
+  status: candidate
+  model_resolved:
+  - anthropic/claude-haiku-5.5
+  candidate_count: 1
+  top_candidate: src/coap_address.c:coap_resolve_address_info:538:buffer-overflow
+  all_candidates:
+  - src/coap_address.c:coap_resolve_address_info:538:buffer-overflow
+- run_id: run-010
+  status: candidate
+  model_resolved:
+  - anthropic/claude-haiku-5.5
+  candidate_count: 2
+  top_candidate: src/coap_address.c:coap_resolve_address_info:538:buffer-overflow
+  all_candidates:
+  - src/coap_address.c:coap_resolve_address_info:538:buffer-overflow
+  - src/coap_address.c:coap_address_copy:824:buffer-overflow
+- run_id: run-011
+  status: candidate
+  model_resolved:
+  - anthropic/claude-haiku-5.5
+  candidate_count: 1
+  top_candidate: src/coap_address.c:coap_resolve_address_info:538:buffer-overflow
+  all_candidates:
+  - src/coap_address.c:coap_resolve_address_info:538:buffer-overflow
+schema_valid_runs: 3
+malformed_or_failed_runs: 0
+top_candidate_unanimous: true
+top_candidate_distinct_values:
+- src/coap_address.c:coap_resolve_address_info:538:buffer-overflow
+top_candidate_lines:
+- '538'
+candidates_in_every_run:
+- src/coap_address.c:coap_resolve_address_info:538:buffer-overflow
