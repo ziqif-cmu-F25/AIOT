@@ -1,0 +1,43 @@
+group_id: group-001
+task_id: libmodbus-modbus-reply-ctx
+model_requested: deepseek/deepseek-chat-v3.1
+sampling:
+  temperature: 0.0
+  max_tokens: 20000
+runs:
+- run_id: run-033
+  status: candidate
+  model_resolved:
+  - deepseek/deepseek-chat-v3.1
+  candidate_count: 5
+  top_candidate: src/modbus.c:modbus_reply:969:buffer-overflow
+  all_candidates:
+  - src/modbus.c:compute_response_length_from_request:139:out-of-bounds-read
+  - src/modbus.c:compute_response_length_from_request:145:integer-overflow
+  - src/modbus.c:modbus_reply:969:buffer-overflow
+  - src/modbus.c:modbus_reply:1006:buffer-overflow
+  - src/modbus.c:_modbus_receive_msg:436:buffer-overflow
+- run_id: run-034
+  status: candidate
+  model_resolved:
+  - deepseek/deepseek-chat-v3.1
+  candidate_count: 5
+  top_candidate: src/modbus.c:response_io_status:721:out-of-bounds-read
+  all_candidates:
+  - src/modbus.c:response_io_status:721:out-of-bounds-read
+  - src/modbus.c:modbus_reply:969:buffer-overflow
+  - src/modbus.c:modbus_reply:1006:buffer-overflow
+  - src/modbus.c:modbus_reply:1107:buffer-overflow
+  - src/modbus.c:compute_data_length_after_meta:314:out-of-bounds-read
+schema_valid_runs: 2
+malformed_or_failed_runs: 0
+top_candidate_unanimous: false
+top_candidate_distinct_values:
+- src/modbus.c:modbus_reply:969:buffer-overflow
+- src/modbus.c:response_io_status:721:out-of-bounds-read
+top_candidate_lines:
+- '721'
+- '969'
+candidates_in_every_run:
+- src/modbus.c:modbus_reply:1006:buffer-overflow
+- src/modbus.c:modbus_reply:969:buffer-overflow

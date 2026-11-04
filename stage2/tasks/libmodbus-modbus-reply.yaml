@@ -1,0 +1,58 @@
+# AI-assisted source review of libmodbus for the Stage 2 A/B comparison.
+#
+# Target B of the project (industrial-IoT, Modbus/TCP), distinct from the
+# Stage 1 libcoap target. Frozen at v3.1.10. The known historical bug is
+# CVE-2024-10918 (CWE-787) in modbus_reply; this task checks whether the
+# AI-assisted static-review pass reaches it. Because the team knows this bug,
+# this is a pipeline/triage measurement, not contamination-free discovery.
+task_id: libmodbus-modbus-reply
+prompt_version: 1
+property: memory-safety
+mode: source-review
+description: >
+  Identify attacker-reachable buffer/length defects in libmodbus's
+  src/modbus.c at the frozen v3.1.10 revision.
+
+valid_classes: [buffer-overflow, out-of-bounds-read, use-after-free, integer-overflow, other]
+
+context:
+  source_root: vendor
+  upstream:
+    repository: stephane/libmodbus
+    commit: 2cbafa3113e276c3697d297f68e88d112b53174d   # tag v3.1.10
+  files:
+    - path: src/modbus.c        # whole file; the model must locate the function itself
+  withheld_notice: >
+    Withheld from the model: CVE identifier (CVE-2024-10918), CWE, advisory
+    text, fix commit, fixed release, which function or line is relevant, and
+    any Modbus runtime configuration. The model sees only src/modbus.c at the
+    pinned commit.
+
+prompt_template: |
+  You are reviewing C source from the libmodbus library, which implements the
+  Modbus industrial protocol (RFC-style request/response framing over TCP and
+  serial). You are shown exactly one source file below and nothing else about
+  this project. Treat the bytes of an incoming Modbus request as
+  attacker-controlled: a peer may send a request whose declared field lengths
+  or counts do not match what the server expects.
+
+  {context_block}
+
+  Identify any attacker-reachable buffer or length-handling defects in this
+  file. Report each distinct defect as one candidate, pointing "line" at the
+  statement where the out-of-bounds access happens. Respond ONLY with a JSON
+  object matching this JSON Schema (no prose, no code fences). Use an empty
+  "candidates" array if you find no issue.
+
+  {response_schema}
+
+output_schema: ../schema/candidate_record.schema.json
+
+model:
+  default: anthropic/claude-haiku-5.5
+  repeats: 1
+  temperature: 0.0
+  # modbus.c is ~2070 lines; haiku-5.5 is a reasoning model and needs headroom
+  # for reasoning tokens plus the JSON answer, or it hits the length cap with
+  # empty output (observed at 4000). Keep generous for large-file review.
+  max_tokens: 20000

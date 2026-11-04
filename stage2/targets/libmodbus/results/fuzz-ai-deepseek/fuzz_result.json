@@ -1,0 +1,8 @@
+{
+  "iterations": 1000,
+  "restarts": 22,
+  "crash_found": false,
+  "crash_iteration": null,
+  "crash_input_hex": null,
+  "elapsed_s": 193.1
+}

@@ -1,0 +1,105 @@
+run_id: run-024
+task_id: libmodbus-modbus-reply
+prompt_id: libmodbus-modbus-reply@v1
+model_requested: deepseek/deepseek-chat-v3.1
+model_resolved:
+- deepseek/deepseek-chat-v3.1
+scored_utc: '2026-11-04T03:17:10Z'
+run_verdict: inconclusive
+reason: right file/function/class, line outside tolerance
+expected:
+  file: src/modbus.c
+  function: modbus_reply
+  lines:
+  - 906
+  - 937
+  line_tolerance: 2
+  vulnerability_class: buffer-overflow
+ground_truth_file: stage2/scoring/ground_truth/libmodbus-modbus-reply.yaml
+ground_truth_sha256: 18de5990cfca847b55f19ce688fa8e7485840a48c478302546434dc0f86a6a24
+references: []
+candidates:
+- candidate_id: CAND-001
+  reported:
+    file: src/modbus.c
+    function: compute_response_length_from_request
+    line: 139
+    vulnerability_class: integer-overflow
+    confidence: 0.8
+  checks:
+    file: true
+    function: false
+    vulnerability_class: false
+    line: false
+  status: rejected
+  oracle_verdict: false_positive
+- candidate_id: CAND-002
+  reported:
+    file: src/modbus.c
+    function: compute_response_length_from_request
+    line: 145
+    vulnerability_class: integer-overflow
+    confidence: 0.8
+  checks:
+    file: true
+    function: false
+    vulnerability_class: false
+    line: false
+  status: rejected
+  oracle_verdict: false_positive
+- candidate_id: CAND-003
+  reported:
+    file: src/modbus.c
+    function: modbus_reply
+    line: 969
+    vulnerability_class: buffer-overflow
+    confidence: 0.9
+  checks:
+    file: true
+    function: true
+    vulnerability_class: true
+    line: false
+  status: inconclusive
+  oracle_verdict: location_partial_match
+- candidate_id: CAND-004
+  reported:
+    file: src/modbus.c
+    function: modbus_reply
+    line: 1006
+    vulnerability_class: buffer-overflow
+    confidence: 0.9
+  checks:
+    file: true
+    function: true
+    vulnerability_class: true
+    line: false
+  status: inconclusive
+  oracle_verdict: location_partial_match
+- candidate_id: CAND-005
+  reported:
+    file: src/modbus.c
+    function: modbus_reply
+    line: 1107
+    vulnerability_class: buffer-overflow
+    confidence: 0.9
+  checks:
+    file: true
+    function: true
+    vulnerability_class: true
+    line: false
+  status: inconclusive
+  oracle_verdict: location_partial_match
+- candidate_id: CAND-006
+  reported:
+    file: src/modbus.c
+    function: _modbus_receive_msg
+    line: 436
+    vulnerability_class: buffer-overflow
+    confidence: 0.7
+  checks:
+    file: true
+    function: false
+    vulnerability_class: true
+    line: false
+  status: rejected
+  oracle_verdict: false_positive

@@ -1,0 +1,57 @@
+{
+  "model": "deepseek/deepseek-chat-v3.1",
+  "resolved": "deepseek/deepseek-chat-v3.1",
+  "n_frames": 12,
+  "n_well_formed": 9,
+  "rationale": "Covers common function codes (1-6,15,16,17,22) with valid MBAP lengths, includes multiple 0x10/0x17 frames for buffer handling, and uses varied data patterns.",
+  "frames": [
+    {
+      "hex": "000000000006010100000001",
+      "well_formed": true
+    },
+    {
+      "hex": "000100000006010200000001",
+      "well_formed": true
+    },
+    {
+      "hex": "000200000006010300000001",
+      "well_formed": true
+    },
+    {
+      "hex": "000300000006010400000001",
+      "well_formed": true
+    },
+    {
+      "hex": "000400000006050500000001",
+      "well_formed": true
+    },
+    {
+      "hex": "0005000000060f05000001020102",
+      "well_formed": false
+    },
+    {
+      "hex": "00060000000d10050002020401020304",
+      "well_formed": false
+    },
+    {
+      "hex": "00070000000d17050002020002020401020304",
+      "well_formed": true
+    },
+    {
+      "hex": "000800000006060600010000",
+      "well_formed": true
+    },
+    {
+      "hex": "000900000006100600010001",
+      "well_formed": true
+    },
+    {
+      "hex": "000a0000000b110600010001010001",
+      "well_formed": false
+    },
+    {
+      "hex": "000b0000000d170600020200020204a55a5aa5",
+      "well_formed": true
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+# Candidate findings
+
+Status values: candidate | validated | rejected | inconclusive
+
+Written by stage2/driver/run_task.py. Do not edit; scoring writes
+verdict.md instead. Machine-readable copy: candidates.json.
+
+```yaml
+candidate_id: CAND-001
+viewpoint: ai-source-review
+property: memory-safety
+hypothesis: When the server receives a Modbus request with a function code that has
+  no address/quantity meta (e.g., Report Slave ID 0x11) or an unknown function, modbus_receive()
+  will read only header+function (8 bytes). modbus_reply() then unconditionally reads
+  req[offset+1] and req[offset+2] to compute 'address', accessing beyond the received
+  message and potentially beyond the caller-provided buffer if it was sized to the
+  actual received length.
+evidence_source: "In modbus_reply():\n  offset = ctx->backend->header_length;\n  function\
+  \ = req[offset];\n  address = (req[offset + 1] << 8) + req[offset + 2];\nFor server\
+  \ receive, _modbus_receive_msg(MSG_INDICATION) uses compute_meta_length_after_function();\
+  \ for 0x11 (and any code not matched), it returns 0, so only header+1 (8 bytes)\
+  \ are read before returning to the caller. No req_length check is performed in modbus_reply()\
+  \ before reading offset+1 and offset+2."
+input_artifact: not_available (static source review; no input artifact)
+expected_behavior: If the application provides a request buffer sized to the exact
+  received length (e.g., 8 bytes), modbus_reply() will read past the end, leading
+  to an out-of-bounds read detectable by ASan/Valgrind, and may crash. Even with a
+  larger buffer, it reads uninitialized memory for 'address', causing incorrect behavior
+  before forming the exception response.
+observed_behavior: not_available (static source review; nothing was executed)
+status: candidate
+oracle_verdict: pending
+notes: Typical sample code uses a MAX_MESSAGE_LENGTH-sized buffer which may mask the
+  memory safety breach, but the API does not enforce buffer size; the read is still
+  beyond the actual received message length and can become a true OOB read with smaller
+  caller buffers. The issue triggers on requests like function 0x11 (Report Slave
+  ID) that do not include an address field.
+vulnerability_class: out-of-bounds-read
+location:
+  file: src/modbus.c
+  function: modbus_reply
+  line: 798
+confidence: 0.65
+model: openai/gpt-5
+prompt_id: libmodbus-modbus-reply-ctx@v1
+run_index: 2
+```

@@ -1,0 +1,35 @@
+# Evaluator-side ground truth for tasks/libmodbus-modbus-reply.yaml.
+# EVALUATOR-ONLY. Whoever runs the human-only (Track A) investigation should
+# not read this file; it holds the answer.
+#
+# CVE-2024-10918, CWE-787 (stack-based out-of-bounds write).
+# Frozen vulnerable commit: 2cbafa3113e276c3697d297f68e88d112b53174d (tag v3.1.10)
+# Last vulnerable commit (fix parent): 9ffb43a9f6a415d6d3d51e638d16d16a940b14c1
+# Primary fix commit: df79a02feb253c0a9a009bcdbb21e47581315111 (in v3.1.11)
+#   plus follow-ups d8a971e04d52be16bf405b51d934a30b8aa3f2c3 (write_register)
+#   and 81bf713cf029bfa5b5da87b945c1e8817b4398f9 (RTU request-length check).
+task_id: libmodbus-modbus-reply-ctx
+
+expected:
+  file: src/modbus.c
+  function: modbus_reply
+  # 906 = memcpy(rsp, req, req_length) in WRITE_SINGLE_COIL (primary fix).
+  # 937 = identical memcpy in WRITE_SINGLE_REGISTER (follow-up fix); same CVE.
+  lines: [906, 937]
+  line_tolerance: 2
+  vulnerability_class: buffer-overflow
+  vulnerable_line_detail: >
+    modbus_reply() declares a fixed stack buffer `uint8_t rsp[MAX_MESSAGE_LENGTH]`
+    (line 786). In the WRITE_SINGLE_COIL case it does `memcpy(rsp, req, req_length)`
+    then `rsp_length = req_length` (lines 906-907) with no check that req_length
+    matches the expected single-coil response length. An attacker-controlled
+    request longer than MAX_MESSAGE_LENGTH overflows the stack buffer. The
+    WRITE_SINGLE_REGISTER case (lines 937-938) has the identical flaw. The fix
+    calls compute_response_length_from_request and returns an illegal-data-value
+    exception on mismatch, and copies rsp_length rather than req_length.
+  rationale: >
+    Known historical bug reached via a crafted Modbus request. This run measures
+    whether the AI-assisted pass reaches a known true positive; it is a pipeline
+    /triage check, not contamination-free discovery.
+
+references: []

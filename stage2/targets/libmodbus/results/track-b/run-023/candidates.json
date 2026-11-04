@@ -1,0 +1,117 @@
+[
+  {
+    "candidate_id": "CAND-001",
+    "viewpoint": "ai-source-review",
+    "property": "memory-safety",
+    "hypothesis": "An attacker-controlled request with a large 'nb' value in MODBUS_FC_READ_COILS or MODBUS_FC_READ_DISCRETE_INPUTS function can cause an out-of-bounds read when accessing the destination array in read_io_status.",
+    "evidence_source": "Lines 1202-1208: The code reads bits from the response without checking if the number of bits requested (nb) matches the actual response size, potentially reading beyond the destination buffer.",
+    "input_artifact": "not_available (static source review; no input artifact)",
+    "expected_behavior": "Out-of-bounds read from the destination array, potentially exposing sensitive memory or causing a crash.",
+    "observed_behavior": "not_available (static source review; nothing was executed)",
+    "status": "candidate",
+    "oracle_verdict": "pending",
+    "notes": "The function read_io_status doesn't validate that the response contains enough data for the requested number of bits.",
+    "vulnerability_class": "out-of-bounds-read",
+    "location": {
+      "file": "src/modbus.c",
+      "function": "read_io_status",
+      "line": 1207
+    },
+    "confidence": 0.8,
+    "model": "deepseek/deepseek-chat-v3.1",
+    "prompt_id": "libmodbus-modbus-reply@v1",
+    "run_index": 2
+  },
+  {
+    "candidate_id": "CAND-002",
+    "viewpoint": "ai-source-review",
+    "property": "memory-safety",
+    "hypothesis": "An attacker-controlled request with a large 'nb' value in MODBUS_FC_READ_HOLDING_REGISTERS or MODBUS_FC_READ_INPUT_REGISTERS function can cause an out-of-bounds read when accessing the destination array.",
+    "evidence_source": "Lines 1311-1314: The code reads registers from the response without proper bounds checking, assuming the response contains exactly 'rc' registers which might exceed the destination buffer size.",
+    "input_artifact": "not_available (static source review; no input artifact)",
+    "expected_behavior": "Out-of-bounds read from the destination array, potentially exposing sensitive memory or causing a crash.",
+    "observed_behavior": "not_available (static source review; nothing was executed)",
+    "status": "candidate",
+    "oracle_verdict": "pending",
+    "notes": "The function read_registers doesn't validate that the destination array has sufficient space for the number of registers returned.",
+    "vulnerability_class": "out-of-bounds-read",
+    "location": {
+      "file": "src/modbus.c",
+      "function": "read_registers",
+      "line": 1313
+    },
+    "confidence": 0.8,
+    "model": "deepseek/deepseek-chat-v3.1",
+    "prompt_id": "libmodbus-modbus-reply@v1",
+    "run_index": 2
+  },
+  {
+    "candidate_id": "CAND-003",
+    "viewpoint": "ai-source-review",
+    "property": "memory-safety",
+    "hypothesis": "An attacker-controlled request with manipulated length fields in MODBUS_FC_WRITE_MULTIPLE_COILS can cause buffer overflow when writing to tab_bits.",
+    "evidence_source": "Lines 968-969: The function modbus_set_bits_from_bytes writes to mb_mapping->tab_bits at mapping_address without validating that mapping_address + nb is within bounds.",
+    "input_artifact": "not_available (static source review; no input artifact)",
+    "expected_behavior": "Buffer overflow in the tab_bits array, potentially corrupting memory or causing a crash.",
+    "observed_behavior": "not_available (static source review; nothing was executed)",
+    "status": "candidate",
+    "oracle_verdict": "pending",
+    "notes": "The bounds check at line 958 only validates against mb_mapping->nb_bits, but the actual write operation doesn't have runtime bounds checking.",
+    "vulnerability_class": "buffer-overflow",
+    "location": {
+      "file": "src/modbus.c",
+      "function": "modbus_reply",
+      "line": 969
+    },
+    "confidence": 0.9,
+    "model": "deepseek/deepseek-chat-v3.1",
+    "prompt_id": "libmodbus-modbus-reply@v1",
+    "run_index": 2
+  },
+  {
+    "candidate_id": "CAND-004",
+    "viewpoint": "ai-source-review",
+    "property": "memory-safety",
+    "hypothesis": "An attacker-controlled request with manipulated length fields in MODBUS_FC_WRITE_MULTIPLE_REGISTERS can cause buffer overflow when writing to tab_registers.",
+    "evidence_source": "Lines 1004-1007: The code writes to mb_mapping->tab_registers at mapping_address without proper bounds checking, relying only on the earlier validation.",
+    "input_artifact": "not_available (static source review; no input artifact)",
+    "expected_behavior": "Buffer overflow in the tab_registers array, potentially corrupting memory or causing a crash.",
+    "observed_behavior": "not_available (static source review; nothing was executed)",
+    "status": "candidate",
+    "oracle_verdict": "pending",
+    "notes": "The write operation assumes the earlier validation is sufficient, but if the request is malformed, it could still write out of bounds.",
+    "vulnerability_class": "buffer-overflow",
+    "location": {
+      "file": "src/modbus.c",
+      "function": "modbus_reply",
+      "line": 1006
+    },
+    "confidence": 0.9,
+    "model": "deepseek/deepseek-chat-v3.1",
+    "prompt_id": "libmodbus-modbus-reply@v1",
+    "run_index": 2
+  },
+  {
+    "candidate_id": "CAND-005",
+    "viewpoint": "ai-source-review",
+    "property": "memory-safety",
+    "hypothesis": "An attacker-controlled request with a large 'nb' value in MODBUS_FC_WRITE_AND_READ_REGISTERS can cause buffer overflow in both write and read operations.",
+    "evidence_source": "Lines 1105-1108 and 1112-1115: The code performs both write operations to tab_registers and read operations from tab_registers without adequate bounds checking.",
+    "input_artifact": "not_available (static source review; no input artifact)",
+    "expected_behavior": "Buffer overflow in tab_registers array during write operations or out-of-bounds read during response processing.",
+    "observed_behavior": "not_available (static source review; nothing was executed)",
+    "status": "candidate",
+    "oracle_verdict": "pending",
+    "notes": "The function handles both writing and reading registers in the same operation, increasing the attack surface.",
+    "vulnerability_class": "buffer-overflow",
+    "location": {
+      "file": "src/modbus.c",
+      "function": "modbus_reply",
+      "line": 1107
+    },
+    "confidence": 0.85,
+    "model": "deepseek/deepseek-chat-v3.1",
+    "prompt_id": "libmodbus-modbus-reply@v1",
+    "run_index": 2
+  }
+]

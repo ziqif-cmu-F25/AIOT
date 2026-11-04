@@ -1,0 +1,57 @@
+{
+  "model": "openai/gpt-5",
+  "resolved": "openai/gpt-5",
+  "n_frames": 12,
+  "n_well_formed": 12,
+  "rationale": "Diverse, length-consistent Modbus/TCP requests across common functions with multiple 0x10 and 0x17 variants to stress multi-write server buffers.",
+  "frames": [
+    {
+      "hex": "000100000006010100130025",
+      "well_formed": true
+    },
+    {
+      "hex": "000200000017ff1000c400081000010002000300040005000600070008",
+      "well_formed": true
+    },
+    {
+      "hex": "0003000000060103006b0003",
+      "well_formed": true
+    },
+    {
+      "hex": "000400000006020400080001",
+      "well_formed": true
+    },
+    {
+      "hex": "0005000000060105000aff00",
+      "well_formed": true
+    },
+    {
+      "hex": "000600000006010600010003",
+      "well_formed": true
+    },
+    {
+      "hex": "000700000009010f0013000a02cd01",
+      "well_formed": true
+    },
+    {
+      "hex": "00080000000b01100000000204000a0102",
+      "well_formed": true
+    },
+    {
+      "hex": "00090000000d05100010000306000100020003",
+      "well_formed": true
+    },
+    {
+      "hex": "000a0000000f0117006b00030000000204000a0102",
+      "well_formed": true
+    },
+    {
+      "hex": "000b000000110f17000800010010000306000100020003",
+      "well_formed": true
+    },
+    {
+      "hex": "000c000000130117010000100020000408aaaa555512340000",
+      "well_formed": true
+    }
+  ]
+}

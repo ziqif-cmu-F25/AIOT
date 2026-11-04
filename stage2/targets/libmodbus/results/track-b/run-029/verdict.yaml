@@ -1,0 +1,35 @@
+run_id: run-029
+task_id: libmodbus-modbus-reply-ctx
+prompt_id: libmodbus-modbus-reply-ctx@v1
+model_requested: openai/gpt-5
+model_resolved:
+- openai/gpt-5
+scored_utc: '2026-11-04T03:35:51Z'
+run_verdict: rejected
+reason: all candidates are false positives w.r.t. this ground truth
+expected:
+  file: src/modbus.c
+  function: modbus_reply
+  lines:
+  - 906
+  - 937
+  line_tolerance: 2
+  vulnerability_class: buffer-overflow
+ground_truth_file: stage2/scoring/ground_truth/libmodbus-modbus-reply-ctx.yaml
+ground_truth_sha256: 40ec538f60dc3fd3987288b1f432e66bf7100dde6848bff10ceeb6e10712181e
+references: []
+candidates:
+- candidate_id: CAND-001
+  reported:
+    file: src/modbus.c
+    function: modbus_reply
+    line: 798
+    vulnerability_class: out-of-bounds-read
+    confidence: 0.78
+  checks:
+    file: true
+    function: true
+    vulnerability_class: false
+    line: false
+  status: rejected
+  oracle_verdict: false_positive

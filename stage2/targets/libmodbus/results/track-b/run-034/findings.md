@@ -1,0 +1,155 @@
+# Candidate findings
+
+Status values: candidate | validated | rejected | inconclusive
+
+Written by stage2/driver/run_task.py. Do not edit; scoring writes
+verdict.md instead. Machine-readable copy: candidates.json.
+
+```yaml
+candidate_id: CAND-001
+viewpoint: ai-source-review
+property: memory-safety
+hypothesis: An attacker-controlled request with a large 'nb' value in MODBUS_FC_READ_COILS
+  or MODBUS_FC_READ_DISCRETE_INPUTS function can cause an out-of-bounds read in the
+  response_io_status function when accessing tab_io_status array.
+evidence_source: In modbus_reply function (lines 806-843), the mapping_address is
+  calculated as address - start_bits. If the request has a large nb value, and the
+  mapping_address + nb exceeds the allocated size of tab_bits/tab_input_bits, response_io_status
+  will read beyond the array bounds.
+input_artifact: not_available (static source review; no input artifact)
+expected_behavior: Out-of-bounds read from the tab_bits or tab_input_bits arrays,
+  potentially leaking sensitive memory or causing a segmentation fault.
+observed_behavior: not_available (static source review; nothing was executed)
+status: candidate
+oracle_verdict: pending
+notes: The code checks if (mapping_address + nb) > nb_bits but doesn't validate that
+  mapping_address is non-negative, allowing negative indexing.
+vulnerability_class: out-of-bounds-read
+location:
+  file: src/modbus.c
+  function: response_io_status
+  line: 721
+confidence: 0.9
+model: deepseek/deepseek-chat-v3.1
+prompt_id: libmodbus-modbus-reply-ctx@v1
+run_index: 2
+```
+
+```yaml
+candidate_id: CAND-002
+viewpoint: ai-source-review
+property: memory-safety
+hypothesis: An attacker-controlled request with a large 'nb' value in MODBUS_FC_WRITE_MULTIPLE_COILS
+  can cause an out-of-bounds write in modbus_set_bits_from_bytes when writing to tab_bits
+  array.
+evidence_source: In modbus_reply function (lines 940-976), the mapping_address is
+  calculated as address - start_bits. If the request has a large nb value, and mapping_address
+  + nb exceeds the allocated size of tab_bits, modbus_set_bits_from_bytes will write
+  beyond array bounds.
+input_artifact: not_available (static source review; no input artifact)
+expected_behavior: Out-of-bounds write to the tab_bits array, potentially corrupting
+  memory or causing a segmentation fault.
+observed_behavior: not_available (static source review; nothing was executed)
+status: candidate
+oracle_verdict: pending
+notes: The code checks if (mapping_address + nb) > mb_mapping->nb_bits but doesn't
+  validate that mapping_address is non-negative.
+vulnerability_class: buffer-overflow
+location:
+  file: src/modbus.c
+  function: modbus_reply
+  line: 969
+confidence: 0.9
+model: deepseek/deepseek-chat-v3.1
+prompt_id: libmodbus-modbus-reply-ctx@v1
+run_index: 2
+```
+
+```yaml
+candidate_id: CAND-003
+viewpoint: ai-source-review
+property: memory-safety
+hypothesis: An attacker-controlled request with a large 'nb' value in MODBUS_FC_WRITE_MULTIPLE_REGISTERS
+  can cause an out-of-bounds write when writing to tab_registers array.
+evidence_source: In modbus_reply function (lines 977-1015), the mapping_address is
+  calculated as address - start_registers. If the request has a large nb value, and
+  mapping_address + nb exceeds the allocated size of tab_registers, the code will
+  write beyond array bounds.
+input_artifact: not_available (static source review; no input artifact)
+expected_behavior: Out-of-bounds write to the tab_registers array, potentially corrupting
+  memory or causing a segmentation fault.
+observed_behavior: not_available (static source review; nothing was executed)
+status: candidate
+oracle_verdict: pending
+notes: The code checks if (mapping_address + nb) > mb_mapping->nb_registers but doesn't
+  validate that mapping_address is non-negative.
+vulnerability_class: buffer-overflow
+location:
+  file: src/modbus.c
+  function: modbus_reply
+  line: 1006
+confidence: 0.9
+model: deepseek/deepseek-chat-v3.1
+prompt_id: libmodbus-modbus-reply-ctx@v1
+run_index: 2
+```
+
+```yaml
+candidate_id: CAND-004
+viewpoint: ai-source-review
+property: memory-safety
+hypothesis: An attacker-controlled request with a large 'nb_write' value in MODBUS_FC_WRITE_AND_READ_REGISTERS
+  can cause an out-of-bounds write when writing to tab_registers array.
+evidence_source: In modbus_reply function (lines 1062-1117), the mapping_address_write
+  is calculated as address_write - start_registers. If the request has a large nb_write
+  value, and mapping_address_write + nb_write exceeds the allocated size of tab_registers,
+  the code will write beyond array bounds.
+input_artifact: not_available (static source review; no input artifact)
+expected_behavior: Out-of-bounds write to the tab_registers array, potentially corrupting
+  memory or causing a segmentation fault.
+observed_behavior: not_available (static source review; nothing was executed)
+status: candidate
+oracle_verdict: pending
+notes: The code checks if (mapping_address_write + nb_write) > mb_mapping->nb_registers
+  but doesn't validate that mapping_address_write is non-negative.
+vulnerability_class: buffer-overflow
+location:
+  file: src/modbus.c
+  function: modbus_reply
+  line: 1107
+confidence: 0.9
+model: deepseek/deepseek-chat-v3.1
+prompt_id: libmodbus-modbus-reply-ctx@v1
+run_index: 2
+```
+
+```yaml
+candidate_id: CAND-005
+viewpoint: ai-source-review
+property: memory-safety
+hypothesis: The compute_data_length_after_meta function in _modbus_receive_msg can
+  be tricked by an attacker to read beyond the allocated message buffer by providing
+  a malicious byte count value.
+evidence_source: In _modbus_receive_msg function (lines 350-522), compute_data_length_after_meta
+  uses attacker-controlled data from msg[ctx->backend->header_length + 5] or msg[ctx->backend->header_length
+  + 9] to determine length_to_read. This value is not properly validated against the
+  maximum ADU length.
+input_artifact: not_available (static source review; no input artifact)
+expected_behavior: Out-of-bounds read when recv tries to read more data than available
+  in the buffer, potentially causing memory corruption or information disclosure.
+observed_behavior: not_available (static source review; nothing was executed)
+status: candidate
+oracle_verdict: pending
+notes: 'There is a check at line 493: if ((msg_length + length_to_read) > ctx->backend->max_adu_length)
+  but this may not catch all cases where the declared length exceeds actual buffer
+  size.'
+vulnerability_class: out-of-bounds-read
+location:
+  file: src/modbus.c
+  function: compute_data_length_after_meta
+  line: 314
+confidence: 0.8
+model: deepseek/deepseek-chat-v3.1
+prompt_id: libmodbus-modbus-reply-ctx@v1
+run_index: 2
+```

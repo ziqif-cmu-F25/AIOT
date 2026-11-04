@@ -1,0 +1,42 @@
+# Candidate findings
+
+Status values: candidate | validated | rejected | inconclusive
+
+Written by stage2/driver/run_task.py. Do not edit; scoring writes
+verdict.md instead. Machine-readable copy: candidates.json.
+
+```yaml
+candidate_id: CAND-001
+viewpoint: ai-source-review
+property: memory-safety
+hypothesis: A peer sends a WRITE_MULTIPLE_COILS request whose quantity 'nb' and byte
+  count 'nb_bits' disagree. The only consistency check is 'nb_bits * 8 < nb'. modbus_set_bits_from_bytes
+  then reads ceil(nb/8) bytes from &req[offset+6]. If any backend delivers fewer data
+  bytes than the declared byte count, or the MODBUS_MAX_WRITE_BITS limit from the
+  header lets ceil(nb/8) data bytes extend past the received frame, the read goes
+  beyond the received bytes or the request buffer.
+evidence_source: Line 945 accepts the request when nb_bits*8 >= nb, with nb up to
+  MODBUS_MAX_WRITE_BITS. Line 969 calls modbus_set_bits_from_bytes(tab_bits, mapping_address,
+  nb, &req[offset + 6]), which reads (nb+7)/8 bytes. The receive path reads exactly
+  req[offset+5] data bytes (compute_data_length_after_meta, line 314).
+input_artifact: not_available (static source review; no input artifact)
+expected_behavior: ASan would report a stack- or heap-buffer-overflow READ inside
+  modbus_set_bits_from_bytes when the frame is short relative to nb.
+observed_behavior: not_available (static source review; nothing was executed)
+status: candidate
+oracle_verdict: pending
+notes: Low confidence. The other request handlers I checked (read bits/registers,
+  write single coil/register, write multiple registers, mask write, write-and-read,
+  report slave ID) validate counts and addresses before indexing the mapping arrays
+  or the 260-byte buffers. The receive path also caps total length at max_adu_length.
+  I found no definitive out-of-bounds access in this file.
+vulnerability_class: out-of-bounds-read
+location:
+  file: src/modbus.c
+  function: modbus_reply
+  line: 969
+confidence: 0.15
+model: anthropic/claude-opus-5.5
+prompt_id: libmodbus-modbus-reply@v1
+run_index: 3
+```

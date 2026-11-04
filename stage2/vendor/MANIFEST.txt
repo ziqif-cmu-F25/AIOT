@@ -2,3 +2,8 @@
 # driver/context_loader.py before any prompt is built.
 # Written by scripts/fetch_source.py. Format: <sha256>  <path>  <origin>
 23269d6e8fff8c455c4077bdbc29d1b0f747b26e7fac534a11cb929dad3b1f42  src/coap_address.c  obgm/libcoap@7cf7465b784baded4de183290c547d582becfd28
+c4368167d122e538266f5a617135f00db1c28d8a668510e31f6e584de07bf162  src/modbus-private.h  stephane/libmodbus@2cbafa3113e276c3697d297f68e88d112b53174d
+0fe30b73906685ce0c277566e6021f37725d7415f1009e5ca601babcc27d3882  src/modbus-tcp.c  stephane/libmodbus@2cbafa3113e276c3697d297f68e88d112b53174d
+290e513768c6b49c947e38e5d197656e9436265c14805331a1b963ebacec6736  src/modbus-tcp.h  stephane/libmodbus@2cbafa3113e276c3697d297f68e88d112b53174d
+782aaf3003713f65760fcba7b14fec9500ff6c60e9dc4f07c32d45a5619768c8  src/modbus.c  stephane/libmodbus@2cbafa3113e276c3697d297f68e88d112b53174d
+7ba0292e3e5b1fe8f8e0af044abbc8472c789ddb574fc850069709f54a495be5  src/modbus.h  stephane/libmodbus@2cbafa3113e276c3697d297f68e88d112b53174d
