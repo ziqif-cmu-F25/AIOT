@@ -1,0 +1,5 @@
+[
+  "{\"action\":\"tool\",\"tool\":\"read_source\",\"args\":{\"path\":\"mini.c\",\"start_line\":1,\"end_line\":40},\"hypothesis\":\"inspect handle()\"}",
+  "{\"action\":\"tool\",\"tool\":\"run_target\",\"args\":{\"input_text\":\"TAG-overflow\"},\"hypothesis\":\"input longer than 8 bytes with the tag\"}",
+  "{\"action\":\"finish\",\"hypothesis\":\"unbounded copy when the tag is present and the input is longer than the buffer\",\"candidate\":{\"property\":\"memory-safety\",\"trigger_input\":\"TAG-overflow\",\"expected_evidence\":\"runtime status reports the copy exceeds the 8-byte buffer\",\"confidence\":0.8,\"notes\":\"fixture only\"}}"
+]

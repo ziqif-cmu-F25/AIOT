@@ -1,0 +1,23 @@
+# Smoke-test pack. Not a team Stage 2 target.
+target_id: fixture-mini
+analyst_brief: >
+  This is a small local C program used only to check the harness.
+  Read the source, decide whether any input can make handle() copy past
+  its stack buffer, and use run_target to observe the stand-in runner.
+  Do not treat this program as one of the project vulnerabilities.
+source_root: targets/fixture
+allowed_suffixes: [".c", ".h", ".md", ".txt"]
+run_target:
+  argv: ["python3", "run_mini.py", "{input_file}"]
+  cwd: targets/fixture
+limits:
+  max_steps: 8
+  max_read_lines: 80
+  max_output_chars: 4000
+  tool_timeout_s: 15
+  python_timeout_s: 10
+  target_timeout_s: 5
+model:
+  default: openai/gpt-4o-mini
+  temperature: 0.2
+  max_tokens: 1200

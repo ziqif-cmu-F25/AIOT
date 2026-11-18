@@ -1,0 +1,33 @@
+# Copy this file to targets/<your-target-id>.yaml and edit it.
+# source_root must be the target source tree only, not the repository root.
+# Do not point it at evaluator/, ground truth, or .env files.
+#
+# run_target.argv is one command that feeds saved bytes to YOUR Stage 2 target.
+# Keep the literal {input_file}. Examples, after your service is already running:
+#   CoAP:  ["python3", "/absolute/path/tools/coap_client.py", "send",
+#           "--input", "{input_file}", "--output-dir", "/tmp/out", "--stem", "agent"]
+#   HTTP:  ["python3", "/absolute/path/personal-stage2/tools/http_client.py", "send",
+#           "--input", "{input_file}", "--output-dir", "/tmp/out", "--stem", "agent"]
+# The harness does not start Docker for you. Start the frozen target first.
+target_id: your-target-id
+analyst_brief: >
+  Describe the interface the agent is allowed to know: protocol, which source
+  files matter, and what an interesting runtime result looks like (crash,
+  sanitizer text, timeout, unexpected reply). Do not name a CVE, a patch,
+  or a reference input.
+source_root: /absolute/path/to/target/source
+allowed_suffixes: [".c", ".h", ".cc", ".cpp", ".hpp", ".md", ".txt"]
+run_target:
+  argv: ["python3", "/absolute/path/to/your_client.py", "send", "--input", "{input_file}", "--output-dir", "/tmp/stage3-out", "--stem", "agent"]
+  cwd: /absolute/path/to/the/client/working/directory
+limits:
+  max_steps: 12
+  max_read_lines: 120
+  max_output_chars: 4000
+  tool_timeout_s: 20
+  python_timeout_s: 10
+  target_timeout_s: 8
+model:
+  default: openai/gpt-4o-mini
+  temperature: 0.2
+  max_tokens: 1500

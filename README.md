@@ -70,6 +70,20 @@ docker compose --profile whitebox exec whitebox \
 - `docs/TRADITIONAL_VULNERABILITY_INVESTIGATION_PROCEDURE.md` — required method
 - `docs/TARGET_SELECTION.md` — administrator target choice (do not use as an analyst cheat-sheet)
 
+## Personal Stage 2 (Mongoose)
+
+Independent traditional-vs-AI experiment on Cesanta Mongoose `7.21` HTTP:
+
+see [`personal-stage2/README.md`](personal-stage2/README.md). It reuses the
+Stage 1 procedure and the Stage 2 OpenRouter driver task
+`stage2/tasks/mongoose-chunked-review.yaml`, and does not replace this
+libcoap lab.
+
+## Stage 3 harness
+
+Shared agent loop for applying one Naptime-style harness to each person's
+Stage 2 target: see [`stage3/README.md`](stage3/README.md).
+
 ## Host unit tests
 
 ```sh
