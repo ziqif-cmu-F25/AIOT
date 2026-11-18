@@ -15,6 +15,7 @@ from harness.controller import run_loop
 from harness.run_harness import main
 from harness.target_config import TargetError, load_target
 from harness.tools import ToolBox, ToolError
+from scripts.relay_docker import guest_path, place_input
 
 
 FIXTURE = STAGE3 / "targets" / "fixture-mini.yaml"
@@ -87,6 +88,29 @@ class HarnessTests(unittest.TestCase):
             box = ToolBox(pack, Path(tmp), source_only=True)
             with self.assertRaises(ToolError):
                 box.dispatch("run_target", {"input_text": "TAG-overflow"})
+
+    def test_each_run_target_keeps_its_own_input_file(self) -> None:
+        pack = load_target(FIXTURE)
+        with tempfile.TemporaryDirectory() as tmp:
+            box = ToolBox(pack, Path(tmp) / "scratch", source_only=False)
+            box.run_target({"input_text": "one"})
+            box.run_target({"input_text": "two"})
+            saved = sorted((Path(tmp) / "scratch").glob("input-*.bin"))
+            self.assertEqual([p.name for p in saved], ["input-001.bin", "input-002.bin"])
+            self.assertEqual(saved[0].read_text(encoding="utf-8"), "one")
+            self.assertEqual(saved[1].read_text(encoding="utf-8"), "two")
+
+    def test_relay_places_a_distinct_guest_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "input-001.bin"
+            source.write_bytes(b"abc")
+            dest = place_input(root / "mounted", source)
+            self.assertEqual(dest.read_bytes(), b"abc")
+            self.assertEqual(
+                guest_path("/workspace/results/stage3-inputs", dest.name),
+                "/workspace/results/stage3-inputs/input-001.bin",
+            )
 
     def test_missing_target_field_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

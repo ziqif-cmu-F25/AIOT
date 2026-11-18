@@ -1,84 +1,63 @@
 # Stage 3 agent harness
 
-Shared Naptime-style loop for the team's Stage 2 targets. The model chooses
-one tool at a time, reads the observation, and updates its hypothesis. It
-does not see evaluator files, and a `finish` candidate stays
-`oracle_verdict: pending` until a person checks it with the target's
-existing oracle.
+Shared loop: the model picks one tool, reads the observation, and updates
+its hypothesis. A finished candidate stays `oracle_verdict: pending`. Check
+it afterwards with the same oracle you used in Stage 2.
 
-This is a reduced harness (source browser, Python snippet, target runner,
-step and path limits). It is not a fork of Baby Naptime, and it is not the
-Stage 2 one-shot source-review driver.
+`source_root` is only the source tree the agent may read. Sending a packet
+is a different setting, `run_target`.
 
-## What you configure
+## Clone and run on the in-repo libcoap target
 
-Copy `targets/TEMPLATE.yaml` to `targets/<your-target-id>.yaml`.
+From a fresh clone:
 
-- `source_root` is only that target's source tree. Do not point it at the
-  repository root, `evaluator/`, or `.env`.
-- `analyst_brief` is the interface description the agent is allowed to see.
-  Leave out CVE ids, patches, and reference inputs.
-- `run_target.argv` is one command that already knows how to reach your
-  frozen service. It must contain the literal `{input_file}`. Start the
-  service yourself before a runtime run. The harness does not start Docker.
+```sh
+python3 -m venv stage2/.venv
+stage2/.venv/bin/python -m pip install -r stage2/requirements.txt
+cp stage2/.env.example .env
+# edit .env and set OPENROUTER_API_KEY (and optionally OPENROUTER_MODEL)
 
-Tools the model can call:
+chmod +x stage3/scripts/fetch_libcoap.sh
+./stage3/scripts/fetch_libcoap.sh
+docker compose --profile blackbox up -d --wait
 
-| Tool | Purpose |
-| --- | --- |
-| `read_source` | A line window of one file under `source_root` |
-| `find_references` | Identifier search under `source_root` |
-| `run_python` | A short Python snippet in the run scratch directory |
-| `run_target` | Writes the model's bytes to `{input_file}` and runs your command |
+cd stage3
+../stage2/.venv/bin/python -m harness.run_harness targets/libcoap-stage1.yaml
+```
 
-`--source-only` disables the last two (SOW condition A). The default is
-source plus runtime (condition B).
+That pack reads `stage3/vendor/libcoap` and sends each `run_target` datagram
+through the already running blackbox container. The harness does not start
+Docker itself. `--source-only` skips sending and Python execution.
 
-## Setup
-
-Use the Stage 2 virtualenv. Settings stay in the repository-root `.env`
-(`OPENROUTER_API_KEY`, optional `OPENROUTER_MODEL`), same rule as Stage 2.
+Smoke test with no API key and no Docker (synthetic program, not libcoap):
 
 ```sh
 cd stage3
 ../stage2/.venv/bin/python -m unittest discover -s tests -v
-```
-
-Smoke test with no API key (scripted replies, synthetic fixture only):
-
-```sh
-cd stage3
 ../stage2/.venv/bin/python -m harness.run_harness \
   targets/fixture-mini.yaml \
   --scripted targets/fixture/scripted_actions.json
 ```
 
-Real run on your pack:
+## Use your own Stage 2 target
 
-```sh
-cd stage3
-../stage2/.venv/bin/python -m harness.run_harness targets/<your-target-id>.yaml
-../stage2/.venv/bin/python -m harness.run_harness targets/<your-target-id>.yaml \
-  --model openai/gpt-4o-mini
-../stage2/.venv/bin/python -m harness.run_harness targets/<your-target-id>.yaml \
-  --source-only
-```
+Copy `targets/TEMPLATE.yaml` to `targets/<your-id>.yaml` and set:
+
+| Field | Meaning |
+| --- | --- |
+| `source_root` | Directory of that target's source. Not the repo root, not `evaluator/`. |
+| `analyst_brief` | What the agent is allowed to know about the interface. No CVE, patch, or reference input. |
+| `run_target.argv` | One command that receives `{input_file}` (host path of the saved bytes). |
+| `run_target.cwd` | Working directory for that command. `..` is the repo root. |
+
+If your service is only reachable inside Compose, start it, then point
+`argv` at `stage3/scripts/relay_docker.py` the same way
+`targets/libcoap-stage1.yaml` does. `{guest_input}` and `{stem}` are
+replaced inside the container. Each call keeps its own `input-NNN.bin`.
 
 ## What to hand back
 
-Each invocation writes `stage3/results/run-NNN/`:
-
-| File | Contents |
-| --- | --- |
-| `run.yaml` | Target, model, condition, step count, stop reason |
-| `transcript.json` | System prompt, actions, and tool observations |
-| `commands.log` | One JSON line per tool observation |
-| `candidate.json` | The model's candidate, still `oracle_verdict: pending` |
-| `scratch/` | Saved inputs and Python snippets |
-
-Token totals are appended to `stage3/results/cost_log.csv`. After the run,
-check the candidate with the same oracle you used in Stage 2. Do not treat
-a source-location guess, or this harness's own exit code, as validation.
-
-`targets/fixture/` is a synthetic local program for the smoke test. It is
-not libcoap, Mongoose, or any other team target.
+`stage3/results/run-NNN/` contains `run.yaml`, `transcript.json`,
+`commands.log`, `candidate.json`, and `scratch/`. Costs go to
+`stage3/results/cost_log.csv`. The candidate is not a validated finding
+until your Stage 2 oracle says so.

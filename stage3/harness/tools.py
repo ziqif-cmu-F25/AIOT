@@ -37,6 +37,7 @@ class ToolBox:
         self.pack = pack
         self.scratch = scratch
         self.source_only = source_only
+        self._input_seq = 0
         self.scratch.mkdir(parents=True, exist_ok=True)
 
     def dispatch(self, name: str, args: dict) -> str:
@@ -134,28 +135,41 @@ class ToolBox:
             ["python3", "-I", str(script)],
             self.scratch,
             int(self.pack.limits["python_timeout_s"]),
+            inherit_env=False,
         )
 
     def run_target(self, args: dict) -> str:
         """Feed one saved input to the target command from the target pack."""
         payload = _payload(args)
-        input_path = self.scratch / "input.bin"
+        self._input_seq += 1
+        input_path = self.scratch / f"input-{self._input_seq:03d}.bin"
         input_path.write_bytes(payload)
         argv = [part.replace("{input_file}", str(input_path)) for part in self.pack.run_argv]
         if "{input_file}" not in "".join(self.pack.run_argv) and payload:
             raise ToolError("run_target.argv must contain {input_file}")
         if not self.pack.run_cwd.is_dir():
             raise ToolError(f"run cwd does not exist: {self.pack.run_cwd}")
-        return self._run(argv, self.pack.run_cwd, int(self.pack.limits["target_timeout_s"]))
+        observation = self._run(
+            argv,
+            self.pack.run_cwd,
+            int(self.pack.limits["target_timeout_s"]),
+            inherit_env=True,
+        )
+        return f"saved_input: {input_path}\n{observation}"
 
-    def _run(self, argv: list[str], cwd: Path, timeout_s: int) -> str:
-        env = {
-            "PATH": os.environ.get("PATH", ""),
-            "PYTHONDONTWRITEBYTECODE": "1",
-            "PYTHONNOUSERSITE": "1",
-            "HOME": str(self.scratch),
-            "TMPDIR": str(self.scratch),
-        }
+    def _run(self, argv: list[str], cwd: Path, timeout_s: int, inherit_env: bool) -> str:
+        if inherit_env:
+            env = os.environ.copy()
+            env.pop("OPENROUTER_API_KEY", None)
+            env["PYTHONDONTWRITEBYTECODE"] = "1"
+        else:
+            env = {
+                "PATH": os.environ.get("PATH", ""),
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONNOUSERSITE": "1",
+                "HOME": str(self.scratch),
+                "TMPDIR": str(self.scratch),
+            }
         try:
             result = subprocess.run(
                 argv,

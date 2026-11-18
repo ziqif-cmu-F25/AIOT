@@ -31,3 +31,4 @@ personal-stage2/report/demo.mp4
 stage3/results/run-*/
 stage3/results/cost_log.csv
 !stage3/results/.gitkeep
+stage3/vendor/
