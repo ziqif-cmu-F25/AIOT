@@ -1,0 +1,30 @@
+FINAL
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "libcoap/src/coap_pdu.c", "function": "coap_pdu_parse_opt", "line": 1350},
+    "vulnerability_class": "integer-overflow",
+    "hypothesis": "The option length from coap_opt_length() is a uint32_t, but it is passed to coap_pdu_parse_opt_base()/coap_pdu_parse_opt_csm(), which take a uint16_t. A large extended option length (for example 65536 on a stream transport with a big PDU) truncates to a small value such as 0 and passes the per-option length validation. The oversized option is then accepted and later consumers (OSCORE, Proxy-Uri, Uri-Path/Query handling) may assume the bounded length and overflow fixed-size buffers. This is a validation bypass; I did not find a concrete memory-corruption sink, so it is speculative.",
+    "evidence": "const uint32_t len = optsize ? coap_opt_length(...) : 0; ... coap_pdu_parse_opt_base(pdu, len) with signature coap_pdu_parse_opt_base(coap_pdu_t *pdu, uint16_t len)",
+    "confidence": 0.25
+  },
+  {
+    "rank": 2,
+    "location": {"file": "libcoap/src/coap_option.c", "function": "coap_opt_parse", "line": 65},
+    "vulnerability_class": "integer-overflow",
+    "hypothesis": "result->delta is a uint16_t. For delta nibble 14, the value is computed as (MSB<<8)+269 and then the LSB is added. With MSB=0xFE and LSB=0xFF the sum is 65548, which wraps to 12 after `result->delta += *opt`. The `< 269` check runs only before the LSB is added, so the post-add wrap is not caught. The option number is then understated and max_opt tracking is corrupted. This can bypass option-number validation and misclassify options, which later code may trust. It is a logic or integer issue with no direct memory corruption shown.",
+    "evidence": "result->delta = ((*opt & 0xff) << 8) + 269; if (result->delta < 269) {...return 0;} /* fall through */ case 13: result->delta += *opt & 0xff;",
+    "confidence": 0.2
+  },
+  {
+    "rank": 3,
+    "location": {"file": "libcoap/src/coap_pdu.c", "function": "coap_pdu_parse_opt", "line": 1427},
+    "vulnerability_class": "other",
+    "hypothesis": "After the option loop, the code asserts `*opt == COAP_PAYLOAD_START`. If the loop broke on a malformed option (good=0, length>0), the assert fails in debug builds, giving a remotely triggerable abort (DoS). In NDEBUG builds the code skips one byte and sets pdu->data into the middle of the options, but returns good=0, so the impact is limited.",
+    "evidence": "if (length > 0) { assert(*opt == COAP_PAYLOAD_START); opt++; length--; ...",
+    "confidence": 0.15
+  }
+]
+```

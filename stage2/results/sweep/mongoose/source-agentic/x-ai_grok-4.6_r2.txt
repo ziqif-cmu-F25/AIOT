@@ -1,0 +1,1 @@
+HYPOTHESIS: skip_chunk has an off-by-one OOB read: check `len < i+1` still accesses `buf[i+1]` when last byte is non-hex.

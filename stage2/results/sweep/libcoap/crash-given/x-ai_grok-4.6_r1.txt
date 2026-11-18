@@ -1,0 +1,21 @@
+{
+  "rank": 1,
+  "root_cause": {"file": "src/coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+  "explanation": "addrstr is a 256-byte static buffer. After memset, the code copies address->s with memcpy(..., address->length) and never checks that length fits (and leaves a NUL for getaddrinfo). A crafted Proxy-Uri can yield a host of length 300 (Uri-Host is capped at 255, but coap_split_proxy_uri is not), so memcpy writes 300 bytes, overflowing addrstr by 44 bytes. ASan’s WRITE of size 300 exactly at 0 bytes after coap_resolve_address_info.addrstr matches this copy.",
+  "fix": "if (address && address->length) { if (address->length >= sizeof(addrstr)) { coap_log_warn(\"address too long\\n\"); return NULL; } memcpy(addrstr, address->s, address->length); } else memcpy(addrstr, \"localhost\", 9);",
+  "confidence": 0.95
+}
+{
+  "rank": 2,
+  "root_cause": {"file": "src/coap_uri.c", "function": "coap_split_uri_sub", "line": 202},
+  "explanation": "COAP_SET_STR(&uri->host, q-p, p) records whatever host span was parsed. Proxy-Uri may be up to 1034 bytes and there is no cap vs. DNS/Uri-Host/NI_MAXHOST, so a 300-byte host is handed to coap_resolve_address_info. This is the input that makes the memcpy at addrstr overflow; it is not the write itself.",
+  "fix": "if ((size_t)(q - p) >= 256) { res = -3; goto error; } COAP_SET_STR(&uri->host, q - p, p);",
+  "confidence": 0.35
+}
+{
+  "rank": 3,
+  "root_cause": {"file": "src/coap_proxy.c", "function": "coap_proxy_get_ongoing_session", "line": 420},
+  "explanation": "The proxy path passes &server_use->uri.host straight into coap_resolve_address_info with no length check. That is how a crafted message reaches the unbounded memcpy; the OOB still occurs in addrstr.",
+  "fix": "if (server_use->uri.host.length >= 256) { response->code = COAP_RESPONSE_CODE(502); return NULL; } before coap_resolve_address_info(...).",
+  "confidence": 0.2
+}

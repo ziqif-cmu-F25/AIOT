@@ -1,0 +1,26 @@
+HYPOTHESIS: The off-by-one bounds check in `skip_chunk()` lets it read one byte past the valid receive data when a chunk-size line is truncated at the end of the buffer.
+
+Reading `skip_chunk()` (http.c:1000-1014), the rest of its arithmetic looks sound. `n` is non-negative and bounded by `len - i - 4` before the trailer bytes are read, and the return value `i + n + 4` never exceeds `len`. The one defect is at line 1006:
+
+```c
+if (len < i + 1 || buf[i] != '\r' || buf[i + 1] != '\n') return -1;
+```
+
+The guard should be `len < i + 2`. When `len == i + 1`, the check passes, `buf[i]` is `'\r'`, and then `buf[i + 1]` is read at index `len`, one byte past the valid input. The header parser cannot reject this case first, because `len >= 3` only guarantees that the hex digits are followed by at least one byte.
+
+I did not confirm the allocation layout of `c->recv`. If the byte past `recv.len` is inside the allocation, this is a one-byte read of stale or uninitialized memory. If `recv.len` equals the allocation size, it is an out-of-bounds read. Either way, the defect is real, but the impact is probably small. The main consequence is a memory-safety violation reachable from the network with a crafted truncated chunk line.
+
+FINAL
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "A chunked request whose chunk-size line ends exactly at the end of the buffered data (hex digits followed by a single '\\r' as the last byte) passes the bounds check `len < i + 1`. The code then reads buf[i + 1] at index len, one byte past the valid input. Attacker-controlled network bytes can trigger this read, which reads a byte beyond the valid receive buffer region.",
+    "evidence": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // Error",
+    "confidence": 0.5
+  }
+]
+```

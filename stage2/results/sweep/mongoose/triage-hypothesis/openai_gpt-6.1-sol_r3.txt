@@ -1,0 +1,15 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "<not specified>",
+      "function": "skip_chunk",
+      "line": 1006
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "The length check permits len == i + 1, so a chunk-size prefix ending in a lone carriage return causes buf[i + 1] to be read one byte beyond the supplied buffer.",
+    "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "trigger_condition": "Pass a three-byte buffer containing \"12\\r\" with len == 3: i becomes 2, the length check passes, buf[2] is '\\r', and evaluating buf[3] reads out of bounds.",
+    "confidence": 0.99
+  }
+]

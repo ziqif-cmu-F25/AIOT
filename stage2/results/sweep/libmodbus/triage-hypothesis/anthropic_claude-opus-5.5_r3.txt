@@ -1,0 +1,31 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "src/modbus.c", "function": "modbus_reply", "line": 964},
+    "bug_class": "oob-write",
+    "hypothesis": "The address validation tests `mapping_address < 0` twice and never tests `mapping_address_write < 0`, so a write address below `start_registers` yields a negative `mapping_address_write`; the write loop at line 980 then stores attacker-controlled values at `tab_registers[negative index]`, a heap out-of-bounds write before the register array.",
+    "vulnerable_line": "mapping_address < 0 ||   /* should be mapping_address_write < 0 */",
+    "trigger_condition": "A function 0x17 (Write and Read Registers) request on a mapping with `start_registers > 0`, where the write address (bytes 5-6) is less than `start_registers`, the read address and count are valid, `nb_write` is between 1 and 121, and the byte count equals `nb_write*2`. The check at line 965 still passes because `mapping_address_write + nb_write` is small or negative.",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "location": {"file": "src/modbus.c", "function": "modbus_reply", "line": 981},
+    "bug_class": "oob-read",
+    "hypothesis": "The write loop reads `req[offset + 10 .. offset + 10 + 2*nb_write]` using only the declared byte count at `req[offset + 9]`, and nothing in this excerpt checks that the received frame actually contains that many bytes. A short frame could therefore make it read stale or past-the-end request buffer data.",
+    "vulnerable_line": "(req[offset + j] << 8) + req[offset + j + 1];",
+    "trigger_condition": "A 0x17 request whose byte-count field claims up to 242 bytes, delivered in a frame truncated shortly after the header (only applies if the framing layer does not enforce the length).",
+    "confidence": 0.2
+  },
+  {
+    "rank": 3,
+    "location": {"file": "src/modbus.c", "function": "modbus_reply", "line": 953},
+    "bug_class": "integer-overflow",
+    "hypothesis": "`mapping_address_write` is computed as a signed difference of a uint16 and `start_registers`, and the only bound applied is the upper bound at line 965. Negative values combined with a small `nb_write` pass validation and produce negative-index writes, which is the same root cause as rank 1 surfacing through the arithmetic.",
+    "vulnerable_line": "int mapping_address_write = address_write - mb_mapping->start_registers;",
+    "trigger_condition": "`address_write < start_registers` in a 0x17 request.",
+    "confidence": 0.3
+  }
+]
+```

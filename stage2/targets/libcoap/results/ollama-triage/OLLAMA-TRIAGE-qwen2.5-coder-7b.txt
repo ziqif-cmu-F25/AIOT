@@ -1,0 +1,9 @@
+```json
+{
+  "hypothesis": "The function coap_resolve_address_info() reads beyond the bounds of the addrstr buffer when the hostname length exceeds 255 characters.",
+  "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+  "bug_class": "buffer-overflow",
+  "trigger_condition": "The hostname length in the CoAP request exceeds 255 characters.",
+  "confidence": 0.9
+}
+```

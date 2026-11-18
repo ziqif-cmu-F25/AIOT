@@ -1,0 +1,14 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libcoap/src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 536
+    },
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "An attacker can send a CoAP request to a proxy endpoint containing a very long host (e.g., via Proxy-Uri or Proxy-Scheme + Uri-Host). The host bytes are copied into a fixed 256-byte stack buffer without bounds checking, causing a stack-based buffer overflow. This is reachable because coap_proxy_get_ongoing_session() passes the untrusted URI host to coap_resolve_address_info(), which then blindly memcpy()s 'address->length' bytes into addrstr[256].",
+    "evidence": "static char addrstr[256];\n...\nmemset(addrstr, 0, sizeof(addrstr));\nif (address && address->length)\n  memcpy(addrstr, address->s, address->length);\nelse\n  memcpy(addrstr, \"localhost\", 9);\n",
+    "confidence": 0.95
+  }
+]

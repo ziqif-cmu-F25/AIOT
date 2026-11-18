@@ -1,0 +1,24 @@
+HYPOTHESIS: The bounds check in the write-and-read handler tests `mapping_address < 0` twice and never tests `mapping_address_write < 0`, so a write address below `start_registers` gives an out-of-bounds write.
+
+FINAL
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 964},
+    "vulnerability_class": "oob-write",
+    "hypothesis": "A FC 0x17 (write-and-read registers) request with address_write lower than mb_mapping->start_registers makes mapping_address_write negative. The address validation checks `mapping_address < 0` twice and never checks `mapping_address_write < 0`. The only upper-bound check on the write side is `mapping_address_write + nb_write > nb_registers`, and a negative value passes it. The write loop then stores attacker-controlled 16-bit values at tab_registers[negative index], which is a heap write before the start of the register array. The offset is controllable up to 64K entries (about 128 KB) below the array, and the written values come from the request.",
+    "evidence": "int mapping_address_write = address_write - mb_mapping->start_registers; ... } else if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers) { ... for (i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; i++, j += 2) { mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1]; }",
+    "confidence": 0.93
+  },
+  {
+    "rank": 2,
+    "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 862},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "In the write-multiple-coils handler, the byte count req[offset+5] is only checked as `nb_bits*8 < nb`. It is not checked against the actual received request length or the exact ceil(nb/8). If the length check at receive time is weak, modbus_set_bits_from_bytes could read past the received data in the request buffer. The buffer is fixed-size, so any over-read stays within it and is low impact.",
+    "evidence": "if (nb < 1 || MODBUS_MAX_WRITE_BITS < nb || nb_bits * 8 < nb) ... modbus_set_bits_from_bytes(mb_mapping->tab_bits, mapping_address, nb, &req[offset + 6]);",
+    "confidence": 0.1
+  }
+]
+```

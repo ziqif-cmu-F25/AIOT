@@ -1,0 +1,53 @@
+**CANDIDATES (ranked, most likely first):**
+
+**1. file: src/coap_address.c / function: `coap_resolve_address_info()` / approx line: the `memcpy(addrstr, …)` near the top of the non-RIOT/non-Contiki branch**
+
+- **bug class:** Out-of-bounds write. This is a static (global `.bss`) buffer overflow.
+- **reasoning:**
+  - The buffer is fixed size: `static char addrstr[256];`
+  - The copy has no length check:
+    ```
+    memset(addrstr, 0, sizeof(addrstr));
+    if (address && address->length)
+      memcpy(addrstr, address->s, address->length);
+    ```
+  - Nothing checks `address->length` against `sizeof(addrstr)`.
+  - `getaddrinfo()` also needs a NUL terminator. So any length ≥ 256 overflows the buffer or leaves the string unterminated.
+  - I assume the safe pattern would be `if (address->length >= sizeof(addrstr)) return NULL;`. The AF_UNIX branch just above does a comparable check against `COAP_UNIX_PATH_MAX`, but the normal host path does not.
+- **how untrusted input reaches it:**
+  1. A CoAP request from the network is parsed by `coap_pdu_parse()`. `coap_pdu_parse_opt_base()` accepts a Proxy-Uri option of up to 1034 bytes (`if (len < 1 || len > 1034)`).
+  2. The proxy handler calls `coap_proxy_forward_request_lkd()`, then `coap_proxy_get_ongoing_session()`, then `coap_proxy_get_session()`.
+  3. For the `*_STRIP` proxy types, `coap_split_proxy_uri(coap_opt_value(proxy_uri), coap_opt_length(proxy_uri), &server_use->uri)` runs. In `coap_split_uri_sub()` the host is everything up to `:`, `/` or `?`, with no length limit: `COAP_SET_STR(&uri->host, q - p, p);`. The only check afterwards is `server_use->uri.host.length == 0`.
+  4. If there is no existing upstream session for that host, `coap_proxy_get_ongoing_session()` calls `coap_resolve_address_info(&server_use->uri.host, ...)`.
+  5. That function then does `memcpy(addrstr, address->s, address->length)` with up to roughly 1020 attacker-controlled bytes into a 256-byte static buffer.
+  6. The overflow corrupts adjacent globals.
+- **triggering input characteristics:**
+  - A CON or NON request (e.g. GET) to a proxy-enabled libcoap server.
+  - It carries a Proxy-Uri option (number 35), roughly 300–1034 bytes long.
+  - Example value: `coap://` + 'A'×1000 (no `:`, `/` or `?` inside the host part).
+  - The scheme must be a supported one (e.g. `coap`) to pass the scheme check.
+  - The PDU must fit the session's max size; this is easily met over TCP/WS or with a normal UDP MTU of about 1100 bytes.
+  - Note: the Proxy-Scheme + Uri-Host route is limited to 255 bytes by option validation. The Proxy-Uri route is the one that bypasses that limit.
+
+**2. file: src/coap_uri.c / function: `check_segment()` (and therefore `decode_segment()`) / approx line: `if (length < 2 || !(isxdigit(s[1]) && isxdigit(s[2])))`**
+
+- **bug class:** Out-of-bounds read by one byte, followed by an unsigned underflow of `length`.
+- **reasoning:**
+  - When `length == 2` and `*s == '%'`, the code reads `s[2]`, which is past the segment.
+  - It then executes `length -= 2;` followed by `--length`, which underflows to `SIZE_MAX` and makes the loop run away.
+  - `decode_segment()` repeats the pattern: `length -= 2` on a trailing `%x` wraps around.
+  - The check should be `length < 3`.
+- **how untrusted input reaches it:** Path or query strings from a URI are processed by `coap_split_path()` / `coap_split_query()`, which call `write_option()` and then `make_decoded_option()`. This path is reachable when the application splits attacker-supplied URIs, for example in proxy code paths.
+- **triggering input characteristics:** A path segment ending in `%` followed by exactly one character, e.g. `/a%4`.
+
+**3. file: src/coap_uri.c / function: `dots()` / approx line: second-character `%2E` handling**
+
+- **bug class:** Out-of-bounds read (minor).
+- **reasoning:**
+  - When the first character is `%` but not `%2E`, `p` is still set to `'.'`: `p = '.';` sits outside the inner `if`.
+  - The function then continues with an unadjusted `len`, so the logic misbehaves.
+  - The `assert(len)` can also fail on crafted segments.
+- **how untrusted input reaches it:** Proxy-Uri path → `coap_uri_into_optlist()` → `coap_path_into_optlist()` → `dots()`.
+- **triggering input characteristics:** Segments of the form `%xx`, e.g. `/%41`. The effect is mostly logic errors in `..` handling, which lead to `backup_optlist()` being invoked unexpectedly.
+
+The primary and most likely intended vulnerability is **#1**: an unbounded `memcpy` of the Proxy-Uri host into the static 256-byte `addrstr` buffer.

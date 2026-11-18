@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-002",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "An attacker-controlled 'nb' value in a MODBUS_FC_WRITE_MULTIPLE_REGISTERS request can cause an out-of-bounds write when processing the register data, because the code does not validate that the nb_bytes value matches the actual data length provided.",
+  "evidence_source": "Lines 872-901: The code checks if nb is within MODBUS_MAX_WRITE_REGISTERS and if nb_bytes == nb * 2, but then loops from j=6 to j+2*nb without verifying that the request has enough data. The access to req[offset + j] and req[offset + j+1] may go beyond the request buffer.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Out-of-bounds read when accessing req[offset + j] beyond the request buffer, potentially leading to information disclosure or crash.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "Similar to the previous issue, but for registers. The code does not check the request length before accessing the data bytes.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 890
+  },
+  "confidence": 0.9,
+  "model": "deepseek/deepseek-chat-v3.1",
+  "prompt_id": "libmodbus-0367-source-review@v1",
+  "run_index": 2
+}

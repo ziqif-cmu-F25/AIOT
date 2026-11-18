@@ -1,0 +1,32 @@
+FINAL
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 962
+    },
+    "vulnerability_class": "oob-write",
+    "hypothesis": "In the FC 0x17 (write_and_read_registers) handler, the write-address bounds check never tests whether mapping_address_write is negative. A request whose write address (uint16) is below mb_mapping->start_registers yields a negative mapping_address_write. The write loop then stores to mb_mapping->tab_registers[i] for negative i, which writes before the start of the register table. The check at line 965 only guards the upper bound. The read-address check is duplicated at lines 962 and 964 instead of testing mapping_address_write, so the omission is a copy-paste error. This is only reachable when start_registers > 0 is configured, since with start_registers == 0 the write address is never negative.",
+    "evidence": "int mapping_address = address - mb_mapping->start_registers;\n        int mapping_address_write = address_write - mb_mapping->start_registers;\n...\n        } else if (mapping_address < 0 ||\n                   (mapping_address + nb) > mb_mapping->nb_registers ||\n                   mapping_address < 0 ||\n                   (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\n...\n            for (i = mapping_address_write, j = 10;\n                 i < mapping_address_write + nb_write; i++, j += 2) {\n                mb_mapping->tab_registers[i] =\n                    (req[offset + j] << 8) + req[offset + j + 1];\n            }",
+    "confidence": 0.6
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "_modbus_receive_msg",
+      "line": 451
+    },
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "The only bound on the total frame size in the receive path is msg_length + length_to_read > ctx->backend->max_adu_length. The fixed 260-byte msg buffer is safe only if each backend sets max_adu_length <= MAX_MESSAGE_LENGTH. I did not read the backend initialisation of max_adu_length in modbus-tcp.c or modbus-rtu.c, so this is unverified.",
+    "evidence": "if ((msg_length + length_to_read) > (int)ctx->backend->max_adu_length) {\n                    errno = EMBBADDATA;\n                    _error_print(ctx, \"too many data\");\n                    return -1;\n                }\n...\nunsigned int max_adu_length;  /* modbus-private.h:71 */",
+    "confidence": 0.2
+  }
+]
+```
+
+The first candidate is the strongest. The write-and-read handler checks the read address for negativity twice and never checks `mapping_address_write`, so a write address below `start_registers` can drive the write loop below the start of `tab_registers`. I did not confirm the exact `start_registers` configuration needed to trigger it, nor did I read the register-table allocation. The second candidate is a low-confidence note that depends on backend `max_adu_length` values I did not read.

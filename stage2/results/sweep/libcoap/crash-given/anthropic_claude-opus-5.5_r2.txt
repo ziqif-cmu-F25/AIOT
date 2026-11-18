@@ -1,0 +1,50 @@
+**Analysis**
+
+1. **What overflowed.** ASan reports a WRITE of 300 bytes into `coap_resolve_address_info.addrstr`. That is the `static char addrstr[256]` declared at `coap_address.c:498`. The write starts at offset 0, and the bad address is exactly 0 bytes past the 256-byte object.
+
+2. **Which call wrote it.** Frame #0 is in the `coap-server` binary, which is ASan's `memcpy` interceptor. Frame #1 is inside libcoap. The only writes into `addrstr` are:
+   - line 536: `memset` of `sizeof(addrstr)` (safe);
+   - line 540: `memcpy` of 9 bytes for `"localhost"` (safe);
+   - line 538: `memcpy(addrstr, address->s, address->length)`, with no length check.
+
+   The 300-byte write can only be line 538.
+
+3. **How a 300-byte host gets there.** The path is the proxy code:
+   - `coap_proxy_forward_request_lkd` calls `coap_proxy_get_ongoing_session`.
+   - That calls `coap_resolve_address_info(&server_use->uri.host, ...)`.
+   - `uri.host` is filled by `coap_split_proxy_uri()` from the Proxy-Uri option.
+   - Proxy-Uri may be up to 1034 bytes (`coap_pdu.c:1256`).
+   - `coap_split_uri_sub` sets `uri->host` to whatever span precedes `:`, `/` or `?`, with no length limit (line 202).
+   - `coap_proxy_get_session` only checks `host.length == 0` (line 266).
+
+   So a Proxy-Uri like `coap://AAAA…(300 chars)…/` gives a 300-byte host. (Uri-Host via Proxy-Scheme is capped at 255 by option validation, so it cannot trigger this.)
+
+4. **Secondary bug.** Even a host of exactly 256 bytes would leave `addrstr` without a NUL terminator before `getaddrinfo`. The check therefore needs to be `>=`, not `>`.
+
+**Ranked candidates**
+
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {"file": "libcoap/src/coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+    "explanation": "address->length is copied into the fixed 256-byte static buffer addrstr with no bounds check. A Proxy-Uri option (allowed up to 1034 bytes) whose host part is 300 bytes is passed straight through as server_use->uri.host. memcpy then writes 300 bytes into addrstr[256], a global-buffer-overflow 0 bytes past the object. Lengths of exactly 256 also leave the string unterminated for getaddrinfo().",
+    "fix": "Before the copy: if (address && address->length >= sizeof(addrstr)) { coap_log_err(\"Host name too long (%zu > 255)\\n\", address->length); return NULL; } then memcpy(addrstr, address->s, address->length); keeping the existing memset so the buffer stays NUL-terminated.",
+    "confidence": 0.93
+  },
+  {
+    "rank": 2,
+    "root_cause": {"file": "libcoap/src/coap_proxy.c", "function": "coap_proxy_get_session", "line": 266},
+    "explanation": "After decoding Proxy-Uri, the only validation of server_use->uri.host is a zero-length check. Hosts longer than the 255 bytes that DNS and Uri-Host allow are accepted and forwarded to coap_resolve_address_info, which overflows its 256-byte buffer.",
+    "fix": "if (server_use->uri.host.length == 0 || server_use->uri.host.length > 255) { response->code = COAP_RESPONSE_CODE(505); return NULL; }",
+    "confidence": 0.45
+  },
+  {
+    "rank": 3,
+    "root_cause": {"file": "libcoap/src/coap_uri.c", "function": "coap_split_uri_sub", "line": 202},
+    "explanation": "The host span is set with COAP_SET_STR(&uri->host, q - p, p) without limiting its length. Proxy-Uri hosts of arbitrary size (up to about 1034 bytes) are produced and later copied into fixed-size buffers.",
+    "fix": "if (q - p > 255) { res = -3; goto error; } before COAP_SET_STR (and likewise for the IPv6 bracketed branch at line 181).",
+    "confidence": 0.3
+  }
+]
+```

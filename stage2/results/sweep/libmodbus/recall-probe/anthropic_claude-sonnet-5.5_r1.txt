@@ -1,0 +1,26 @@
+```json
+{
+  "training_cutoff": "2025-01",
+  "known_cves": [
+    {
+      "cve": "CVE-2022-0367",
+      "file_function": "src/modbus.c, modbus_reply(), in the FC_WRITE_AND_READ_REGISTERS (0x17) handling",
+      "bug_class": "Heap-based buffer overflow / out-of-bounds write. Affects libmodbus up to and including 3.1.6 and was fixed in 3.1.7.",
+      "recall_confidence": 0.7
+    },
+    {
+      "cve": "CVE-2019-14462",
+      "file_function": "src/modbus.c, modbus_reply(), for write-multiple-coils requests",
+      "bug_class": "Out-of-bounds read. Affects 3.0.x before 3.0.7 and 3.1.x before 3.1.5.",
+      "recall_confidence": 0.5
+    },
+    {
+      "cve": "CVE-2019-14463",
+      "file_function": "src/modbus.c, modbus_reply(), for write-single-coil or write-bit requests",
+      "bug_class": "Out-of-bounds read. Same affected version range as CVE-2019-14462.",
+      "recall_confidence": 0.4
+    }
+  ],
+  "notes": "This is from memory only. I did not analyze any code. My recall of CVE-2022-0367 is the strongest of the three: a heap overflow in modbus_reply, reported around 2022 and fixed in 3.1.7. The two 2019 CVE ids are real as far as I recall, but I am unsure which one maps to which function code. The cutoff date is my best estimate. I am not aware of other libmodbus memory-safety advisories on or before 3.1.6, but I may be missing some."
+}
+```

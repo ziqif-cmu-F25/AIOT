@@ -1,0 +1,26 @@
+FINAL
+
+The bug is in the `MODBUS_FC_WRITE_AND_READ_REGISTERS` handler of `modbus_reply`, lines 962–965. The address-range check tests `mapping_address < 0` twice and never tests `mapping_address_write < 0`. Every other write handler checks its mapping address for a negative value, so this looks like a copy-paste error.
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 963},
+    "vulnerability_class": "oob-write",
+    "hypothesis": "A remote client sends a Write/Read Multiple Registers request (FC 0x17). The read address is valid. The write address (address_write) is smaller than mb_mapping->start_registers, for example 0 when the mapping starts at 100. Then mapping_address_write = address_write - start_registers is negative, as low as -start_registers. The validation never rejects a negative write offset. The duplicated 'mapping_address < 0' sits where 'mapping_address_write < 0' should be. The upper-bound test (mapping_address_write + nb_write) > nb_registers passes because the sum is small or negative. The write loop at line 978 then stores up to 121 attacker-chosen 16-bit values at tab_registers[negative index]. This is a heap buffer underflow: an arbitrary-content write before the register table, which can corrupt heap metadata or adjacent objects. The precondition is a mapping with start_registers > 0, created by modbus_mapping_new_start_address.",
+    "evidence": "int mapping_address_write = address_write - mb_mapping->start_registers;\n...\n} else if (mapping_address < 0 ||\n           (mapping_address + nb) > mb_mapping->nb_registers ||\n           mapping_address < 0 ||\n           (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\n...\nfor (i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; i++, j += 2) {\n    mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];\n}",
+    "confidence": 0.85
+  },
+  {
+    "rank": 2,
+    "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 980},
+    "vulnerability_class": "oob-write",
+    "hypothesis": "This is the same root cause seen from the write side. A negative mapping_address_write with nb_write up to MODBUS_MAX_WR_WRITE_REGISTERS (121) gives a contiguous attacker-controlled underwrite of up to 242 bytes before tab_registers. When a malloc'd mapping is laid out with tab_bits or tab_input_bits before the register table, those buffers or the heap chunk headers are overwritten.",
+    "evidence": "mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];  // i starts at negative mapping_address_write",
+    "confidence": 0.5
+  }
+]
+```
+
+I listed only two findings. Within the remaining budget I did not read the receive path (`_modbus_receive_msg`, `compute_data_length_after_meta`), so I am not reporting any candidate from it.

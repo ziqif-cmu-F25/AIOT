@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "source-agentic",
+  "property": "memory-safety",
+  "hypothesis": "not_available (no usable response from provider)",
+  "evidence_source": "not_available (no usable response from provider)",
+  "input_artifact": "not_available (source review with tool access; no concrete input)",
+  "expected_behavior": "not_available (no usable response from provider)",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "inconclusive",
+  "oracle_verdict": "no_response",
+  "notes": "anthropic/claude-sonnet-5.5: content_filtered on both original and defensive prompts. Provider-side content filter blocked the security-review agentic prompt via OpenRouter.",
+  "vulnerability_class": "other",
+  "location": {
+    "file": "unknown",
+    "function": "unknown",
+    "line": 1
+  },
+  "confidence": 0.0,
+  "model": "anthropic/claude-sonnet-5.5",
+  "prompt_id": "mongoose-c1-rerun@v1",
+  "run_index": 1
+}

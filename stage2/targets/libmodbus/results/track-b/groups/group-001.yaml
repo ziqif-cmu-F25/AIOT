@@ -1,0 +1,42 @@
+group_id: group-001
+task_id: libmodbus-0367-source-review
+model_requested: openai/gpt-6.1-sol
+sampling:
+  temperature: 0.0
+  max_tokens: 20000
+runs:
+- run_id: run-059
+  status: candidate
+  model_resolved:
+  - openai/gpt-6.1-sol
+  candidate_count: 1
+  top_candidate: modbus.c:modbus_reply:980:buffer-overflow
+  all_candidates:
+  - modbus.c:modbus_reply:980:buffer-overflow
+- run_id: run-060
+  status: candidate
+  model_resolved:
+  - openai/gpt-6.1-sol
+  candidate_count: 2
+  top_candidate: modbus.c:modbus_reply:964:buffer-overflow
+  all_candidates:
+  - modbus.c:modbus_reply:964:buffer-overflow
+  - modbus.c:modbus_reply:724:out-of-bounds-read
+- run_id: run-061
+  status: candidate
+  model_resolved:
+  - openai/gpt-6.1-sol
+  candidate_count: 1
+  top_candidate: modbus.c:modbus_reply:980:buffer-overflow
+  all_candidates:
+  - modbus.c:modbus_reply:980:buffer-overflow
+schema_valid_runs: 3
+malformed_or_failed_runs: 0
+top_candidate_unanimous: false
+top_candidate_distinct_values:
+- modbus.c:modbus_reply:964:buffer-overflow
+- modbus.c:modbus_reply:980:buffer-overflow
+top_candidate_lines:
+- '964'
+- '980'
+candidates_in_every_run: []

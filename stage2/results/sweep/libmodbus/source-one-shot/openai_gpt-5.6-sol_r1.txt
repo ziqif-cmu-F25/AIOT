@@ -1,0 +1,14 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 964
+    },
+    "vulnerability_class": "oob-write",
+    "hypothesis": "A network request using MODBUS_FC_WRITE_AND_READ_REGISTERS can specify a valid read address but a write address below mb_mapping->start_registers. This makes mapping_address_write negative. The bounds check mistakenly tests mapping_address twice and never rejects mapping_address_write < 0. With valid counts such that mapping_address_write + nb_write is not above nb_registers, execution reaches the write loop and writes before mb_mapping->tab_registers. For example, with start_registers=100, address_write=99, and nb_write=1, mapping_address_write is -1 and tab_registers[-1] is overwritten.",
+    "evidence": "The indices are computed at lines 952-953:\n\"int mapping_address = address - mb_mapping->start_registers;\"\n\"int mapping_address_write = address_write - mb_mapping->start_registers;\"\n\nThe bounds check at lines 962-965 repeats mapping_address < 0 instead of checking mapping_address_write < 0:\n\"} else if (mapping_address < 0 ||\n           (mapping_address + nb) > mb_mapping->nb_registers ||\n           mapping_address < 0 ||\n           (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\"\n\nThe unchecked negative index is then used for writes at lines 978-981:\n\"for (i = mapping_address_write, j = 10;\n     i < mapping_address_write + nb_write; i++, j += 2) {\n    mb_mapping->tab_registers[i] =\n        (req[offset + j] << 8) + req[offset + j + 1];\n}\"",
+    "confidence": 0.99
+  }
+]

@@ -1,0 +1,28 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "A client sends a chunked request whose buffered tail is only hex digits followed by a lone '\\r', for example \"5\\r\" or \"1234\\r\" at the end of c->recv. Here len == i+1, so the guard `len < i + 1` is false. The code then reads buf[i+1], one byte past the valid data (index len). The `len < i + 1` check should be `len < i + 2`. The byte is read from the receive iobuf, which may be heap-allocated with size equal to len, so this can be a 1-byte heap over-read. The result only decides whether the function returns -1 or continues, so the leak is minimal. http_cb calls skip_chunk repeatedly as more data arrives, so the attacker can trigger it with a short, partial chunk header.",
+    "evidence": "if (len < 3) return 0;\nwhile (i < len && is_hex_digit(buf[i])) i++;\n...\nif (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "confidence": 0.4
+  },
+  {
+    "rank": 2,
+    "location": {"file": "mongoose/src/http.c", "function": "mg_http_next_multipart", "line": 70},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "The boundary and header scans use `s[b] != '\\r' && s[b+1] != '\\n'` where `||` is intended. The offsets also mix `s` (the start of the body) with `ofs`, because memcmp compares against `s` instead of `s + ofs`. Crafted multipart bodies can therefore give wrong boundary lengths and part offsets. Most accesses are bounded by `max`, so the impact is mainly logic errors and possible small over-reads. Line 81 computes `h1 + cd.len + 2` and line 83 builds a mg_str from it; with a crafted header this could read past the intended header.",
+    "evidence": "while (b + 2 < max && s[b] != '\\r' && s[b + 1] != '\\n') b++;\n...\nmemcmp(&s[b2 + 2], s, b - ofs) == 0",
+    "confidence": 0.2
+  },
+  {
+    "rank": 3,
+    "location": {"file": "mongoose/src/http.c", "function": "http_cb", "line": 1103},
+    "vulnerability_class": "oob-write",
+    "hypothesis": "In the chunked second pass, chunk bodies are memmoved in place toward the start of the buffer using the lengths dl and pl from skip_chunk. The destination index body.len is always at most o, so overlap is handled. The int casts of len and o could misbehave only if recv.len exceeded 2GB. This is likely safe, and is listed only as a lower-confidence candidate.",
+    "evidence": "memmove(s + hm.body.len, s + o + pl, (size_t) dl);\no += cl, hm.body.len += (size_t) dl, hm.message.len += (size_t) dl;",
+    "confidence": 0.1
+  }
+]
+```

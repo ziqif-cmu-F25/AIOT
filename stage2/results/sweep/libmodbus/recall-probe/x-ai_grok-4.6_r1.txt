@@ -1,0 +1,5 @@
+{
+  "training_cutoff": "unknown",
+  "known_cves": [],
+  "notes": "No specific publicly disclosed memory-safety CVEs/advisories for libmodbus <= v3.1.6 recalled from training data."
+}

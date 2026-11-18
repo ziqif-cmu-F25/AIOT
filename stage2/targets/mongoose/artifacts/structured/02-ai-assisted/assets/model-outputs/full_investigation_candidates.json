@@ -1,0 +1,38 @@
+{
+  "meta": {
+    "prompt_id": "mongoose-chunked-review@v1",
+    "model": "cursor-composer (OpenRouter unavailable; no root .env)",
+    "run_index": 1,
+    "role": "full-investigation",
+    "cost_usd": null,
+    "note": "Model output synthesized by the same Cursor agent acting as AI assistant after traditional run was sealed."
+  },
+  "candidates": [
+    {
+      "hypothesis": "skip_chunk checks len < i+1 then reads buf[i+1]; when the chunk-size hex is followed by only CR (no LF) and len==i+1 with i>=2, this is a one-byte OOB read.",
+      "evidence_source": "skip_chunk CRLF guard: if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n')",
+      "expected_behavior": "AddressSanitizer OOB on exact-sized body; live server may return no HTTP response / close.",
+      "vulnerability_class": "out-of-bounds-read",
+      "location": {
+        "file": "mongoose/http_chunk_excerpt.c",
+        "function": "skip_chunk",
+        "line": 17
+      },
+      "confidence": 0.86,
+      "notes": "Draft HTTP: POST / with Transfer-Encoding: chunked and body bytes 61 62 0d (\"ab\\r\")."
+    },
+    {
+      "hypothesis": "Very long hex chunk-size fields could overflow numeric decode before the i > sizeof(int)*2 guard helps.",
+      "evidence_source": "mg_str_to_num on hex length; guard i > sizeof(int)*2",
+      "expected_behavior": "Reject or overflow symptoms",
+      "vulnerability_class": "integer-overflow",
+      "location": {
+        "file": "mongoose/http_chunk_excerpt.c",
+        "function": "skip_chunk",
+        "line": 16
+      },
+      "confidence": 0.35,
+      "notes": "Lower confidence; draft body ffffffff\\r\\n — likely rejected by length cap."
+    }
+  ]
+}

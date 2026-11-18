@@ -1,0 +1,43 @@
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "libcoap/src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 538
+    },
+    "explanation": "`addrstr` is `static char addrstr[256]` (line 498). Line 537-538 copy the caller-supplied host with `memcpy(addrstr, address->s, address->length)` and no check that `address->length` fits. The only guard is the `address && address->length` test. Nothing compares the length to `sizeof(addrstr)`, so any host longer than 256 bytes writes past the end of the global. The report matches this: `WRITE of size 300`, and the faulting region starts 0 bytes past the end of `coap_resolve_address_info.addrstr` (256 bytes). ASan's report is consistent with a 300-byte copy that starts inside `addrstr` and runs into the redzone after it. The 300-byte host reaches this call from `coap_proxy_get_ongoing_session` (coap_proxy.c line 420), which passes `server_use->uri.host` unchanged. That host comes from `coap_split_proxy_uri` (coap_proxy.c line 251) when the request carries a Proxy-Uri option. Proxy-Uri may be up to 1034 bytes (coap_pdu.c line 1256), so 300 bytes is a valid length at the PDU layer. The copy is therefore reached with attacker-controlled length. Note that `memset(addrstr, 0, 256)` on line 536 is safe; only the copy is not bounded. The same copy also has an off-by-one: a length of exactly 256 would fill the buffer with no NUL terminator before `getaddrinfo()`, so the bound must be strict.",
+    "fix": "Reject oversized hosts before the copy, keeping room for the NUL terminator:\n\n```c\nif (address && address->length) {\n  if (address->length >= sizeof(addrstr)) {\n    coap_log_warn(\"coap_resolve_address_info: host too long\\n\");\n    return NULL;\n  }\n  memcpy(addrstr, address->s, address->length);\n} else {\n  memcpy(addrstr, \"localhost\", 9);\n}\n```",
+    "confidence": 0.85
+  },
+  {
+    "rank": 2,
+    "root_cause": {
+      "file": "libcoap/src/coap_proxy.c",
+      "function": "coap_proxy_get_session",
+      "line": 266
+    },
+    "explanation": "After the Proxy-Uri is split, the only host check is `server_use->uri.host.length == 0` (line 266). No upper bound is applied, so a host longer than 255 bytes passes through to `coap_resolve_address_info` at line 420, which then overflows `addrstr`. Uri-Host from a Proxy-Scheme request is capped at 255 by `coap_pdu_parse_opt_base` (coap_pdu.c line 1187-1188). The Proxy-Uri path has no equivalent cap, so the two routes apply different limits to the same field. This check is the one that should reject oversized hosts before they reach the resolver.",
+    "fix": "Add an upper-bound check alongside the existing zero-length check:\n\n```c\nif (server_use->uri.host.length == 0 || server_use->uri.host.length > 255) {\n  response->code = COAP_RESPONSE_CODE(505);\n  return NULL;\n}\n```",
+    "confidence": 0.5
+  },
+  {
+    "rank": 3,
+    "root_cause": {
+      "file": "libcoap/src/coap_uri.c",
+      "function": "coap_split_uri_sub",
+      "line": 202
+    },
+    "explanation": "The host is recorded with `COAP_SET_STR(&uri->host, q - p, p)` and no length limit. A Proxy-Uri of the form `coap://<300+ chars>/...` is therefore parsed successfully with a long host, and the oversized value is stored in `server_use->uri`. The parser accepts whatever length the PDU carries, so the overflow is a downstream consequence of the missing check here. Adding the limit at parse time would stop the bad value at the source for every caller of `coap_split_proxy_uri` and `coap_split_uri`, not only the proxy path.",
+    "fix": "After the host is determined (before `COAP_SET_STR` on line 202, and similarly in the IPv6 branch at line 181), reject overlong hosts:\n\n```c\nif (q - p > 255) {\n  res = -3;\n  goto error;\n}\n```",
+    "confidence": 0.35
+  }
+]
+```
+
+**Caveats**
+
+- The libcoap frames in the ASan trace are stripped (only offsets are given), so the mapping from the trace to `coap_proxy_get_ongoing_session` and `coap_resolve_address_info` is inferred from the report's `addrstr` symbol and the call path in the source. It has not been confirmed with a symbolised build.
+- The report names `coap_resolve_address_info.addrstr` as the overflowed object, and the only write into that array is the unchecked `memcpy` at line 538. That supports rank 1.
+- The `snprintf` into `client_sni` at coap_proxy.c lines 438-439 is bounded by its size argument and is not the source of this overflow.

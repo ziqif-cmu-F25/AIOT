@@ -1,0 +1,38 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libcoap/src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 538
+    },
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "A network-supplied Proxy-Uri can contain a host name longer than 255 bytes. The parsed host is passed to coap_resolve_address_info(), which copies address->length bytes into the fixed 256-byte addrstr buffer without checking the length. A host of 257 or more bytes causes an out-of-bounds write. Proxy-Uri is accepted up to 1034 bytes, so such a host is reachable from network input.",
+    "evidence": "static char addrstr[256];\n...\nmemset(addrstr, 0, sizeof(addrstr));\nif (address && address->length)\n  memcpy(addrstr, address->s, address->length);\n\nThe network path is coap_proxy_get_ongoing_session():\ninfo_list = coap_resolve_address_info(&server_use->uri.host, ...);\n\nProxy-Uri permits the required length:\ncase COAP_OPTION_PROXY_URI:\n  if (len < 1 || len > 1034)\n    res = 0;",
+    "confidence": 0.99
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "libcoap/src/coap_pdu.c",
+      "function": "coap_pdu_parse_size",
+      "line": 1042
+    },
+    "vulnerability_class": "oob-read",
+    "hypothesis": "A truncated reliable-transport packet with an extended token-length nibble can make coap_pdu_parse_size() read one or two bytes beyond the supplied network buffer. The function checks that the framing header is present, but does not check that token_start[0] or token_start[1] is within length before decoding the extended token length. For example, a two-byte TCP header with high nibble 0 and token-length nibble COAP_TOKEN_EXT_2B_TKL sets token_start to data + 2 and then reads data[2] and data[3].",
+    "evidence": "if (len < 13) {\n  size = len;\n  token_start = &data[2];\n}\n...\nif (token_start) {\n  ...\n  } else if (tkl == COAP_TOKEN_EXT_1B_TKL) {\n    size += token_start[0] + COAP_TOKEN_EXT_1B_BIAS + 1;\n  } else if (tkl == COAP_TOKEN_EXT_2B_TKL) {\n    size += ((uint16_t)token_start[0] << 8) + token_start[1] +\n            COAP_TOKEN_EXT_2B_BIAS + 2;\n  }\n}\n\nThere is no check equivalent to token_start + 1 < data + length.",
+    "confidence": 0.93
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "libcoap/src/coap_proxy.c",
+      "function": "coap_proxy_forward_request_lkd",
+      "line": 681
+    },
+    "vulnerability_class": "use-after-free",
+    "hypothesis": "When forwarding a request body asynchronously, the function allocates and fills a private body_data copy specifically because the incoming request PDU may be destroyed before transmission completes. It nevertheless passes the original request's data pointer to coap_add_data_large_request_lkd(), rather than body_data->s. If the outgoing transfer retains that pointer and the incoming request PDU is released, subsequent transmission reads freed memory. Any proxied request with a payload can exercise this lifetime mismatch.",
+    "evidence": "/* Need to take a copy of the data as request PDU may go away before\n * all data is transmitted.\n */\nbody_data = coap_new_binary(total);\n...\nmemcpy(body_data->s, data, size);\nif (!coap_add_data_large_request_lkd(proxy_entry->ongoing, pdu, total, data,\n                                     coap_proxy_release_body_data, body_data)) {\n\nThe copied buffer is supplied only as the callback argument; the retained data argument is still the original `data`. The analogous response path corrects the pointer first:\nmemcpy(body_data->s, data, size);\ndata = body_data->s;",
+    "confidence": 0.86
+  }
+]

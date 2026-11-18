@@ -1,0 +1,6 @@
+{
+  "root_cause_line": "memcpy(addrstr, address->s, address->length);",
+  "explanation": "coap_resolve_address_info() copies the caller-supplied hostname into a fixed 256-byte static buffer (addrstr) with memcpy of address->length bytes and no check that length < sizeof(addrstr). The proxy path feeds this from coap_split_proxy_uri() on the incoming Proxy-Uri option, whose hostname is unbounded. A 300-byte hostname therefore writes 300 bytes into a 256-byte global, overflowing immediately after addrstr (ASan: WRITE of size 300, 0 bytes after coap_resolve_address_info.addrstr). memset(addrstr,0,sizeof(addrstr)) does not limit the subsequent copy, and getaddrinfo() never runs on a well-formed string.",
+  "fix": "Bound the copy (and keep a NUL for getaddrinfo), e.g. if (address && address->length) { size_t n = address->length; if (n >= sizeof(addrstr)) return NULL; memcpy(addrstr, address->s, n); } else memcpy(addrstr, \"localhost\", 9); — alternatively truncate to sizeof(addrstr)-1 and log, but rejecting oversized hostnames is the safer proxy-facing fix.",
+  "confidence": 0.95
+}

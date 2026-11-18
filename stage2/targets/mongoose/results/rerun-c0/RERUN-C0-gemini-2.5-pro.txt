@@ -1,0 +1,23 @@
+```json
+[
+  {
+    "name": "One-byte out-of-bounds read in chunk size parsing",
+    "description": "The function `skip_chunk` parses a chunk's size line, which ends in CRLF (e.g., 'A\\r\\n'). It validates the presence of the CRLF using the condition `if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n')`. If the input buffer `buf` ends exactly after the '\\r' (making `len == i + 1`, where `i` is the length of the hex size), the first part of the condition `len < i + 1` is false. The code then proceeds to evaluate `buf[i+1]`, which reads one byte beyond the buffer's boundary.",
+    "confidence": "High",
+    "steps": [
+      "The Mongoose server receives an HTTP POST request with `Transfer-Encoding: chunked`.",
+      "The request body begins with a chunk size line, but the data received by the server ends immediately after the `\\r` of that line. For example, the body part in the server's buffer is `1\\r`.",
+      "The main `http_cb` function calls `skip_chunk` to parse this part of the body.",
+      "Inside `skip_chunk`, the length of the hex part (`i`) is 1, and the buffer length (`len`) is 2.",
+      "The boundary check `len < i + 1` (evaluating to `2 < 2`) is false.",
+      "The code proceeds to check `buf[i] != '\\r'` (evaluating `buf[1]`), which is also false.",
+      "The code then attempts to evaluate `buf[i+1] != '\\n'`, which requires reading `buf[2]`, an address one byte out of the provided buffer's bounds."
+    ],
+    "failure": "The server process is expected to crash with a segmentation fault if the memory page immediately following the receive buffer is unmapped. If the page is mapped, the read will succeed with a garbage value, and the function will likely return -1 (error), causing the server to log an 'Invalid chunk' error and close the connection. A crash is the most severe and directly observable outcome.",
+    "test_case": {
+      "type": "raw_request",
+      "value": "POST / HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n1\r"
+    }
+  }
+]
+```

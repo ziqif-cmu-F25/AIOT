@@ -1,0 +1,20 @@
+```json
+{
+  "training_cutoff": "2023-07",
+  "known_cves": [
+    {
+      "cve": "CVE-2022-2471",
+      "file_function": "modbus_reply_exception in src/modbus.c",
+      "bug_class": "buffer overflow",
+      "recall_confidence": 0.9
+    },
+    {
+      "cve": "CVE-2022-2472",
+      "file_function": "modbus_write_bits in src/modbus.c",
+      "bug_class": "buffer overflow",
+      "recall_confidence": 0.9
+    }
+  ],
+  "notes": "These CVEs were disclosed in 2022 and affected libmodbus versions prior to 3.1.7. Both involve improper bounds checking leading to buffer overflows in specific functions."
+}
+```

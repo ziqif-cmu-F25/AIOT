@@ -1,0 +1,117 @@
+[
+  {
+    "candidate_id": "CAND-001",
+    "viewpoint": "ai-source-review",
+    "property": "memory-safety",
+    "hypothesis": "An attacker-controlled request with a large 'nb' value in MODBUS_FC_READ_COILS or MODBUS_FC_READ_DISCRETE_INPUTS function can cause an out-of-bounds read when computing the response length, because the calculation (nb / 8) + ((nb % 8) ? 1 : 0) may exceed the allocated buffer size.",
+    "evidence_source": "In compute_response_length_from_request (lines 134-140), the length is calculated as 2 + (nb / 8) + ((nb % 8) ? 1 : 0). The 'nb' value is taken directly from the request (req[offset+3] and req[offset+4]).",
+    "input_artifact": "not_available (static source review; no input artifact)",
+    "expected_behavior": "Out-of-bounds read when building the response, potentially leading to information disclosure or crash.",
+    "observed_behavior": "not_available (static source review; nothing was executed)",
+    "status": "candidate",
+    "oracle_verdict": "pending",
+    "notes": "The maximum ADU length is 260 bytes, but the calculation does not check against the buffer bounds.",
+    "vulnerability_class": "out-of-bounds-read",
+    "location": {
+      "file": "src/modbus.c",
+      "function": "compute_response_length_from_request",
+      "line": 139
+    },
+    "confidence": 0.8,
+    "model": "deepseek/deepseek-chat-v3.1",
+    "prompt_id": "libmodbus-modbus-reply-ctx@v1",
+    "run_index": 1
+  },
+  {
+    "candidate_id": "CAND-002",
+    "viewpoint": "ai-source-review",
+    "property": "memory-safety",
+    "hypothesis": "An attacker-controlled request with a large 'nb' value in MODBUS_FC_READ_HOLDING_REGISTERS or similar functions can cause an integer overflow in the response length calculation (2 + 2 * nb), leading to a buffer overflow.",
+    "evidence_source": "In compute_response_length_from_request (line 145), the length is calculated as 2 + 2 * (req[offset+3] << 8 | req[offset+4]). If nb is large (e.g., 0x8000), the multiplication may overflow.",
+    "input_artifact": "not_available (static source review; no input artifact)",
+    "expected_behavior": "Integer overflow causing a buffer overflow when building the response.",
+    "observed_behavior": "not_available (static source review; nothing was executed)",
+    "status": "candidate",
+    "oracle_verdict": "pending",
+    "notes": "The multiplication 2 * nb might overflow if nb is greater than 0x7FFF.",
+    "vulnerability_class": "integer-overflow",
+    "location": {
+      "file": "src/modbus.c",
+      "function": "compute_response_length_from_request",
+      "line": 145
+    },
+    "confidence": 0.7,
+    "model": "deepseek/deepseek-chat-v3.1",
+    "prompt_id": "libmodbus-modbus-reply-ctx@v1",
+    "run_index": 1
+  },
+  {
+    "candidate_id": "CAND-003",
+    "viewpoint": "ai-source-review",
+    "property": "memory-safety",
+    "hypothesis": "In modbus_reply, for MODBUS_FC_WRITE_MULTIPLE_COILS, the 'nb' value from the request is used to index into tab_bits without proper bounds checking, leading to an out-of-bounds write.",
+    "evidence_source": "Lines 941-976: The mapping_address is calculated as address - start_bits, and then modbus_set_bits_from_bytes is called with mapping_address and nb. If nb is too large, it can write beyond the tab_bits array.",
+    "input_artifact": "not_available (static source review; no input artifact)",
+    "expected_behavior": "Out-of-bounds write to tab_bits, potentially corrupting memory.",
+    "observed_behavior": "not_available (static source review; nothing was executed)",
+    "status": "candidate",
+    "oracle_verdict": "pending",
+    "notes": "The check at line 945 ensures nb <= MODBUS_MAX_WRITE_BITS, but the mapping_address might be negative or too large.",
+    "vulnerability_class": "buffer-overflow",
+    "location": {
+      "file": "src/modbus.c",
+      "function": "modbus_reply",
+      "line": 969
+    },
+    "confidence": 0.9,
+    "model": "deepseek/deepseek-chat-v3.1",
+    "prompt_id": "libmodbus-modbus-reply-ctx@v1",
+    "run_index": 1
+  },
+  {
+    "candidate_id": "CAND-004",
+    "viewpoint": "ai-source-review",
+    "property": "memory-safety",
+    "hypothesis": "In modbus_reply, for MODBUS_FC_WRITE_MULTIPLE_REGISTERS, the 'nb' value from the request is used to write to tab_registers without proper bounds checking, leading to an out-of-bounds write.",
+    "evidence_source": "Lines 977-1015: The mapping_address is calculated as address - start_registers, and then the loop writes to tab_registers[i] for i from mapping_address to mapping_address + nb. If nb is too large, it can write beyond the array.",
+    "input_artifact": "not_available (static source review; no input artifact)",
+    "expected_behavior": "Out-of-bounds write to tab_registers, potentially corrupting memory.",
+    "observed_behavior": "not_available (static source review; nothing was executed)",
+    "status": "candidate",
+    "oracle_verdict": "pending",
+    "notes": "The check at line 982 ensures nb <= MODBUS_MAX_WRITE_REGISTERS, but the mapping_address might be negative or too large.",
+    "vulnerability_class": "buffer-overflow",
+    "location": {
+      "file": "src/modbus.c",
+      "function": "modbus_reply",
+      "line": 1006
+    },
+    "confidence": 0.9,
+    "model": "deepseek/deepseek-chat-v3.1",
+    "prompt_id": "libmodbus-modbus-reply-ctx@v1",
+    "run_index": 1
+  },
+  {
+    "candidate_id": "CAND-005",
+    "viewpoint": "ai-source-review",
+    "property": "memory-safety",
+    "hypothesis": "In _modbus_receive_msg, the computed length_to_read might be very large due to attacker-controlled data, leading to a buffer overflow in the recv call.",
+    "evidence_source": "Lines 407-516: The length_to_read is computed based on the request data. If an attacker sets a large value in compute_data_length_after_meta, it can cause a buffer overflow when reading into msg.",
+    "input_artifact": "not_available (static source review; no input artifact)",
+    "expected_behavior": "Buffer overflow when receiving the message, potentially leading to code execution.",
+    "observed_behavior": "not_available (static source review; nothing was executed)",
+    "status": "candidate",
+    "oracle_verdict": "pending",
+    "notes": "The check at line 493 ensures (msg_length + length_to_read) <= max_adu_length, but if the calculation is incorrect, it might be bypassed.",
+    "vulnerability_class": "buffer-overflow",
+    "location": {
+      "file": "src/modbus.c",
+      "function": "_modbus_receive_msg",
+      "line": 436
+    },
+    "confidence": 0.6,
+    "model": "deepseek/deepseek-chat-v3.1",
+    "prompt_id": "libmodbus-modbus-reply-ctx@v1",
+    "run_index": 1
+  }
+]

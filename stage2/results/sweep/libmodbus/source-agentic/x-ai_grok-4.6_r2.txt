@@ -1,0 +1,9 @@
+FINAL
+{
+  "rank": 1,
+  "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 962},
+  "vulnerability_class": "oob-write",
+  "hypothesis": "A crafted FC 0x17 (WRITE_AND_READ_REGISTERS) request with write starting address below mb_mapping->start_registers makes mapping_address_write negative. The bounds check copy-pastes mapping_address < 0 twice and never tests mapping_address_write < 0, so (mapping_address_write + nb_write) > nb_registers is false for a negative start. The following loop then writes attacker-controlled register values at tab_registers[negative_index], a heap OOB write from untrusted network input.",
+  "evidence": "} else if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers) { ... } else { for (i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; i++, j += 2) { mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1]; } }",
+  "confidence": 0.95
+}

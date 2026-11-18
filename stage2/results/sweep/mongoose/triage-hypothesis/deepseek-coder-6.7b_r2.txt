@@ -1,0 +1,9 @@
+[{
+  "rank": 1,
+  "location": {"file": "...", "function": "skip_chunk", "line": 1004},
+  "bug_class": "oob-read",
+  "hypothesis": "The function is_hex_digit(buf[i]) is used to check if the character is a hexadecimal digit. If the character is not a hexadecimal digit, the function will return false. However, the function does not check if the index i is within the bounds of the buffer. This could lead to out-of-bounds read if i is greater than the length of the buffer.",
+  "vulnerable_line": "while (i < len && is_hex_digit(buf[i])) i++;",
+  "trigger_condition": "When the input is a string of hexadecimal digits, the index i will exceed the length of the buffer.",
+  "confidence": 0.9
+}]

@@ -1,0 +1,41 @@
+HYPOTHESIS: Oversized WebSocket frames leave receive state committed before rejection, allowing close-path re-entry to overflow a 100-byte stack buffer.
+FINAL
+
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libcoap/src/coap_ws.c",
+      "function": "coap_ws_read",
+      "line": 758
+    },
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "After a successful WebSocket upgrade, a remote peer sends a binary frame declaring a payload larger than the normal receive buffer, then supplies payload bytes. The parser sets all_hdr_in and data_size before rejecting the oversized frame and calling coap_ws_close(). On builds other than WITH_LWIP/WITH_CONTIKI, close polls for readable data and calls coap_ws_read() with a 100-byte stack buffer. Since all_hdr_in remains set, this nested call skips the capacity check and requests data_size - data_ofs bytes into that stack buffer. More than 100 available payload bytes can therefore cause a remotely triggered stack buffer overflow. Frames sent to a server must have the mask bit set. Payload must be available during the close-path polling window.",
+    "evidence": "coap_ws.c:630: if (!session->ws->all_hdr_in) {\ncoap_ws.c:679: session->ws->all_hdr_in = 1;\ncoap_ws.c:695-702: session->ws->data_size = bytes_size; if ((size_t)bytes_size > datalen) { ... session->ws->close_reason = 1009; coap_ws_close(session); return 0; }\ncoap_ws.c:758-760: ret = session->sock.lfunc[COAP_LAYER_WS].l_read(session, &data[session->ws->data_ofs], session->ws->data_size - session->ws->data_ofs);\ncoap_ws.c:892-909: #if !defined(WITH_LWIP) && !defined(WITH_CONTIKI) ... uint8_t buf[100]; ... result = select(...); ... if (result > 0) { coap_ws_read(session, buf, sizeof(buf)); }\ncoap_io.c:683: r = recv(sock->fd, data, data_len, 0);",
+    "confidence": 0.99
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "libcoap/src/coap_ws.c",
+      "function": "coap_ws_rd_http_header",
+      "line": 511
+    },
+    "vulnerability_class": "oob-write",
+    "hypothesis": "A remote peer sends 160 handshake bytes without a newline. Once http_ofs exceeds 145, the read-size calculation permits filling every remaining byte of the 160-byte http_hdr array without reserving space for termination. At http_ofs == 160, the unconditional NUL write accesses http_hdr[160], one byte outside the array. This is an intra-object out-of-bounds write; on common layouts the overwritten byte may be structure padding, limiting the demonstrated security impact.",
+    "evidence": "coap_ws_internal.h:32: #define COAP_MAX_FS (2 + 8 + 4)\ncoap_ws_internal.h:54-56: uint32_t http_ofs; uint8_t http_hdr[160]; size_t data_ofs;\ncoap_ws.c:500-504: rem = ws->http_ofs > (sizeof(ws->http_hdr) - 1 - COAP_MAX_FS) ? sizeof(ws->http_hdr) - ws->http_ofs : COAP_MAX_FS; bytes = session->sock.lfunc[COAP_LAYER_WS].l_read(session, &ws->http_hdr[ws->http_ofs], rem);\ncoap_ws.c:510-511: ws->http_ofs += (uint32_t)bytes; ws->http_hdr[ws->http_ofs] = '\\000';",
+    "confidence": 0.99
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "libcoap/src/coap_ws.c",
+      "function": "coap_ws_rd_http_header_client",
+      "line": 422
+    },
+    "vulnerability_class": "other",
+    "hypothesis": "A malicious WebSocket server sends the first response line as exactly \"HTTP/1.1\\r\\n\", with no whitespace separator or status code. coap_ws_split_rd_header() returns NULL. The HTTP-version comparison succeeds, so evaluation continues to atoi(NULL), causing undefined behavior and typically a NULL-pointer dereference and client denial of service.",
+    "evidence": "coap_ws.c:283-289: char *cp = strchr((char *)session->ws->http_hdr, ' '); if (!cp) cp = strchr((char *)session->ws->http_hdr, '\\t'); if (!cp) return NULL;\ncoap_ws.c:418-422: if (!ws->seen_first) { value = coap_ws_split_rd_header(session); if (strcmp((char *)ws->http_hdr, \"HTTP/1.1\") != 0 || atoi(value) != 101) {\ncoap_ws.c:518-521: *cp = '\\000'; ... if (cp[-1] == '\\r') cp[-1] = '\\000';",
+    "confidence": 0.99
+  }
+]

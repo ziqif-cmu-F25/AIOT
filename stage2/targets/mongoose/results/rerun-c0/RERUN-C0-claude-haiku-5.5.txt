@@ -1,0 +1,83 @@
+```json
+{
+  "target": "Cesanta Mongoose, frozen commit (HTTP server), chunked request path",
+  "scope_note": "Analysis is limited to the provided excerpt. mg_str_to_num, mg_http_parse, and mg_iobuf_* are not provided, so their overflow and over-allocation behavior is unknown and is treated as an assumption where relevant.",
+  "overall_assessment": "The excerpt is mostly bounds-consistent. The main candidate is a one-byte out-of-bounds read in skip_chunk caused by an off-by-one in the length guard. The remaining candidates are negative controls. Confidence is low overall.",
+  "candidates": [
+    {
+      "id": "H1",
+      "class": "out-of-bounds read (1 byte past logical buffer end)",
+      "location": "skip_chunk(): `if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n')`",
+      "hypothesis": "The guard checks len < i+1, but it needs len >= i+2 to safely access buf[i+1]. When the chunk-size hex run ends exactly at the last valid byte and that byte is '\\r' (len == i+1), buf[i+1] reads index len, which is one byte past the valid data.",
+      "triggering_conditions": [
+        "skip_chunk is called with len >= 3 (top-level entry check passes).",
+        "The hex run starts at offset 0 of the sub-buffer and has length i, and buf[i] == '\\r' is the final byte (len == i+1).",
+        "The chunked body is the tail of c->recv at parse time, so index len is just past the logical data.",
+        "Example sub-buffer: 'a','b','\\r' with len = 3."
+      ],
+      "raw_request_candidate": "\"POST / HTTP/1.1\\r\\nHost: x\\r\\nTransfer-Encoding: chunked\\r\\n\\r\\nab\\r\"",
+      "replay_note": "Send as a single write with nothing after the '\\r'. Use a fresh connection so recv.len is exactly the body tail.",
+      "expected_observable": [
+        "If the byte past the end is not '\\n', the parser returns -1 and logs 'Invalid chunk', then closes the connection.",
+        "If it is '\\n', the parser returns 0 (since 171 > len-i-4 = -3) and waits for more data.",
+        "Under ASan with an exact-size allocation, a heap-buffer-overflow READ of 1 byte in skip_chunk, reported at the buf[i+1] access."
+      ],
+      "confidence": 0.2,
+      "confidence_reason": "The off-by-one is real in the excerpt. Whether it is observable depends on iobuf capacity slack, which is not shown. Reads are 1 byte and do not change the parse result in the reachable cases, so the impact is likely limited to an over-read.",
+      "suggested_check": "Build with ASan and replay. Also check whether mg_iobuf capacity equals the received length. Confirm the fix would be len < i + 2."
+    },
+    {
+      "id": "H2",
+      "class": "negative control: large chunk size near INT_MAX (incomplete-wait, no corruption expected)",
+      "location": "skip_chunk(): `if (n > len - i - 4) return 0;`",
+      "hypothesis": "A large 8-digit chunk size should be rejected or treated as incomplete without any out-of-bounds access, because the n > len-i-4 guard prevents the later buf[i+n+2] and buf[i+n+3] reads from going past the buffer.",
+      "triggering_conditions": [
+        "Chunk-size line is 8 hex digits with value near 0x7fffffff, followed by \\r\\n and a short body."
+      ],
+      "raw_request_candidate": "\"POST / HTTP/1.1\\r\\nHost: x\\r\\nTransfer-Encoding: chunked\\r\\n\\r\\n7fffffff\\r\\nabc\\r\\n\"",
+      "replay_note": "Expect the connection to wait for more data. Close the socket after a short timeout.",
+      "expected_observable": [
+        "No crash and no ASan report.",
+        "Parser waits for more data (no MG_EV_HTTP_MSG), and the connection stays open until timeout or close.",
+        "On MG_EV_CLOSE, the partial message is delivered with the leftover body. Check this against the caller logic."
+      ],
+      "confidence": 0.5,
+      "confidence_reason": "The guard arithmetic is sound for non-negative n. This tests the guard rather than finding a bug.",
+      "suggested_check": "Confirm no ASan report, and that memory use stays bounded as more data arrives."
+    },
+    {
+      "id": "H3",
+      "class": "negative control: 8-digit hex overflowing int",
+      "location": "skip_chunk(): `mg_str_to_num(..., 16, &n, sizeof(int))` followed by `if (n < 0) return -1;`",
+      "hypothesis": "FFFFFFFF overflows a signed 32-bit int. Either mg_str_to_num rejects it, or it wraps to -1. In both cases the parser should return -1 (invalid chunk). If the conversion wraps and the n<0 check were missing, the n > len-i-4 comparison would be wrong.",
+      "triggering_conditions": [
+        "Chunk-size line is 'FFFFFFFF' or '80000000' (8 hex digits, value exceeds INT_MAX)."
+      ],
+      "raw_request_candidate": "\"POST / HTTP/1.1\\r\\nHost: x\\r\\nTransfer-Encoding: chunked\\r\\n\\r\\nFFFFFFFF\\r\\nabc\\r\\n\"",
+      "replay_note": "Use the same connection pattern as H2.",
+      "expected_observable": [
+        "'Invalid chunk' error and connection close, with no memory error.",
+        "If the implementation of mg_str_to_num does not check overflow and returns a value that is not negative, the parser may wait instead. Record which outcome occurs."
+      ],
+      "confidence": 0.3,
+      "confidence_reason": "mg_str_to_num is not provided, so its overflow semantics are unknown. The n<0 guard looks like it covers the wrap case.",
+      "suggested_check": "Inspect mg_str_to_num for overflow handling. Check the result for 'FFFFFFFF' and '80000000'."
+    }
+  ],
+  "out_of_scope_observations": [
+    {
+      "note": "Trailers after the zero-length chunk are not consumed. The parser sets ofs += n + o, so the trailer bytes (for example, '\\r\\n' or 'X-Trailer: y\\r\\n\\r\\n') remain in recv and are parsed as the next request. This is a request-desync concern, not a memory-safety finding. Replay with a pipelined trailer and observe whether a second MG_EV_HTTP_MSG is raised or the connection is drained.",
+      "example_raw": "\"POST / HTTP/1.1\\r\\nHost: x\\r\\nTransfer-Encoding: chunked\\r\\n\\r\\n0\\r\\nX-T: y\\r\\n\\r\\n\""
+    },
+    {
+      "note": "Chunk extensions (for example, '5;ext=1\\r\\n') are rejected with 'Invalid chunk' because buf[i] must be '\\r'. This is a correctness limitation, not a memory-safety issue."
+    }
+  ],
+  "replay_guidance": [
+    "Save each raw_request_candidate with the escapes decoded to CRLF bytes.",
+    "Replay with netcat or a short script that sends the bytes in one write, then waits about 2 seconds.",
+    "Build the target with AddressSanitizer and UBSan. Record the first ASan frame, and whether 'Invalid chunk' or 'HTTP parse' appears in the log.",
+    "Do not treat any single result as a confirmed bug. H1 needs an exact-size buffer to be observable, and the others are controls."
+  ]
+}
+```

@@ -1,0 +1,22 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1006},
+    "bug_class": "oob-read",
+    "hypothesis": "The bounds check `len < i + 1` is off by one. The code then reads buf[i+1], which is one byte past the buffered data when len == i+1.",
+    "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "trigger_condition": "The buffered chunk data is exactly 1–8 hex digits followed by a single '\\r' and nothing more (len == i+1, len >= 3), for example \"abc\\r\" where the chunk is split across TCP reads right after the CR. buf[i]=='\\r' passes, then buf[i+1] is read beyond len. This is a 1-byte over-read of the receive buffer. It is harmless if the buffer has slack, but it is a real OOB read, and the result can affect whether the parser returns -1 (error) or proceeds to line 1010.",
+    "confidence": 0.6
+  },
+  {
+    "rank": 2,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1010},
+    "bug_class": "integer-overflow",
+    "hypothesis": "The completeness check depends on `len - i - 4` and on the signed parse of an 8-digit hex value. If mg_str_to_num does not reliably reject values above INT_MAX, a negative or huge n would skew the index arithmetic at line 1011.",
+    "vulnerable_line": "if (n > len - i - 4) return 0;  /* then buf[i + n + 2] */",
+    "trigger_condition": "A chunk size of 8 hex digits such as \"7fffffff\" or \"ffffffff\". The n < 0 check and the n > len-i-4 guard appear to prevent the overflow, so this only matters if the parser misbehaves.",
+    "confidence": 0.1
+  }
+]
+```

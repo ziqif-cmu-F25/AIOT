@@ -1,0 +1,7 @@
+{
+  "hypothesis": "An HTTP chunk-size line ending at the receive-buffer boundary with a trailing '\\r' causes a one-byte out-of-bounds read of buf[i + 1], because the check uses len < i + 1 instead of requiring len >= i + 2.",
+  "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+  "bug_class": "oob-read",
+  "trigger_condition": "len >= 3, at least one hexadecimal chunk-size digit is parsed, and i == len - 1 with buf[i] == '\\r' (for example, a buffered fragment \"12\\r\"), so evaluation reaches buf[i + 1] == buf[len].",
+  "confidence": 0.99
+}

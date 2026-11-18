@@ -1,0 +1,21 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "input-drafting",
+  "property": "memory-safety",
+  "hypothesis": "{\n  \"raw_request\": \"POST / HTTP/1.1\\r\\nTransfer-Encoding: chunked\\r\\n\\r\\n0\\r\\n\\r\\n\",\n  \"hex_body\": \"30\\r\\n\\r\\n\",\n  \"explanation\": \"The request is using Transfer-Encoding: chunked. The chunked body is crafted so that skip_chunk() receives a buffer where the last buffered byte is '\\r' at position i, with no '\\n' following it in the buffer (len == i + 1).\",\n  \"delivery_notes\": \"This request can be sent in one TCP segment as the entire request fits within the TCP segment size limit.\",\n  \"confidence\"",
+  "evidence_source": "{\n  \"raw_request\": \"POST / HTTP/1.1\\r\\nTransfer-Encoding: chunked\\r\\n\\r\\n0\\r\\n\\r\\n\",\n  \"hex_body\": \"30\\r\\n\\r\\n\",\n  \"explanation\": \"The request is using Transfer-Encoding: chunked. The chunked body is crafted so that skip_chunk() receives a buffer where the last buffered byte is '\\r' at position i, w",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "input-drafting condition (Ollama). Did not clearly identify target CVE.",
+  "vulnerability_class": "unknown",
+  "location": {
+    "file": "src/http.c"
+  },
+  "confidence": 0.5,
+  "model": "ollama/deepseek-coder:6.7b",
+  "prompt_id": "mongoose-ollama-input@v1",
+  "run_index": 1
+}

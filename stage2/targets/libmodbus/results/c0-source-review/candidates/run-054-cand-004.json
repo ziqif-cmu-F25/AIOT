@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-004",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "The compute_data_length_after_meta function does not validate that the computed length is non-negative, which could lead to a large length_to_read value and a buffer overflow in _modbus_receive_msg.",
+  "evidence_source": "Lines 292-324: compute_data_length_after_meta returns a value that is used in _modbus_receive_msg at line 451. If the computed length is negative (due to attacker-controlled values), it becomes a large unsigned value when added to msg_length, potentially exceeding the buffer size.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Integer overflow leading to a very large length_to_read, causing a buffer overflow in the recv call at line 405.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "The function compute_data_length_after_meta uses attacker-controlled msg content to compute a length. If the result is negative, it is stored in an int and then used in arithmetic without checks.",
+  "vulnerability_class": "integer-overflow",
+  "location": {
+    "file": "modbus.c",
+    "function": "_modbus_receive_msg",
+    "line": 451
+  },
+  "confidence": 0.7,
+  "model": "deepseek/deepseek-chat-v3.1",
+  "prompt_id": "libmodbus-0367-source-review@v1",
+  "run_index": 2
+}

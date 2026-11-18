@@ -1,0 +1,9 @@
+```json
+{
+  "hypothesis": "The function `skip_chunk` may read out-of-bounds memory due to an incorrect bounds check on the chunk length.",
+  "vulnerable_line": "if (n > len - i - 4) return 0;",
+  "bug_class": "oob-read",
+  "trigger_condition": "The input contains a chunk length that is greater than the remaining buffer length minus 4.",
+  "confidence": 0.8
+}
+```

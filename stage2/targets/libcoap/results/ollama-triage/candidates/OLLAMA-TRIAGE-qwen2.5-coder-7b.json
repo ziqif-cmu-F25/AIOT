@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "triage-hypothesis",
+  "property": "memory-safety",
+  "hypothesis": "Identified that coap_resolve_address_info() reads beyond addrstr bounds when hostname exceeds 255 characters, pointing at memcpy line.",
+  "evidence_source": "Correctly identified unchecked memcpy of hostname >255 chars into 256-byte static buffer.",
+  "input_artifact": "not_available (triage-hypothesis condition; code excerpt provided)",
+  "expected_behavior": "Model should identify the specific vulnerability root cause in the provided code excerpt.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "correct",
+  "notes": "Ollama local model (7B params). Correctly identified CVE-2025-34468 root cause.",
+  "vulnerability_class": "buffer-overflow",
+  "location": {
+    "file": "src/coap_address.c",
+    "function": "coap_resolve_address_info",
+    "line": 538
+  },
+  "confidence": 0.9,
+  "model": "ollama/qwen2.5-coder:7b",
+  "prompt_id": "libcoap-triage@v1",
+  "run_index": 1
+}

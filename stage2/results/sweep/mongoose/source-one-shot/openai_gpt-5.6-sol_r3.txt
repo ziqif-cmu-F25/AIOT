@@ -1,0 +1,14 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "mongoose/src/http.c",
+      "function": "skip_chunk",
+      "line": 1006
+    },
+    "vulnerability_class": "oob-read",
+    "hypothesis": "A fragmented chunk-size line ending with a CR as the final buffered byte causes a one-byte read past the available input. For example, a chunked body currently buffered as \"12\\r\" gives len=3 and i=2. The check uses `len < i + 1`, which is false when `len == i + 1`; after confirming `buf[i] == '\\r'`, it evaluates `buf[i + 1]`, reading `buf[len]`. This is reachable through a network request using `Transfer-Encoding: chunked` when the TCP read boundary occurs immediately after the CR.",
+    "evidence": "At line 1006: `if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;`. The bounds condition must reject equality before accessing `buf[i + 1]`, e.g. `len <= i + 1`. The caller passes the currently buffered extent directly: `skip_chunk(s + o, len - o, &pl, &dl)` at line 1093.",
+    "confidence": 0.99
+  }
+]

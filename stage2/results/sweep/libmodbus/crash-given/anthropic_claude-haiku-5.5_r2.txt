@@ -1,0 +1,39 @@
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 964
+    },
+    "explanation": "The guard for MODBUS_FC_WRITE_AND_READ_REGISTERS (lines 962-965) is meant to reject out-of-range read and write address windows. Line 964 duplicates the read-side test `mapping_address < 0` instead of testing the write-side index `mapping_address_write < 0`. The write-side upper-bound test on line 965, `(mapping_address_write + nb_write) > nb_registers`, cannot catch a negative start index: if `mapping_address_write` is negative, the sum is still below `nb_registers`, so the test passes. The request is then accepted, and the loop at lines 978-982 runs `mb_mapping->tab_registers[i]` with `i = mapping_address_write < 0`. That is a write before the start of the `tab_registers` allocation. The report confirms this: it is a WRITE fault at line 980, at an unmapped address far from the heap block, which fits a large negative index scaled by sizeof(uint16_t).
+
+The negative index comes from line 953. `address_write` is a uint16_t, and `mb_mapping->start_registers` is an unsigned int, so `address_write - start_registers` is computed as unsigned. Any address below the mapping's start wraps to a huge unsigned value, which becomes a negative int when stored in `mapping_address_write`. Without a correct lower-bound check, that negative value reaches the loop. The read-side check on the same line (`mapping_address < 0`) is correctly present, so the asymmetry points to the duplicated test on line 964 as the missing check.",
+    "fix": "Replace line 964 so the write-side lower bound is actually checked:\n\n    } else if (mapping_address < 0 ||\n               (mapping_address + nb) > mb_mapping->nb_registers ||\n               mapping_address_write < 0 ||\n               (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\n\nOptionally, compute the indices as signed before comparing (e.g., `int address_write = (req[offset+5] << 8) + req[offset+6];`) to avoid the unsigned subtraction on line 953 altogether. The existing error-message ternary on lines 969-970 already assumes this check exists.",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "root_cause": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 953
+    },
+    "explanation": "`mapping_address_write` is computed as `address_write - mb_mapping->start_registers`. `start_registers` is unsigned int, so the subtraction is done in unsigned arithmetic. When the write address is below the mapping's start, the result wraps to a large unsigned value, which becomes a negative int when stored. This wrapped value is the index that the unchecked write on line 980 uses. This line is the source of the bad value, but the fault is only reachable because the guard on lines 962-965 fails to reject it, so it is a secondary cause.",
+    "fix": "Compute the index in signed arithmetic (for example, `int mapping_address_write = (int)address_write - (int)mb_mapping->start_registers;`) and rely on the corrected lower-bound check on line 964 to reject negative values.",
+    "confidence": 0.5
+  },
+  {
+    "rank": 3,
+    "root_cause": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 978
+    },
+    "explanation": "The write loop `for (i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; ...)` assumes its start index was already validated. It has no independent bounds check, so any upstream validation failure lands directly in an out-of-bounds store to `tab_registers[i]`. This is a defense-in-depth gap rather than the primary defect. It would be hardened by an assertion or by validating `i` in the loop, but the actual missing check is the one on line 964.",
+    "fix": "Ensure the validated range covers the whole write window (fix line 964 as above). Optionally add `assert(mapping_address_write >= 0)` or a per-iteration bounds check before the store on line 980.",
+    "confidence": 0.15
+  }
+]
+```

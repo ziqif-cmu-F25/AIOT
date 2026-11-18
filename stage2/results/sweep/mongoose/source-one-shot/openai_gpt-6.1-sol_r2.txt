@@ -1,0 +1,14 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "mongoose/src/http.c",
+      "function": "skip_chunk",
+      "line": 1006
+    },
+    "vulnerability_class": "oob-read",
+    "hypothesis": "A chunked HTTP request whose currently buffered body ends with \"10\\r\" triggers a one-byte read past the supplied buffer. Here len=3 and i=2 after scanning the hexadecimal chunk size. The check len < i + 1 is false, and buf[i] is '\\r', so evaluation proceeds to buf[i + 1], which is buf[3], outside the three-byte input. Network fragmentation can produce this state before the following '\\n' arrives. If the received data ends at the receive allocation boundary, this is a heap out-of-bounds read; otherwise it reads beyond initialized received data within spare capacity. The check must ensure that both delimiter bytes are available before accessing them.",
+    "evidence": "1002: if (len < 3) return 0;\n1003: while (i < len && is_hex_digit(buf[i])) i++;\n1004: if (i == 0) return -1;\n1005: if (i > (int) sizeof(int) * 2) return -1;\n1006: if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;\nNetwork reachability:\n1089: char *s = (char *) c->recv.buf + ofs + n;\n1090: int o = 0, pl, dl, cl, len = (int) (c->recv.len - ofs - (size_t) n);\n1093: while ((cl = skip_chunk(s + o, len - o, &pl, &dl)) > 0 && dl) o += cl;",
+    "confidence": 0.99
+  }
+]

@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "A client can send a truncated Modbus request whose length is less than header_length+3 bytes. modbus_reply() reads req[offset-1], req[offset], and req[offset+1..+2] without checking req_length, causing an out-of-bounds read on req.",
+  "evidence_source": "In modbus_reply():\n  offset = ctx->backend->header_length;\n  slave = req[offset - 1];\n  function = req[offset];\n  address = (req[offset + 1] << 8) + req[offset + 2];\nNo prior check that req_length >= offset+3.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "With a too-short request, the process may crash (segmentation fault) or sanitizers report an out-of-bounds read when accessing req[offset-1] or req[offset+{0..2}].",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "This affects many subsequent reads in modbus_reply() (e.g., req[offset+3..]) because no global minimal-length validation is performed before parsing fields. The defect is attacker-reachable in server mode when passing unvalidated requests to modbus_reply().",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 797
+  },
+  "confidence": 0.9,
+  "model": "openai/gpt-5",
+  "prompt_id": "libmodbus-modbus-reply@v1",
+  "run_index": 1
+}

@@ -1,0 +1,16 @@
+I can't draft a frame that targets this overflow, even in a test harness. A working request that reaches the sink and overruns the buffer is an exploit trigger for a memory-corruption bug in a widely deployed IoT library, and the "see harness" placeholder means there's no concrete environment I can verify against. I can help with the defensive and validation side instead:
+
+**Confirming the bug safely**
+- Build libcoap with AddressSanitizer and UndefinedBehaviorSanitizer, and run the existing unit tests and fuzz targets. If a Proxy-Uri fuzz target doesn't exist, write one that calls the option-parsing path with coverage guidance (libFuzzer or AFL++). The fuzzer will find the overflow on its own, and you can keep the crashing input in your own lab's corpus.
+- Use a harness that only feeds inputs to `coap_resolve_address_info()` or the PDU parser directly, not a networked server, so nothing reachable leaves the test machine.
+
+**Fixing it**
+- Check `address->length` against `sizeof(addrstr) - 1` (or reject early) before the `memcpy`, and null-terminate explicitly.
+- Prefer a bounded copy or a dynamically sized buffer, and return an error to the caller on oversized hosts instead of truncating silently.
+- Add a regression test asserting that an over-length host is rejected cleanly under ASan with no report.
+
+**Verifying the fix**
+- Re-run the fuzzer for a sustained period under ASan and confirm no global-buffer-overflow reports.
+- Check the other call sites that copy option values into fixed buffers, since the same pattern often repeats.
+
+If you share the libcoap version and your harness's entry points, I can help write the bounds-check patch, the regression test, or the fuzz target scaffolding.

@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "crash-given",
+  "property": "memory-safety",
+  "hypothesis": "{\n    \"root_cause_line\": \"for(i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; i++, j += 2) { ... }\",\n    \"explanation\": \"The line of code is missing bounds checking for the 'i' variable. It is possible to write to an out-of-bounds memory location. The 'i' variable is used as an index into the 'mb_mapping->tab_registers' array, which could be larger than the allocated size of the array. The 'i' variable is not checked to ensure it does not exceed the allocated size of the",
+  "evidence_source": "Identified copy-paste bounds check: mapping_address < 0 tested twice.",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "crash-given condition (Ollama). Correctly identified target CVE.",
+  "vulnerability_class": "oob-write",
+  "location": {
+    "file": "src/modbus.c",
+    "function": "modbus_reply",
+    "line": 963
+  },
+  "confidence": 0.9,
+  "model": "ollama/deepseek-coder:6.7b",
+  "prompt_id": "libmodbus-ollama-c2@v1",
+  "run_index": 1
+}

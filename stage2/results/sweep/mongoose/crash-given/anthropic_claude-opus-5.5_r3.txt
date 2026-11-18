@@ -1,0 +1,41 @@
+**Trace with input `"ab\r"` (len = 3) through `skip_chunk`:**
+
+- Line 1002: `len < 3` is false, so parsing continues.
+- Line 1003: `'a'` and `'b'` are hex digits, so the loop stops with `i = 2`.
+- Lines 1004–1005: `i != 0` and `i <= 8`, so both pass.
+- Line 1006: `len < i + 1` is `3 < 3`, which is false.
+  - `buf[2] != '\r'` is false, since `buf[2]` is `'\r'`.
+  - So `buf[i + 1]`, which is `buf[3]`, is evaluated.
+  - That is 1 byte past the 3-byte `malloc(3)` region.
+
+This matches the report: a 1-byte READ at `0x502000000013`, "0 bytes after 3-byte region".
+
+The bounds guard checks that index `i` exists (`len >= i + 1`). But the line then reads both `buf[i]` and `buf[i + 1]`, so it must guarantee `len >= i + 2`.
+
+For comparison, line 1010 (`n > len - i - 4`) correctly ensures `i + n + 3 < len` before line 1011 reads `buf[i + n + 3]`. So the off-by-one is isolated to line 1006.
+
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+    "explanation": "After scanning i hex digits, the guard `len < i + 1` only proves buf[i] is in bounds, yet the same expression then reads buf[i + 1]. With input \"ab\\r\" (len=3), i=2: the guard (3 < 3) is false and buf[2]=='\\r' passes, so buf[3] is read. That is exactly 1 byte past the 3-byte heap buffer, matching the ASan report (READ size 1, 0 bytes after 3-byte region).",
+    "fix": "if (len < i + 2 || buf[i] != '\\r' || buf[i + 1] != '\\n') return 0;  /* or return -1; the key change is i + 1 -> i + 2. Returning 0 ('need more data') is more correct, since a partial CRLF may still be arriving. */",
+    "confidence": 0.95
+  },
+  {
+    "rank": 2,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skiptorn", "line": 231},
+    "explanation": "`s[0] == '\\r' && s[1] != '\\n'` reads s[1] without checking s + 1 < end. If '\\r' is the last byte before `end`, s[1] is read past the region. This is a similar pattern but is not reached by this chunk input. In mg_http_parse, `end` comes from mg_http_get_request_len, which normally ends on '\\n', so it is usually latent.",
+    "fix": "if (s >= end || (s[0] == '\\r' && (s + 1 >= end || s[1] != '\\n'))) return NULL;",
+    "confidence": 0.03
+  },
+  {
+    "rank": 3,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "mg_http_parse_headers", "line": 245},
+    "explanation": "`s[0] == '\\r' && s[1] == '\\n'` reads s[1] when s + 1 may equal `end`. This is the same unguarded two-byte CRLF lookahead pattern, but it is not on the path of this input.",
+    "fix": "if (s[0] == '\\n' || (s[0] == '\\r' && s + 1 < end && s[1] == '\\n')) break;",
+    "confidence": 0.02
+  }
+]
+```

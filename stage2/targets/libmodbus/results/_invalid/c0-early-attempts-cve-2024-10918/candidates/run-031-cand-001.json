@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "A malicious 'Write Multiple Coils' (0x0F) request with a truncated data payload can cause an out-of-bounds read. If an attacker provides a large 'quantity of coils' (`nb`) and a corresponding 'byte count' (`nb_bits`), but sends fewer bytes of coil data than specified, the server will read past the end of the request buffer.",
+  "evidence_source": "In `modbus_reply` for `MODBUS_FC_WRITE_MULTIPLE_COILS`, the code reads `nb` and `nb_bits` from the request. It validates that `nb_bits` is large enough for `nb` (`nb_bits * 8 < nb`). However, it does not validate that the actual received request length (`req_length`) is sufficient to contain `nb_bits` of data. The call to `modbus_set_bits_from_bytes` at line 968 uses `nb` to determine how many bytes to read from `&req[offset + 6]`, which can be more than is available in the received packet.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "A crash or memory sanitizer report indicating an out-of-bounds read when processing the malicious request.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "The out-of-bounds read occurs within the `modbus_set_bits_from_bytes` function, which is not provided. However, its purpose is to process `nb` bits, which requires reading `(nb + 7) / 8` bytes from the source buffer. The vulnerability is the lack of a bounds check in the caller, `modbus_reply`, to ensure the source buffer is large enough before making the call.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 968
+  },
+  "confidence": 1.0,
+  "model": "google/gemini-2.5-pro",
+  "prompt_id": "libmodbus-modbus-reply-ctx@v1",
+  "run_index": 1
+}

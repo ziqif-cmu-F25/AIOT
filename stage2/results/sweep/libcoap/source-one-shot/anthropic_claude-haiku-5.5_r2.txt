@@ -1,0 +1,16 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "libcoap/src/coap_proxy.c", "function": "coap_proxy_forward_request_lkd", "line": 681},
+    "vulnerability_class": "use-after-free",
+    "hypothesis": "The request body is copied into a private heap buffer `body_data` so it survives after the incoming request PDU is freed, as the comment at line 672-673 says. But the copy is then handed to `coap_add_data_large_request_lkd()` as `data`, which still points into the incoming request PDU, not into `body_data->s`. The `data = body_data->s;` reassignment that `coap_proxy_forward_response_lkd` performs (line 784) is missing here. When the request PDU is released (the normal flow after the proxy forwards it), the body transmitted in later blocks, or retained for retransmission, is read from freed memory. The result is a heap read of freed memory, and the attacker controls the freed contents through the request body they send to the proxy. The `body_data` buffer is also freed via `coap_proxy_release_body_data` while the PDU still references the request buffer, so the lifetime of the pointer the PDU uses is wrong.",
+    "evidence": "672-673: \"Need to take a copy of the data as request PDU may go away before all data is transmitted.\"\n675-680: body_data = coap_new_binary(total); ... memcpy(body_data->s, data, size);\n681-682: if (!coap_add_data_large_request_lkd(proxy_entry->ongoing, pdu, total, data,\n                                              coap_proxy_release_body_data, body_data)) {",
+    "confidence": 0.8
+  },
+  {
+    "rank": 2,
+    "location": {"file": "libcoap/src/coap_pdu.c", "function": "coap_pdu_parse_size", "line": 1042},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "The function only requires `length >= coap_pdu_parse_header_size()` (an assert that is compiled out in release builds). For the len==13 and len==14 branches, `token_start` is set to `&data[3]` or `&data[4]` even when `length` only covers the minimal header. The extended-token branch then reads `token_start[0]` (and `token_start[1]`) without checking `length`. A TCP/TLS packet whose first byte is 0xD? (length 13) with tkl nibble 13 and only 3 bytes available makes `data[3]` an out-of-bounds read. The same applies to the 2-byte extended token case with too few bytes. Because the header is attacker-controlled network data, this is an out-of-bounds read of the receive buffer.",
+    "evidence":

@@ -1,0 +1,31 @@
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "mongoose/src/http.c",
+      "function": "skip_chunk",
+      "line": 1006
+    },
+    "explanation": "Line 1006 is `if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;`. The length guard checks only that `buf[i]` is in range, but the condition then reads `buf[i + 1]`, which requires `len >= i + 2`. For the input \"ab\\r\" (len = 3), the hex loop on line 1003 stops at i = 2, since buf[2] = '\\r' is not a hex digit. The guard `len < i + 1` evaluates to `3 < 3`, which is false, so execution continues. `buf[i] == '\\r'` is true, so the `||` short-circuit does not stop evaluation, and `buf[i + 1]` = `buf[3]` is read. That is one byte past the 3-byte allocation. The ASan report matches exactly: a 1-byte READ at offset 3, \"0 bytes after 3-byte region\". The faulting PC is inside the oracle binary's own code (mongoose's skip_chunk), not inside a libc routine. The libc frames #1 and #2 are the process startup trampoline (libc start-main), not the code that performed the read.\n\nThe chunk-size line requires CRLF, so the minimum bytes needed at index i are i + 2. The guard should enforce that. Because the check is one short, a chunk-size line that ends exactly at the end of the buffered data with a lone '\\r' triggers a read past the end of the heap buffer. This is reachable with network-supplied chunked bodies, since partial data is buffered and passed to skip_chunk from http_cb (lines 1093 and 1102).",
+    "fix": "if (len < i + 2 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // Need both CR and LF inside the buffer",
+    "confidence": 0.95
+  },
+  {
+    "rank": 2,
+    "root_cause": {
+      "file": "mongoose/src/http.c",
+      "function": "skip_chunk",
+      "line": 1003
+    },
+    "explanation": "This is a secondary candidate, not the root cause. The hex-digit scan is bounded by `i < len`, so it never reads past the buffer. It does, however, allow the scan to stop exactly at the end of the buffer. That is the state that line 1006 then fails to handle. The bounds of the scan are correct, so the fault comes from the check that follows it. This candidate is listed only to show that the loop was considered and ruled out.",
+    "fix": "No change needed to the loop bound. Keep `while (i < len && is_hex_digit(buf[i])) i++;` and fix line 1006 instead.",
+    "confidence": 0.05
+  }
+]
+```
+
+**Why the other lines are not the cause (checked for completeness):**
+- **Line 1011** (`buf[i + n + 3]`) is protected by line 1010. Line 1010 returns 0 unless `i + n + 4 <= len`, so `i + n + 3 < len` holds.
+- **Line 1010** (`n > len - i - 4`) is a correct sufficiency test for a complete chunk (size line + CRLF + n data bytes + CRLF). The problem is only that the earlier guard on line 1006 was too weak.
+- **Lines 1093 and 1102** call `skip_chunk(s + o, len - o, ...)` with a length that is correct, and they return early when `len - o < 3` on line 1002.

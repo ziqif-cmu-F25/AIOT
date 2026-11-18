@@ -1,0 +1,39 @@
+**Trace of the input through `skip_chunk`**
+
+The input is `"ab\r"`, with `len = 3`, in an exact-size 3-byte heap buffer. The report shows a 1-byte read at offset 3, which is just past the end. The binary is a chunk oracle, so it is calling `skip_chunk`.
+
+- **Line 1002:** `len < 3` is false, so the function continues.
+- **Line 1003:** `'a'` and `'b'` are hex digits, so `i = 2`.
+- **Line 1004:** `i == 0` is false.
+- **Line 1005:** `i > 8` is false.
+- **Line 1006:** `len < i + 1` is `3 < 3`, which is false. `buf[2] != '\r'` is also false. The code then evaluates `buf[i + 1]`, which is `buf[3]`. That is one byte past the 3-byte allocation, and it is exactly the read ASan reports.
+
+The check must guarantee that both `buf[i]` and `buf[i+1]` are in bounds. That requires `i + 2 <= len`, but the code only checks `i + 1 <= len`. This is an off-by-one error.
+
+Line 1010 is correct by comparison. It reads `buf[i+n+3]`, which needs `i + n + 3 < len`. The check `n > len - i - 4` enforces that.
+
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+    "explanation": "After scanning i hex digits, the code reads buf[i] and buf[i+1] (the CRLF after the chunk size). The guard 'len < i + 1' only ensures buf[i] is in bounds. With input \"ab\\r\" (len=3, i=2), the guard passes, buf[2]=='\\r' passes, and buf[3] is read: one byte past the 3-byte heap buffer. This matches the ASan report ('0 bytes after 3-byte region', READ of size 1).",
+    "fix": "if (len < i + 2 || buf[i] != '\\r' || buf[i + 1] != '\\n') return 0 /* or -1 */;  // need i+2 bytes. Returning 0 (need more data) when len < i + 2 is the more correct streaming behavior.",
+    "confidence": 0.95
+  },
+  {
+    "rank": 2,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skiptorn", "line": 231},
+    "explanation": "When s points at the last byte (s == end - 1) and that byte is '\\r', the expression 's[0] == \\'\\r\\' && s[1] != \\'\\n\\'' reads s[1] == *end, one byte past the parsed region. This is the same off-by-one pattern (CR at the buffer end). It is not the path in this report, but it is a similar latent over-read.",
+    "fix": "if (s >= end || (s[0] == '\\r' && (s + 1 >= end || s[1] != '\\n'))) return NULL;",
+    "confidence": 0.1
+  },
+  {
+    "rank": 3,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "mg_http_parse_headers", "line": 245},
+    "explanation": "'s[0] == \\'\\r\\' && s[1] == \\'\\n\\'' reads s[1] without checking s + 1 < end. If the header region ends in a lone '\\r', this reads one byte past end. This is the same CR-at-end off-by-one class.",
+    "fix": "if (s[0] == '\\n' || (s[0] == '\\r' && s + 1 < end && s[1] == '\\n')) break;",
+    "confidence": 0.05
+  }
+]
+```

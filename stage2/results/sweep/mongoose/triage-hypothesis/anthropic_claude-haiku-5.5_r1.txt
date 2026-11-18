@@ -1,0 +1,31 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1006},
+    "bug_class": "oob-read",
+    "hypothesis": "The bounds check on line 1006 is off by one: it requires `len >= i + 1` but then reads `buf[i + 1]`, which needs `len >= i + 2`, so when exactly `len == i + 1` the LF check reads one byte past the valid input (buf[len]).",
+    "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "trigger_condition": "The buffer holds a chunk-size line of i hex digits followed by a CR as its final byte, with len == i + 1 (e.g., the 3-byte input \"AB\\r\" where len=3, i=2, so buf[3] is read). The chunk-size check `len < 3` on line 1002 still allows this at minimum length. The read is out of bounds only if the buffer is allocated to exactly len bytes, as with a heap-allocated receive buffer.",
+    "confidence": 0.6
+  },
+  {
+    "rank": 2,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1007},
+    "bug_class": "integer-overflow",
+    "hypothesis": "The hex chunk size is parsed into a signed `int` via mg_str_to_num with width sizeof(int), and up to 8 hex digits are accepted, so values at or above 0x80000000 may wrap to a negative or otherwise unexpected `n` if the parser does not reject signed overflow; the only downstream guard, `n < 0` on line 1009, is then the sole defense.",
+    "vulnerable_line": "if (mg_str_to_num(mg_str_n(buf, (size_t) i), 16, &n, sizeof(int)) == false)",
+    "trigger_condition": "A chunk-size field of 8 hex digits with the high bit set (e.g., \"FFFFFFFF\\r\\n\"), so that i == 8 passes line 1005 and the parsed value overflows int. Whether the value is actually negative depends on mg_str_to_num's overflow handling, which is outside the excerpt.",
+    "confidence": 0.3
+  },
+  {
+    "rank": 3,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1010},
+    "bug_class": "other",
+    "hypothesis": "The length comparison `n > len - i - 4` is computed in signed int, and when `len - i - 4` is negative (len < i + 4) the function returns 0 ('need more data') for any n, so a caller that treats 0 as 'wait for more bytes' can stall indefinitely on a truncated chunk header.",
+    "vulnerable_line": "if (n > len - i - 4) return 0;  // Chunk not yet fully buffered",
+    "trigger_condition": "A short buffer in which the hex size is followed by CRLF but fewer than 4 bytes remain after the digits (e.g., \"5\\r\\n\" with len=3 gives len-i-4 = -2). This is a liveness/DoS issue rather than a memory-safety bug, and depends on the caller's handling of a 0 return.",
+    "confidence": 0.2
+  }
+]
+```

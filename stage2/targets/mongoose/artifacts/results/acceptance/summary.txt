@@ -1,0 +1,30 @@
+PS2-00 PASS
+command: docker info
+notes: Docker daemon reachable
+
+PS2-01 PASS
+command: docker compose --profile blackbox build
+notes: See ps2-01-blackbox-build.log
+
+PS2-02 PASS
+command: compose up blackbox --wait
+notes: See ps2-02-up.log
+
+PS2-03 PASS
+command: http_client.py send get_root.http
+notes: ordinary GET answered; see ps2-03-send.json
+
+PS2-04 PASS
+command: http_client.py replay get-root.req
+notes: saved request replayed after restart
+
+PS2-05 PASS
+command: send chunked_ok.http
+notes: chunked request delivered; see ps2-05-chunked.json
+
+PS2-06 PASS
+command: ./scripts/oracle_smoke.sh
+notes: ASan exact-buffer oracle distinguishes vuln vs fixed
+
+Wrote /Users/sherryfang/Documents/CMU MSSE/2026 Fall/Courses/Mobile and IOT/Group Project/Phase 1/personal-stage2/results/acceptance/freeze-record.md
+SUMMARY pass=7 fail=0 blocked=0

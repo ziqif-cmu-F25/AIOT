@@ -1,0 +1,13 @@
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "mongoose/src/http.c",
+      "function": "skip_chunk",
+      "line": 1006
+    },
+    "explanation": "The bounds check reserves only one byte after the hexadecimal chunk length, but the code immediately reads two bytes: buf[i] and buf[i + 1]. For the exact 3-byte input \"ab\\r\", the hexadecimal scan leaves i == 2 and len == 3. The condition `len < i + 1` evaluates as `3 < 3`, which is false. `buf[2]` is then valid and equals '\\r', so short-circuit evaluation continues to `buf[3]`, exactly one byte past the 3-byte allocation, matching the ASan report.",
+    "fix": "Require both CRLF bytes to be present before accessing either: `if (i + 1 >= len || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;` Equivalently: `if (len < i + 2 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;`.",
+    "confidence": 1.0
+  }
+]

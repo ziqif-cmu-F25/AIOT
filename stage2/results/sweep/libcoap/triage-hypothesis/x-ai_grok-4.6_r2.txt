@@ -1,0 +1,29 @@
+[
+  {
+    "rank": 1,
+    "location": {"file": "unknown", "function": "coap_resolve_address_info", "line": 538},
+    "bug_class": "buffer-overflow",
+    "hypothesis": "A network-controlled coap_str_const_t with length > 256 is memcpy'd into the 256-byte stack/static buffer addrstr with no bounds check, overflowing adjacent memory.",
+    "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "address != NULL && address->length > sizeof(addrstr) (256), and the host is not a Unix-domain path that takes the earlier return",
+    "confidence": 0.95
+  },
+  {
+    "rank": 2,
+    "location": {"file": "unknown", "function": "coap_resolve_address_info", "line": 547},
+    "bug_class": "oob-read",
+    "hypothesis": "When address->length == 256, memcpy overwrites every byte of the zeroed addrstr so it is not NUL-terminated, and getaddrinfo(addrstr, ...) then reads past the buffer looking for a terminator.",
+    "vulnerable_line": "error = getaddrinfo(addrstr, NULL, &hints, &res);",
+    "trigger_condition": "address != NULL && address->length == 256 (fills addrstr exactly, leaving no NUL)",
+    "confidence": 0.88
+  },
+  {
+    "rank": 3,
+    "location": {"file": "unknown", "function": "coap_resolve_address_info", "line": 672},
+    "bug_class": "oob-read",
+    "hypothesis": "On RIOT/Contiki paths, address->s is passed to C-string APIs (%s logging, netutils_get_ipv6/ipv4, uiplib_ip*addrconv) even though the non-RIOT path treats it as a length-bounded, possibly non-NUL-terminated buffer, causing reads past address->s.",
+    "vulnerable_line": "if (netutils_get_ipv6(&addr_ipv6, &netif, (const char *)address->s) >= 0)",
+    "trigger_condition": "RIOT_VERSION or WITH_CONTIKI build, address->length > 0, and address->s is not NUL-terminated within length bytes",
+    "confidence": 0.72
+  }
+]

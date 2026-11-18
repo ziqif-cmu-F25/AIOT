@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "Same as triage: claimed buffer overflow if input length > sizeof(int), pointed at wrong mechanism.",
+  "evidence_source": "Repeated integer-overflow theory from C0 prompt context. Pointed at `i > (int) sizeof(int) * 2` check.",
+  "input_artifact": "not_available (ai-source-review condition; code excerpt provided)",
+  "expected_behavior": "Model should identify the specific vulnerability root cause in the provided code excerpt.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "rejected",
+  "oracle_verdict": "wrong_bug",
+  "notes": "Ollama local model, C0 (full source). Same wrong reasoning as triage variant.",
+  "vulnerability_class": "other",
+  "location": {
+    "file": "src/http.c",
+    "function": "skip_chunk",
+    "line": 12
+  },
+  "confidence": 0.3,
+  "model": "ollama/deepseek-coder:6.7b",
+  "prompt_id": "mongoose-c0@v1",
+  "run_index": 1
+}

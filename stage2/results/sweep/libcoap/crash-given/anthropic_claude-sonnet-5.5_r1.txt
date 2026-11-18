@@ -1,0 +1,25 @@
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {"file": "libcoap/src/coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+    "explanation": "The function copies the caller-supplied host name into a fixed 256-byte static buffer, `static char addrstr[256]`. Line 538 does `memcpy(addrstr, address->s, address->length)` with no check that address->length fits. The Unix-domain branch does check its length (line 509), but this path does not. The report shows a WRITE of size 300 that first goes bad exactly 0 bytes after addrstr. That matches a memcpy of a 300-byte host into the 256-byte buffer. The host comes from the proxy path. coap_proxy_get_ongoing_session (coap_proxy.c:420) passes server_use->uri.host, which is filled from an attacker-controlled Proxy-Uri option. coap_split_proxy_uri and coap_split_uri_sub (coap_uri.c:202) accept a host of any length, and Proxy-Uri may be up to 1034 bytes (coap_pdu.c:1256). A Uri-Host option is capped at 255 bytes and would fit. The 300-byte write therefore comes from a long host inside a Proxy-Uri. The terminating NUL is also not accounted for, so a length of exactly 256 would leave addrstr unterminated before getaddrinfo.",
+    "fix": "Before the memset/memcpy at lines 536-540, reject any host that does not fit with its terminator: `if (address && address->length >= sizeof(addrstr)) { coap_log_err(\"Host name too long\\n\"); return NULL; }`. Then copy only address->length bytes.",
+    "confidence": 0.93
+  },
+  {
+    "rank": 2,
+    "root_cause": {"file": "libcoap/src/coap_uri.c", "function": "coap_split_uri_sub", "line": 202},
+    "explanation": "The parser stores the host with COAP_SET_STR(&uri->host, q - p, p) and never limits the host length. A Proxy-Uri with a host of 256 or more bytes is accepted. coap_proxy_get_session then passes that host on to coap_resolve_address_info, where it overflows addrstr. This is the upstream source of the oversized length, but the actual out-of-bounds write is the unchecked memcpy at rank 1.",
+    "fix": "Reject hosts longer than 255 bytes (the Uri-Host maximum) in coap_split_uri_sub and return an error. This also covers the IPv6 literal branch at line 181.",
+    "confidence": 0.3
+  },
+  {
+    "rank": 3,
+    "root_cause": {"file": "libcoap/src/coap_proxy.c", "function": "coap_proxy_get_session", "line": 266},
+    "explanation": "The proxy only checks that server_use->uri.host.length is non-zero. It does not check an upper bound before the host is handed to coap_resolve_address_info at line 420. An over-long Proxy-Uri host therefore reaches the 256-byte static buffer.",
+    "fix": "Also require `server_use->uri.host.length <= 255` (or less than the resolver's buffer size) and return 5.05 or 4.00 otherwise.",
+    "confidence": 0.2
+  }
+]
+```

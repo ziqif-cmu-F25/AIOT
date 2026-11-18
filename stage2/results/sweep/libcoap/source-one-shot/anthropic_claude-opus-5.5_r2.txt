@@ -1,0 +1,28 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "libcoap/src/coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "A remote client sends a request to a strip-type proxy with a Proxy-Uri option. Proxy-Uri may be up to 1034 bytes, and its host part can be longer than 255 bytes (e.g. coap://AAAA...A/). coap_split_proxy_uri sets uri.host.length to the full host length. coap_proxy_get_ongoing_session then passes this host to coap_resolve_address_info, which memcpy()s it into the 256-byte static buffer addrstr with no length check. This overflows the global buffer and corrupts adjacent .bss data.",
+    "evidence": "static char addrstr[256]; ... memset(addrstr, 0, sizeof(addrstr));\n  if (address && address->length)\n    memcpy(addrstr, address->s, address->length);",
+    "confidence": 0.88
+  },
+  {
+    "rank": 2,
+    "location": {"file": "libcoap/src/coap_uri.c", "function": "check_segment", "line": 446},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "A segment that ends in '%' followed by exactly one character (length == 2 at the '%') passes the `length < 2` check. The code then reads s[2], one byte past the segment. decode_segment later also reads seg[2] and its length counter underflows.",
+    "evidence": "if (length < 2 || !(isxdigit(s[1]) && isxdigit(s[2]))) return -1;",
+    "confidence": 0.25
+  },
+  {
+    "rank": 3,
+    "location": {"file": "libcoap/src/coap_proxy.c", "function": "coap_proxy_forward_response_lkd", "line": 857},
+    "vulnerability_class": "use-after-free",
+    "hypothesis": "If body allocation fails, the code jumps to remove_match. It then uses proxy_entry and j, which point at a req_list entry, and deletes that entry's pdu and token. Re-entrancy via coap_send_lkd could free or realloc the proxy_list in the meantime, leaving these as stale references.",
+    "evidence": "if (option == NULL && proxy_entry->req_count) { coap_delete_pdu(proxy_entry->req_list[j].pdu); ...",
+    "confidence": 0.1
+  }
+]
+```

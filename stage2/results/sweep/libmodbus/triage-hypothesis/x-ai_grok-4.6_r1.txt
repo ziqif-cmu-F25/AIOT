@@ -1,0 +1,20 @@
+[
+  {
+    "rank": 1,
+    "location": {"file": "modbus.c", "function": "modbus_reply", "line": 964},
+    "bug_class": "oob-write",
+    "hypothesis": "Copy-paste error duplicates mapping_address < 0 instead of checking mapping_address_write < 0, so a request with a write address below start_registers yields a negative index and underflows tab_registers.",
+    "vulnerable_line": "mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];",
+    "trigger_condition": "MODBUS_FC_WRITE_AND_READ_REGISTERS with valid read mapping (mapping_address >= 0 && mapping_address+nb <= nb_registers) but address_write < mb_mapping->start_registers (so mapping_address_write < 0) and nb_write in [1, MAX] with matching byte count",
+    "confidence": 0.95
+  },
+  {
+    "rank": 2,
+    "location": {"file": "modbus.c", "function": "modbus_reply", "line": 965},
+    "bug_class": "integer-overflow",
+    "hypothesis": "The upper-bound test (mapping_address_write + nb_write) > nb_registers is a signed add that can wrap, so a large mapping_address_write makes the check pass and the write loop indexes tab_registers far past nb_registers.",
+    "vulnerable_line": "(mapping_address_write + nb_write) > mb_mapping->nb_registers",
+    "trigger_condition": "address_write and start_registers such that mapping_address_write is a large positive int near INT_MAX, with nb_write >= 1 so the addition overflows and the comparison does not fail",
+    "confidence": 0.35
+  }
+]

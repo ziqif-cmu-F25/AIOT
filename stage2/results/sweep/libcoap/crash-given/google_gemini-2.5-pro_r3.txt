@@ -1,0 +1,17 @@
+Based on the AddressSanitizer report and the provided source code, here is the analysis of the root cause of the global-buffer-overflow.
+
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "libcoap/src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 538
+    },
+    "explanation": "The AddressSanitizer report indicates a global-buffer-overflow when writing 300 bytes to the `addrstr` buffer, which is only 256 bytes long. This buffer is a `static char` array within the `coap_resolve_address_info` function. The overflow occurs at line 538, where `memcpy` is called to copy a hostname into `addrstr`. The size of the copy is determined by `address->length`, which is derived from a user-provided CoAP message (e.g., from a Uri-Host or Proxy-Uri option). There is no check to ensure that `address->length` is less than the size of the `addrstr` buffer. When a crafted message with a hostname longer than 255 characters is processed, this `memcpy` writes beyond the buffer's bounds, causing the overflow.",
+    "fix": "A bounds check should be added before the `memcpy` call to ensure that the length of the address string does not exceed the buffer's capacity. If the address is too long, the function should log an error and fail gracefully.\n\n```c\n  memset(addrstr, 0, sizeof(addrstr));\n  if (address && address->length) {\n    if (address->length >= sizeof(addrstr)) {\n      coap_log_warn(\"coap_resolve_address_info: provided address is too long\\n\");\n      return NULL;\n    }\n    memcpy(addrstr, address->s, address->length);\n  } else\n    memcpy(addrstr, \"localhost\", 9);\n```",
+    "confidence": 1.0
+  }
+]
+```

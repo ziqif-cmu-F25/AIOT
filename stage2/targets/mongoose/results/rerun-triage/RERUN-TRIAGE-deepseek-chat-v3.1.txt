@@ -1,0 +1,7 @@
+{
+  "hypothesis": "The function skip_chunk() performs an out-of-bounds read when checking for the chunk terminator because it accesses buf[i + n + 2] and buf[i + n + 3] without verifying that i + n + 3 is less than len.",
+  "vulnerable_line": "if (buf[i + n + 2] != '\\r' || buf[i + n + 3] != '\\n') return -1;",
+  "bug_class": "oob-read",
+  "trigger_condition": "When the chunk length n is large enough that i + n + 3 >= len, causing the access to exceed the buffer bounds.",
+  "confidence": 0.95
+}

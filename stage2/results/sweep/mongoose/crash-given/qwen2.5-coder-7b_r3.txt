@@ -1,0 +1,32 @@
+The provided code snippet is from a C library for handling HTTP requests and responses, likely part of a web server or client implementation. The code defines a function `mg_http_handler` that processes incoming HTTP requests and handles them according to the HTTP protocol specifications.
+
+Here's a breakdown of the key parts of the code:
+
+1. **Initialization and Error Handling**:
+   - The function initializes variables `is_chunked` and `is_http_1_0` to track whether the request uses chunked transfer encoding and whether the HTTP version is 1.0.
+   - It checks if the read operation (`n`) was successful. If not, it logs an error and handles the error appropriately.
+
+2. **Processing HTTP Headers**:
+   - The function calls `mg_call(c, MG_EV_HTTP_HDRS, &hm)` to notify the user handler that all HTTP headers have been received.
+   - It checks if the user manipulated the received data and detaches the HTTP handler if so.
+
+3. **Handling Chunked Transfer Encoding**:
+   - If the request uses chunked transfer encoding, the function processes the chunks to strip off prefixes and suffixes and relocate them right after the headers.
+   - It finds the zero-length chunk, which indicates the end of the body, and then strips and relocates the chunks.
+
+4. **Handling Non-Chunked Data**:
+   - If the request does not use chunked transfer encoding, the function checks if the received data length matches the expected body length.
+
+5. **Calling User Handler**:
+   - The function calls `mg_call(c, MG_EV_HTTP_MSG, &hm)` to notify the user handler that a complete HTTP message has been received.
+   - It checks if the user handler has set `is_resp` to 1, indicating that a response should be generated.
+
+6. **Handling Connection Close**:
+   - If the user handler sets the `Connection` header to "close", the function sets `is_draining` to 1 to honor the "Connection: close" directive.
+
+7. **Deleting Processed Data**:
+   - After processing the data, the function deletes the processed data from the receive buffer.
+
+The code also includes functions `mg_http_connect` and `mg_http_listen` to connect to a server or listen for incoming connections, respectively.
+
+Overall, the code provides a robust framework for handling HTTP requests and responses, including support for chunked transfer encoding and proper error handling.

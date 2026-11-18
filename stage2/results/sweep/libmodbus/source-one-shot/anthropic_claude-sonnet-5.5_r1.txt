@@ -1,0 +1,16 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 962
+    },
+    "vulnerability_class": "oob-write",
+    "hypothesis": "In the FC 0x17 (write-and-read registers) handler, the address validation checks `mapping_address < 0` twice. It never checks `mapping_address_write < 0`. `address_write` is a uint16_t taken from the request, and `mapping_address_write = address_write - start_registers`. If the server mapping has a nonzero `start_registers` (via modbus_mapping_new_start_address), a client can send a write address below `start_registers`, which makes `mapping_address_write` negative. The only remaining write-side check is `mapping_address_write + nb_write > nb_registers`, and a negative value passes it. The write loop then stores attacker-controlled 16-bit values at `tab_registers[negative ..]`, which is a heap write before the start of the array. The read address is validated independently and can stay legal. Only the lower bound is missing for the write range. The exception-message code even anticipates a negative `mapping_address_write`, so the check was meant to be there. The server is only exposed if it uses a nonzero `start_registers`.",
+    "evidence": "} else if (mapping_address < 0 ||\n           (mapping_address + nb) > mb_mapping->nb_registers ||\n           mapping_address < 0 ||\n           (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\n...\nfor (i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; i++, j += 2) {\n    mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];",
+    "confidence": 0.6
+  }
+]
+```

@@ -1,0 +1,6 @@
+{
+  "root_cause_line": "mapping_address < 0 || /* the second occurrence, before (mapping_address_write + nb_write) */",
+  "explanation": "The bounds check mistakenly tests the read offset, mapping_address, twice and never checks whether mapping_address_write is negative. If address_write is below mb_mapping->start_registers, mapping_address_write becomes negative. The upper-bound check can still pass because mapping_address_write + nb_write may be less than nb_registers. The write loop then uses the negative value as an index into mb_mapping->tab_registers, writing before the allocated array and causing the ASan crash at line 980.",
+  "fix": "Replace the second `mapping_address < 0` with `mapping_address_write < 0`, so the condition is: `mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address_write < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers`.",
+  "confidence": 1.0
+}

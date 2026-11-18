@@ -1,0 +1,24 @@
+{
+  "rank": 1,
+  "location": {"file": "mongoose/src/http.c", "function": "skiptorn", "line": 228},
+  "vulnerability_class": "oob-read",
+  "hypothesis": "If an HTTP line (request line or header line) ends with a bare '\\r' that is the last byte in the provided parsing window, skiptorn will read one byte past the end when it unconditionally inspects s[1] to check for a following '\\n'. An attacker can craft a request where the parser’s end pointer aligns so that a '\\r' occurs at end-1 (e.g., by exploiting the unconventional end-of-headers detection), causing an out-of-bounds read of s[1].",
+  "evidence": "static const char *skiptorn(const char *s, const char *end, struct mg_str *v) {\n  v->buf = (char *) s;\n  while (s < end && s[0] != '\\n' && s[0] != '\\r') s++, v->len++;  // To newline\n  if (s >= end || (s[0] == '\\r' && s[1] != '\\n')) return NULL;    // Stray \\r\n  if (s < end && s[0] == '\\r') s++;                               // Skip \\r\n  if (s >= end || *s++ != '\\n') return NULL;                      // Skip \\n\n  return s;\n}\n",
+  "confidence": 0.62
+}
+{
+  "rank": 2,
+  "location": {"file": "mongoose/src/http.c", "function": "mg_http_get_request_len", "line": 191},
+  "vulnerability_class": "other",
+  "hypothesis": "The end-of-headers detector accepts an invalid sequence \"\\n\\r\\n\" instead of the canonical \"\\r\\n\\r\\n\". This can cause the parser to consider headers complete earlier than intended, potentially leaving a line ending with a lone '\\r' at the end of the parsing window. In combination with skiptorn’s s[1] access, this can trigger the out-of-bounds read or lead to inconsistent header parsing.",
+  "evidence": "int mg_http_get_request_len(const unsigned char *buf, size_t buf_len) {\n  size_t i;\n  for (i = 0; i < buf_len; i++) {\n    if (!isok(buf[i])) return -1;\n    if ((i > 0 && buf[i] == '\\n' && buf[i - 1] == '\\n') ||\n        (i > 3 && buf[i] == '\\n' && buf[i - 1] == '\\r' && buf[i - 2] == '\\n'))\n      return (int) i + 1;\n  }\n  return 0;\n}\n",
+  "confidence": 0.45
+}
+{
+  "rank": 3,
+  "location": {"file": "mongoose/src/http.c", "function": "http_cb (chunked parsing via skip_chunk)", "line": 1086},
+  "vulnerability_class": "oob-read",
+  "hypothesis": "Chunked body parsing uses int for lengths and offsets. If an extremely large receive buffer is accumulated (e.g., on 64-bit where size_t > int), the cast to int can truncate len to a negative value. This can desynchronize bounds checks and arithmetic (o += cl; len - o), leading to incorrect pointers passed into skip_chunk and potential out-of-bounds reads. While typical systems constrain buffer sizes, the code lacks explicit guards to prevent such truncation.",
+  "evidence": "int skip_chunk(const char *buf, int len, int *pl, int *dl) { ... }\n...\nint o = 0, pl, dl, cl, len = (int) (c->recv.len - ofs - (size_t) n);\nwhile ((cl = skip_chunk(s + o, len - o, &pl, &dl)) > 0 && dl) o += cl;\n...\nwhile ((cl = skip_chunk(s + o, len - o, &pl, &dl)) > 0) {\n  memmove(s + hm.body.len, s + o + pl, (size_t) dl);\n  o += cl;\n}\n",
+  "confidence": 0.32
+}

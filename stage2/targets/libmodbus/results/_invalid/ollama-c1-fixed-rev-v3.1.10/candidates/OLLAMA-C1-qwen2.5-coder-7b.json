@@ -1,0 +1,22 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "source-agentic",
+  "property": "memory-safety",
+  "hypothesis": " HYPOTHESIS: The vulnerability might be related to improper handling of buffer sizes or memory allocation in the Modbus request parsing functions.\n\nREQUEST:\nREAD src/modbus.c 1 300 HYPOTHESIS: The vulnerability might be related to improper handling of buffer sizes or memory allocation in the Modbus request parsing functions.\n\nREQUEST:\nREAD src/modbus.c 301 600 The code snippet provided is from a Modbus library, specifically the `modbus.c` file. The functions `compute_data_length_after_meta` and ",
+  "evidence_source": " HYPOTHESIS: The vulnerability might be related to improper handling of buffer sizes or memory allocation in the Modbus request parsing functions.\n\nREQUEST:\nREAD src/modbus.c 1 300 HYPOTHESIS: The vulnerability might be related to improper handling of buffer sizes or memory allocation in the Modbus ",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "C1 agentic (Ollama), 15 turns. Status: turn_limit_reached. Did not identify target CVE.",
+  "vulnerability_class": "unknown",
+  "location": {
+    "file": "src/modbus.c",
+    "function": "modbus_reply"
+  },
+  "confidence": 0.5,
+  "model": "ollama/qwen2.5-coder:7b",
+  "prompt_id": "libmodbus-C1-ollama@v1",
+  "run_index": 1
+}

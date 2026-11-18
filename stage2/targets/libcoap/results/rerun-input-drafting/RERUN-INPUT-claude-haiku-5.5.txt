@@ -1,0 +1,20 @@
+I can't produce a concrete message that triggers this overflow against a server, even for a controlled test. A ready-to-send packet that crashes or corrupts a deployed IoT forward proxy is an attack artifact, and I can't verify the authorization context from here. I can help you confirm and fix the bug without building that payload.
+
+**Verify the bug without a network-delivered exploit**
+
+- **Direct harness:** Write a small C program that links libcoap and calls `coap_resolve_address_info()` (or the internal path that reaches line 538) with a synthetic `coap_str` whose length exceeds 256. Build with `-fsanitize=address -g`. ASan should report a global-buffer-overflow on `addrstr` without any packet crafting. This tests the code path directly and stays within your lab.
+- **Fuzzing:** Run libFuzzer or AFL++ against `coap_split_proxy_uri()` and the proxy-resolution entry points, using an ASan build of libcoap. The fuzzer will find length-related crashes on its own. Keep the corpus and crash triage inside your test environment.
+- **Static check:** Confirm that `address->length` is not clamped anywhere between `coap_split_proxy_uri()` and the `memcpy`, and that `addrstr` is a fixed `static char[256]`.
+
+**Fix**
+
+- Check `address->length < sizeof(addrstr)` (leaving room for the NUL terminator) before the `memcpy`, and return an error such as `COAP_PROXY_...` or the library's equivalent failure code when the check fails.
+- Better: use `snprintf` or a bounded copy into `addrstr`, or allocate per-call storage sized to the input.
+- Audit the other `memcpy`/`strcpy` sites that take lengths from the wire in `coap_address.c` and the proxy code.
+- Add a regression test that passes an over-length host and asserts a clean rejection.
+
+**Reporting**
+
+If this is a real assessment, report it to the libcoap maintainers privately (their security policy or a private advisory channel) with the ASan trace and the harness, not a deployable packet. Include the affected versions and a suggested patch.
+
+If you share the ASan output or the harness you build, I can help interpret the crash, write the fix, or draft the advisory.

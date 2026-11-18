@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-002",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "A truncated READ_COILS/READ_DISCRETE_INPUTS request that lacks the two-byte quantity field will cause modbus_reply to read beyond the end of req when computing nb at req[offset+3/4].",
+  "evidence_source": "In modbus_reply, case MODBUS_FC_READ_COILS/MODBUS_FC_READ_DISCRETE_INPUTS: int nb = (req[offset + 3] << 8) + req[offset + 4]; No prior check that req_length >= offset+5.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Out-of-bounds read; potential crash or sanitizer report on malformed short request.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "Similar pattern exists in other read functions; included here as a concrete example of missing per-function minimal-length validation.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 739
+  },
+  "confidence": 0.78,
+  "model": "openai/gpt-5",
+  "prompt_id": "libmodbus-0367-source-review@v1",
+  "run_index": 2
+}

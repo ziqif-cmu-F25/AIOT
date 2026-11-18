@@ -1,0 +1,14 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 964
+    },
+    "vulnerability_class": "oob-write",
+    "hypothesis": "A network request using MODBUS_FC_WRITE_AND_READ_REGISTERS can specify a valid read range but a write address below mb_mapping->start_registers. This makes mapping_address_write negative. The bounds check mistakenly tests mapping_address twice instead of checking mapping_address_write < 0, so the request reaches the write loop and writes before mb_mapping->tab_registers. The write count and byte count can otherwise be valid.",
+    "evidence": "The write index is computed at line 953: `int mapping_address_write = address_write - mb_mapping->start_registers;`. The validation at lines 962-965 contains the duplicated wrong check: `mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers`. It omits `mapping_address_write < 0`. Lines 978-981 then execute `mb_mapping->tab_registers[i] = ...` starting with `i = mapping_address_write`, causing a negative-index out-of-bounds write.",
+    "confidence": 0.99
+  }
+]

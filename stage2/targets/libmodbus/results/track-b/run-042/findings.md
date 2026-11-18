@@ -1,0 +1,43 @@
+# Candidate findings
+
+Status values: candidate | validated | rejected | inconclusive
+
+Written by stage2/driver/run_task.py. Do not edit; scoring writes
+verdict.md instead. Machine-readable copy: candidates.json.
+
+```yaml
+candidate_id: CAND-001
+viewpoint: ai-source-review
+property: memory-safety
+hypothesis: In modbus_reply's MODBUS_FC_WRITE_AND_READ_REGISTERS handler, the address
+  validation tests 'mapping_address < 0' twice and never tests 'mapping_address_write
+  < 0'. A client can send a write address below mb_mapping->start_registers, for example
+  address_write=0 when start_registers=100. That makes mapping_address_write negative.
+  The upper-bound check still passes, and the write loop then stores attacker-supplied
+  values at tab_registers[negative index], before the start of the heap allocation.
+evidence_source: 'Line 953: ''int mapping_address_write = address_write - mb_mapping->start_registers;''.
+  Lines 962-965: ''mapping_address < 0 || (mapping_address + nb) > nb_registers ||
+  mapping_address < 0 || (mapping_address_write + nb_write) > nb_registers''; the
+  second ''< 0'' test repeats the read address instead of checking the write address.
+  Lines 978-981 then do ''mb_mapping->tab_registers[i] = ...'' for i starting at mapping_address_write,
+  which can be negative.'
+input_artifact: not_available (static source review; no input artifact)
+expected_behavior: Out-of-bounds heap write (underflow) before tab_registers with
+  attacker-controlled 16-bit values. This should produce an ASan heap-buffer-overflow/underflow
+  report, or heap corruption and a crash.
+observed_behavior: not_available (static source review; nothing was executed)
+status: candidate
+oracle_verdict: pending
+notes: Only exploitable when the server uses modbus_mapping_new_start_address with
+  start_registers > 0. With start 0, address_write is a uint16_t, so the index cannot
+  go negative. The fix is to check mapping_address_write < 0 at line 964.
+vulnerability_class: buffer-overflow
+location:
+  file: modbus.c
+  function: modbus_reply
+  line: 964
+confidence: 0.85
+model: anthropic/claude-opus-5.5
+prompt_id: libmodbus-0367-source-review@v1
+run_index: 2
+```

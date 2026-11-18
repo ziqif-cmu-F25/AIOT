@@ -1,0 +1,29 @@
+[
+  {
+    "rank": 1,
+    "location": {"file": "src/coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+    "bug_class": "buffer-overflow",
+    "hypothesis": "A network-controlled coap_str_const_t with length > 256 is memcpy'd into the 256-byte addrstr buffer with no bounds check, overflowing the static buffer.",
+    "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "address != NULL && address->length > sizeof(addrstr) (256); the Unix-domain early-return does not apply",
+    "confidence": 0.95
+  },
+  {
+    "rank": 2,
+    "location": {"file": "src/coap_address.c", "function": "coap_resolve_address_info", "line": 547},
+    "bug_class": "oob-read",
+    "hypothesis": "When address->length == 256 the memcpy fills addrstr completely, so it is not NUL-terminated and getaddrinfo() reads past the end of addrstr.",
+    "vulnerable_line": "error = getaddrinfo(addrstr, NULL, &hints, &res);",
+    "trigger_condition": "address != NULL && address->length == sizeof(addrstr) (exactly 256 bytes, no room for the terminator written by memset)",
+    "confidence": 0.9
+  },
+  {
+    "rank": 3,
+    "location": {"file": "src/coap_address.c", "function": "coap_resolve_address_info", "line": 672},
+    "bug_class": "oob-read",
+    "hypothesis": "On RIOT/Contiki, address->s is passed to C-string parsers and to '%s' logging without using address->length or guaranteeing a NUL, so a counted network string that is not NUL-terminated is read out of bounds.",
+    "vulnerable_line": "netutils_get_ipv6(&addr_ipv6, &netif, (const char *)address->s) / coap_log_err(\"... '%s'\\n\", address->s)",
+    "trigger_condition": "RIOT_VERSION or WITH_CONTIKI build, address->length > 0, and address->s is a non-NUL-terminated counted buffer",
+    "confidence": 0.72
+  }
+]

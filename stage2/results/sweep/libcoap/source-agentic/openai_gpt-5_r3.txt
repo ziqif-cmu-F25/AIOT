@@ -1,0 +1,8 @@
+{
+  "rank": 1,
+  "location": {"file": "libcoap/src/coap_pdu.c", "function": "coap_pdu_parse_header", "line": 1091},
+  "vulnerability_class": "oob-read",
+  "hypothesis": "When parsing an incoming PDU with extended token length encoding (TKL=13 or 14) but no bytes after the header (or fewer than the required 1 or 2 extension bytes), coap_pdu_parse_header() unconditionally reads pdu->token[0] or pdu->token[1] to compute the actual token length. Because pdu->used_size may be 0 (or < required extension size), these reads go past the end of the received data buffer.",
+  "evidence": "In coap_pdu_parse_header():\n  e_token_length = hdr[0] & 0x0f;\n  if (e_token_length < COAP_TOKEN_EXT_1B_TKL) {\n    pdu->e_token_length = e_token_length;\n    pdu->actual_token.s = &pdu->token[0];\n  } else if (e_token_length == COAP_TOKEN_EXT_1B_TKL) {\n    pdu->e_token_length = pdu->token[0] + COAP_TOKEN_EXT_1B_BIAS + 1;  // reads token[0] without checking available bytes\n    pdu->actual_token.s = &pdu->token[1];\n  } else if (e_token_length == COAP_TOKEN_EXT_2B_TKL) {\n    pdu->e_token_length = ((uint16_t)pdu->token[0] << 8) + pdu->token[1] + COAP_TOKEN_EXT_2B_BIAS + 2;  // reads token[0], token[1]\n    pdu->actual_token.s = &pdu->token[2];\n  }\n  if (pdu->e_token_length > pdu->alloc_size || e_token_length == 15) {\n    ... return 0;\n  }\nThere is no preceding check that pdu->used_size >= 1 (or 2) before accessing pdu->token[0]/[1]. An attacker can send a UDP/TCP/WS frame where TKL=13 or 14 but the PDU contains no post-header bytes; length==hdr_size causes pdu->used_size==0, leading to an out-of-bounds read.",
+  "confidence": 0.82
+}

@@ -1,0 +1,9 @@
+```json
+{
+  "hypothesis": "coap_resolve_address_info() copies the attacker-controlled hostname into the fixed 256-byte static buffer addrstr using memcpy(addrstr, address->s, address->length) without checking address->length against sizeof(addrstr), so a Proxy-Uri whose host component is 256 bytes or longer overflows addrstr in static (.bss) memory and corrupts adjacent globals; a host of exactly 256 bytes also leaves addrstr without a NUL terminator, so getaddrinfo() then reads past the end of the buffer.",
+  "vulnerable_line": "if (address && address->length) memcpy(addrstr, address->s, address->length);",
+  "bug_class": "buffer-overflow (static/global out-of-bounds write; out-of-bounds read via missing NUL terminator when length == 256)",
+  "trigger_condition": "A CoAP request reaches a libcoap server configured as a forward proxy, carrying a Proxy-Uri option (the RFC 7252 option format allows up to 1034 bytes) whose host part is at least 256 bytes long. coap_split_proxy_uri() places that host in server_use->uri.host with no length bound, and the proxy forwarding path passes it to coap_resolve_address_info(). A length greater than 256 writes past addrstr[255]. A length of exactly 256 fills the buffer with no terminator, and getaddrinfo() over-reads.",
+  "confidence": 0.9
+}
+```

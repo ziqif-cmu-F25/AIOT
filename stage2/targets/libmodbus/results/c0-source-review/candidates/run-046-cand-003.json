@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-003",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "In modbus_reply handling of WRITE_SINGLE_COIL, a truncated request lacking the two data bytes (offset+3, offset+4) will be dereferenced leading to an out-of-bounds read.",
+  "evidence_source": "Lines 804-812: int data = (req[offset + 3] << 8) + req[offset + 4]; No req_length check before accessing these bytes.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Process crash or sanitizer out-of-bounds-read when a short WRITE_SINGLE_COIL frame is received.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "The same pattern occurs in WRITE_SINGLE_REGISTER.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 806
+  },
+  "confidence": 0.71,
+  "model": "openai/gpt-5",
+  "prompt_id": "libmodbus-0367-source-review@v1",
+  "run_index": 3
+}

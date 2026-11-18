@@ -1,0 +1,37 @@
+The clearest bug is at line 538. `address->length` is copied into the 256-byte static `addrstr` without being checked against `sizeof(addrstr)`. A host string of 256 bytes or more overflows the buffer. Even a host of exactly 256 bytes leaves `addrstr` without a NUL terminator, so `getaddrinfo` reads past its end. The AF_UNIX branch does check length, but the normal path does not.
+
+Two weaker issues appear in the non-POSIX branches:
+- **RIOT (lines 672 and 678):** `address->s` is passed to `netutils_get_ipv6`/`netutils_get_ipv4` as a C string. A `coap_str_const_t` is length-delimited and may not be NUL-terminated, so these calls can read out of bounds.
+- **Contiki (lines 745 and 751):** `address->s` is likewise treated as a NUL-terminated string.
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "src/coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+    "bug_class": "buffer-overflow",
+    "hypothesis": "address->length is never checked against sizeof(addrstr) (256), so memcpy of a long host name overflows the static addrstr buffer (global/BSS overflow), and a length of exactly 256 leaves it unterminated for getaddrinfo.",
+    "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "A URI host / Uri-Host / proxy host string of length >= 256 bytes (e.g. from a request or Proxy-Uri) passed to coap_resolve_address_info on a non-RIOT/non-Contiki build.",
+    "confidence": 0.85
+  },
+  {
+    "rank": 2,
+    "location": {"file": "src/coap_address.c", "function": "coap_resolve_address_info", "line": 672},
+    "bug_class": "oob-read",
+    "hypothesis": "In the RIOT build, address->s (a length-delimited coap_str_const_t that need not be NUL-terminated) is passed as a C string to netutils_get_ipv6/netutils_get_ipv4, which read past address->length.",
+    "vulnerable_line": "netutils_get_ipv6(&addr_ipv6, &netif, (const char *)address->s)",
+    "trigger_condition": "A host string taken from a parsed URI or PDU option, which is not NUL-terminated, in a RIOT build.",
+    "confidence": 0.35
+  },
+  {
+    "rank": 3,
+    "location": {"file": "src/coap_address.c", "function": "coap_resolve_address_info", "line": 745},
+    "bug_class": "oob-read",
+    "hypothesis": "In the Contiki build, uiplib_ip6addrconv/uiplib_ip4addrconv treat the non-NUL-terminated address->s as a C string, causing an out-of-bounds read beyond address->length.",
+    "vulnerable_line": "uiplib_ip6addrconv((const char *)address->s, (uip_ip6addr_t *)&addr_ip)",
+    "trigger_condition": "A host string from network data that is not NUL-terminated, in a Contiki build.",
+    "confidence": 0.25
+  }
+]
+```

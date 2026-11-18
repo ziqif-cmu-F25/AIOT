@@ -1,0 +1,7 @@
+{
+  "hypothesis": "The code uses the same variable 'mapping_address' twice in the bounds check, causing the write index validation to be skipped, leading to an out-of-bounds write if address_write is negative after subtraction.",
+  "vulnerable_line": "(mapping_address_write + nb_write) > mb_mapping->nb_registers",
+  "bug_class": "buffer-overflow",
+  "trigger_condition": "When address_write is less than mb_mapping->start_registers, making mapping_address_write negative, and nb_write is large enough to make (mapping_address_write + nb_write) positive but still less than mb_mapping->nb_registers, bypassing the check.",
+  "confidence": 0.9
+}

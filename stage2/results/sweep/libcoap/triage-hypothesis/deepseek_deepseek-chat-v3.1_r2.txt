@@ -1,0 +1,29 @@
+[
+  {
+    "rank": 1,
+    "location": {"file": "coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+    "bug_class": "buffer-overflow",
+    "hypothesis": "A network-provided address with length >= 256 causes a buffer overflow when copied into addrstr[256].",
+    "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "When address->length >= 256 and address is not NULL",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "location": {"file": "coap_address.c", "function": "coap_resolve_address_info", "line": 509},
+    "bug_class": "buffer-overflow",
+    "hypothesis": "A Unix domain address with length >= COAP_UNIX_PATH_MAX causes a buffer overflow in coap_address_set_unix_domain.",
+    "vulnerable_line": "if (address->length >= COAP_UNIX_PATH_MAX)",
+    "trigger_condition": "When COAP_AF_UNIX_SUPPORT is defined and address->length >= COAP_UNIX_PATH_MAX",
+    "confidence": 0.8
+  },
+  {
+    "rank": 3,
+    "location": {"file": "coap_address.c", "function": "coap_resolve_address_info", "line": 576},
+    "bug_class": "oob-write",
+    "hypothesis": "getaddrinfo() returns an address with ai_addrlen > sizeof(info->addr.addr) causing an out-of-bounds write in memcpy.",
+    "vulnerable_line": "memcpy(&info->addr.addr, ainfo->ai_addr, ainfo->ai_addrlen);",
+    "trigger_condition": "When ainfo->ai_addrlen > sizeof(info->addr.addr) and WITH_LWIP is not defined",
+    "confidence": 0.7
+  }
+]

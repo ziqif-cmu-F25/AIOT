@@ -1,0 +1,8 @@
+```json
+{
+  "root_cause_line": "memcpy(addrstr, address->s, address->length);",
+  "explanation": "The function copies the hostname provided in the `address` parameter into a local static buffer `addrstr` which has a fixed size of 256 bytes. The `memcpy` operation uses `address->length` as the number of bytes to copy without first validating if this length is less than the destination buffer's size. As stated in the crash report, a crafted CoAP message with a Proxy-Uri option containing a 300-byte hostname was sent. This results in `address->length` being 300, causing `memcpy` to write 300 bytes into a 256-byte buffer, leading to a global-buffer-overflow.",
+  "fix": "The number of bytes to copy must be limited to the size of the destination buffer. The length should be checked before the `memcpy` call, and only a safe amount of data should be copied.\n\n```c\nmemset(addrstr, 0, sizeof(addrstr));\nif (address && address->length) {\n  size_t len_to_copy = address->length < sizeof(addrstr) ? address->length : sizeof(addrstr) - 1;\n  memcpy(addrstr, address->s, len_to_copy);\n} else {\n  memcpy(addrstr, \"localhost\", 9);\n}\n```",
+  "confidence": 1.0
+}
+```

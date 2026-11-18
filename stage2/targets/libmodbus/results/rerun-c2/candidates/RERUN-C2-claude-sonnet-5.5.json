@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "crash-given",
+  "property": "memory-safety",
+  "hypothesis": "{\n  \"root_cause_line\": \"mapping_address < 0 ||   (the second, duplicated condition in the `else if` bounds check; it should have been `mapping_address_write < 0 ||`)\",\n  \"explanation\": \"The validation of the 0x17 request is supposed to check four things: the read start is not below the mapping base, the read end does not exceed nb_registers, the write start is not below the mapping base, and the write end does not exceed nb_registers. The code checks `mapping_address < 0` twice (a copy-paste err",
+  "evidence_source": "Identified copy-paste bounds check: mapping_address < 0 tested twice, mapping_address_write < 0 never tested.",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "crash-given condition. Correctly identified CVE-2022-0367 copy-paste bounds check.",
+  "vulnerability_class": "oob-write",
+  "location": {
+    "file": "src/modbus.c",
+    "function": "modbus_reply",
+    "line": 963
+  },
+  "confidence": 0.9,
+  "model": "anthropic/claude-sonnet-5.5",
+  "prompt_id": "libmodbus-c2@v1",
+  "run_index": 1
+}

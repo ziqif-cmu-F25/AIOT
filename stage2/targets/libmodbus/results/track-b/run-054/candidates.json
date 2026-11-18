@@ -1,0 +1,94 @@
+[
+  {
+    "candidate_id": "CAND-001",
+    "viewpoint": "ai-source-review",
+    "property": "memory-safety",
+    "hypothesis": "An attacker-controlled 'nb' value in a MODBUS_FC_WRITE_MULTIPLE_COILS request can cause an out-of-bounds write when processing the byte data, because the code does not validate that the byte_count value matches the actual data length provided.",
+    "evidence_source": "Lines 840-870: The code checks if nb is within MODBUS_MAX_WRITE_BITS, but then uses nb to compute byte_count without verifying that the subsequent data has at least byte_count bytes. The memcpy at line 863 uses &req[offset + 6] without checking if the request has enough data.",
+    "input_artifact": "not_available (static source review; no input artifact)",
+    "expected_behavior": "Out-of-bounds read when accessing req[offset + 6] and beyond, potentially leading to information disclosure or crash.",
+    "observed_behavior": "not_available (static source review; nothing was executed)",
+    "status": "candidate",
+    "oracle_verdict": "pending",
+    "notes": "The function modbus_reply processes attacker-controlled requests. For MODBUS_FC_WRITE_MULTIPLE_COILS, it uses nb to compute byte_count but does not validate that the request has sufficient data after offset+6.",
+    "vulnerability_class": "out-of-bounds-read",
+    "location": {
+      "file": "modbus.c",
+      "function": "modbus_reply",
+      "line": 863
+    },
+    "confidence": 0.9,
+    "model": "deepseek/deepseek-chat-v3.1",
+    "prompt_id": "libmodbus-0367-source-review@v1",
+    "run_index": 2
+  },
+  {
+    "candidate_id": "CAND-002",
+    "viewpoint": "ai-source-review",
+    "property": "memory-safety",
+    "hypothesis": "An attacker-controlled 'nb' value in a MODBUS_FC_WRITE_MULTIPLE_REGISTERS request can cause an out-of-bounds write when processing the register data, because the code does not validate that the nb_bytes value matches the actual data length provided.",
+    "evidence_source": "Lines 872-901: The code checks if nb is within MODBUS_MAX_WRITE_REGISTERS and if nb_bytes == nb * 2, but then loops from j=6 to j+2*nb without verifying that the request has enough data. The access to req[offset + j] and req[offset + j+1] may go beyond the request buffer.",
+    "input_artifact": "not_available (static source review; no input artifact)",
+    "expected_behavior": "Out-of-bounds read when accessing req[offset + j] beyond the request buffer, potentially leading to information disclosure or crash.",
+    "observed_behavior": "not_available (static source review; nothing was executed)",
+    "status": "candidate",
+    "oracle_verdict": "pending",
+    "notes": "Similar to the previous issue, but for registers. The code does not check the request length before accessing the data bytes.",
+    "vulnerability_class": "out-of-bounds-read",
+    "location": {
+      "file": "modbus.c",
+      "function": "modbus_reply",
+      "line": 890
+    },
+    "confidence": 0.9,
+    "model": "deepseek/deepseek-chat-v3.1",
+    "prompt_id": "libmodbus-0367-source-review@v1",
+    "run_index": 2
+  },
+  {
+    "candidate_id": "CAND-003",
+    "viewpoint": "ai-source-review",
+    "property": "memory-safety",
+    "hypothesis": "An attacker-controlled 'nb' value in a MODBUS_FC_WRITE_AND_READ_REGISTERS request can cause an out-of-bounds write when processing the write data, because the code does not validate that the nb_write_bytes value matches the actual data length provided.",
+    "evidence_source": "Lines 947-991: The code checks nb_write and nb against their maxima and checks nb_write_bytes == nb_write * 2, but then loops from j=10 without verifying the request has sufficient data. The access to req[offset + j] may go beyond the request buffer.",
+    "input_artifact": "not_available (static source review; no input artifact)",
+    "expected_behavior": "Out-of-bounds read when accessing req[offset + j] beyond the request buffer, potentially leading to information disclosure or crash.",
+    "observed_behavior": "not_available (static source review; nothing was executed)",
+    "status": "candidate",
+    "oracle_verdict": "pending",
+    "notes": "This is the same class of issue as the previous two, but for the write-and-read function.",
+    "vulnerability_class": "out-of-bounds-read",
+    "location": {
+      "file": "modbus.c",
+      "function": "modbus_reply",
+      "line": 980
+    },
+    "confidence": 0.9,
+    "model": "deepseek/deepseek-chat-v3.1",
+    "prompt_id": "libmodbus-0367-source-review@v1",
+    "run_index": 2
+  },
+  {
+    "candidate_id": "CAND-004",
+    "viewpoint": "ai-source-review",
+    "property": "memory-safety",
+    "hypothesis": "The compute_data_length_after_meta function does not validate that the computed length is non-negative, which could lead to a large length_to_read value and a buffer overflow in _modbus_receive_msg.",
+    "evidence_source": "Lines 292-324: compute_data_length_after_meta returns a value that is used in _modbus_receive_msg at line 451. If the computed length is negative (due to attacker-controlled values), it becomes a large unsigned value when added to msg_length, potentially exceeding the buffer size.",
+    "input_artifact": "not_available (static source review; no input artifact)",
+    "expected_behavior": "Integer overflow leading to a very large length_to_read, causing a buffer overflow in the recv call at line 405.",
+    "observed_behavior": "not_available (static source review; nothing was executed)",
+    "status": "candidate",
+    "oracle_verdict": "pending",
+    "notes": "The function compute_data_length_after_meta uses attacker-controlled msg content to compute a length. If the result is negative, it is stored in an int and then used in arithmetic without checks.",
+    "vulnerability_class": "integer-overflow",
+    "location": {
+      "file": "modbus.c",
+      "function": "_modbus_receive_msg",
+      "line": 451
+    },
+    "confidence": 0.7,
+    "model": "deepseek/deepseek-chat-v3.1",
+    "prompt_id": "libmodbus-0367-source-review@v1",
+    "run_index": 2
+  }
+]

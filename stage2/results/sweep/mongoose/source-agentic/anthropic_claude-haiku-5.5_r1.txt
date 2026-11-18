@@ -1,0 +1,26 @@
+I did not find a confirmed memory-safety vulnerability in the chunked-body path, so I am reporting that rather than a finding I can't support.
+
+FINAL
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1010},
+    "vulnerability_class": "other",
+    "hypothesis": "No exploitable bug confirmed. The chunk-size bounds check appears correct: n is rejected if negative, and then `n > len - i - 4` is checked before buf[i+n+2] and buf[i+n+3] are read, so the trailer reads stay within len. The hex-length cap (`i > sizeof(int)*2`) limits the digits to 8, and mg_str_to_num with val_len=4 caps the value at 0xFFFFFFFF, which becomes negative as int and is rejected by `n < 0`. The only residual concern is that the value `n` is compared against `len - i - 4` where len is an int; this is safe because len is non-negative when reached.",
+    "evidence": "http.c:1005: `if (i > (int) sizeof(int) * 2) return -1;`\nhttp.c:1009: `if (n < 0) return -1;`\nhttp.c:1010: `if (n > len - i - 4) return 0;`\nhttp.c:1011: `if (buf[i + n + 2] != '\\r' || buf[i + n + 3] != '\\n') return -1;`\nstr.c:158-172: base-16 overflow checks `if (result > max / 16)` and `if (result > max - digit)`; digit mapping 'A'-'7' and 'a'-'W' yields 10..15 correctly.",
+    "confidence": 0.15
+  },
+  {
+    "rank": 2,
+    "location": {"file": "mongoose/src/http.c", "function": "http_cb", "line": 1102},
+    "vulnerability_class": "other",
+    "hypothesis": "Second-pass relocation loop: memmove destination s+hm.body.len is always at or before the source s+o+pl, because body.len is the sum of prior dl values and o is the sum of prior cl values (each cl >= dl + pl + 2 >= dl). So the backward move stays inside the recv buffer. Not confirmed as a vulnerability; noted for completeness.",
+    "evidence": "http.c:1103: `memmove(s + hm.body.len, s + o + pl, (size_t) dl);`\nhttp.c:1104: `o += cl, hm.body.len += (size_t) dl, hm.message.len += (size_t) dl;`\nhttp.c:1013: `return i + 2 + n + 2;`",
+    "confidence": 0.1
+  }
+]
+```
+
+Summary: I traced the chunked-body path from `http_cb` through `skip_chunk` and `mg_str_to_num`. The length parsing, overflow checks, trailer bounds checks, and backward `memmove` all appear safe. I did not read the remaining chunked-related code (`mg_http_vprintf_chunk`, `mg_http_write_chunk`) or the header-parsing code that sets `ofs` and `n`, so a bug could still exist there. A real finding would need a closer look at how `n` (header length) and `ofs` are computed before the chunk path begins.

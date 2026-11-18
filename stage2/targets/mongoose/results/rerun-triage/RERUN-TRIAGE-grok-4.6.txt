@@ -1,0 +1,7 @@
+{
+  "hypothesis": "Off-by-one in the chunk-size CRLF guard uses `len < i + 1` instead of `len < i + 2`, so when the buffer is exactly hex-digits plus a trailing CR the short-circuit lets `buf[i + 1]` read one byte past the receive buffer.",
+  "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+  "bug_class": "oob-read",
+  "trigger_condition": "len >= 3, first (len-1) bytes are hex digits, buf[len-1] == '\\r' (so i == len-1 and the '\\n' is missing)",
+  "confidence": 0.95
+}

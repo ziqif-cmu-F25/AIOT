@@ -1,0 +1,72 @@
+# Candidate findings
+
+Status values: candidate | validated | rejected | inconclusive
+
+Written by stage2/driver/run_task.py. Do not edit; scoring writes
+verdict.md instead. Machine-readable copy: candidates.json.
+
+```yaml
+candidate_id: CAND-001
+viewpoint: ai-source-review
+property: memory-safety
+hypothesis: A function-0x17 or other address-less/unsupported request can cause modbus_reply
+  to read two bytes beyond the received request because it unconditionally decodes
+  an address before inspecting the function and never verifies req_length.
+evidence_source: After only checking ctx, modbus_reply executes address = (req[offset
+  + 1] << 8) + req[offset + 2] at line 724. Address-less functions such as MODBUS_FC_REPORT_SLAVE_ID
+  are parsed by compute_meta_length_after_function with zero metadata, so a received
+  request need only extend through req[offset]. The supplied req_length is not checked
+  before these reads.
+input_artifact: not_available (static source review; no input artifact)
+expected_behavior: With an exactly sized request buffer, AddressSanitizer reports
+  a heap- or stack-buffer-overflow read at line 724; otherwise the function reads
+  uninitialized bytes beyond the logical request.
+observed_behavior: not_available (static source review; nothing was executed)
+status: candidate
+oracle_verdict: pending
+notes: The same missing request-length validation can expose additional function-specific
+  reads when modbus_reply is called with a truncated request. Validation should occur
+  before every fixed-field or payload access, using req_length after backend framing
+  adjustment.
+vulnerability_class: out-of-bounds-read
+location:
+  file: modbus.c
+  function: modbus_reply
+  line: 724
+confidence: 0.84
+model: openai/gpt-5.6-sol
+prompt_id: libmodbus-0367-source-review@v1
+run_index: 3
+```
+
+```yaml
+candidate_id: CAND-002
+viewpoint: ai-source-review
+property: memory-safety
+hypothesis: A write-and-read-registers request whose write address is below start_registers,
+  while its read range is valid, bypasses the range check and writes before tab_registers.
+evidence_source: mapping_address_write is computed as address_write - mb_mapping->start_registers
+  at line 953. The range condition at lines 962-965 checks mapping_address < 0 twice;
+  line 964 should check mapping_address_write < 0. A negative mapping_address_write
+  therefore reaches the write loop, where tab_registers[i] is assigned at line 980
+  with a negative i.
+input_artifact: not_available (static source review; no input artifact)
+expected_behavior: A crafted function-0x17 request causes an out-of-bounds write before
+  mb_mapping->tab_registers, typically producing an AddressSanitizer heap-buffer-overflow
+  report, heap corruption, or a crash.
+observed_behavior: not_available (static source review; nothing was executed)
+status: candidate
+oracle_verdict: pending
+notes: For example, configure start_registers above zero, choose a valid read address
+  at or above that start, and choose address_write below it with otherwise valid counts
+  and byte count.
+vulnerability_class: buffer-overflow
+location:
+  file: modbus.c
+  function: modbus_reply
+  line: 964
+confidence: 0.99
+model: openai/gpt-5.6-sol
+prompt_id: libmodbus-0367-source-review@v1
+run_index: 3
+```

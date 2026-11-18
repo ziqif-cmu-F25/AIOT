@@ -1,0 +1,14 @@
+```json
+{
+  "training_cutoff": "unknown",
+  "known_cves": [
+    {
+      "cve": "CVE-2021-32651",
+      "file_function": "unknown",
+      "bug_class": "memory-safety (believed out-of-bounds read or heap issue; not confirmed)",
+      "recall_confidence": 0.3
+    }
+  ],
+  "notes": "I can't state my training cutoff precisely, so I'm returning 'unknown' rather than guessing a date. I have a vague association of libcoap with a batch of memory-safety CVEs from 2021 (roughly CVE-2021-32649 through CVE-2021-32655), but I can't reliably recall their exact IDs, affected functions, or bug classes, and I can't recall any CVE specifically tied to versions 4.3.x (2025). The single entry above is low-confidence recall, not a verified advisory. Treat this output as unreliable for contamination scoring. Verify against the NVD, the MITRE CVE list, or the libcoap GitHub security advisories before using any of it as ground truth."
+}
+```

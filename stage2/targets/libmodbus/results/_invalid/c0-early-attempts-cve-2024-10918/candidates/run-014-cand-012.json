@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-012",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "modbus_reply_exception reads slave/function from req without validating that the request buffer is long enough; a too-short req causes OOB reads.",
+  "evidence_source": "offset = ctx->backend->header_length; slave = req[offset - 1]; function = req[offset]; No length checks.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Crash or sanitizer OOB-read when building an exception response for a truncated request.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "Same missing length validation pattern as in modbus_reply's header parsing.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply_exception",
+    "line": 1157
+  },
+  "confidence": 0.78,
+  "model": "openai/gpt-5",
+  "prompt_id": "libmodbus-modbus-reply@v1",
+  "run_index": 2
+}

@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "crash-given",
+  "property": "memory-safety",
+  "hypothesis": "```json\n{\n  \"root_cause_line\": \"memcpy(addrstr, address->s, address->length);\",\n  \"explanation\": \"The memcpy function is used to copy 'address->length' bytes from 'address->s' to 'addrstr'. However, there is no bounds check to ensure that 'address->length' does not exceed the size of 'addrstr', which is 256 bytes. If 'address->length' is greater than 256, this will result in a buffer overflow.\",\n  \"fix\": \"Add a bounds check to ensure that 'address->length' does not exceed the size of 'addrstr' b",
+  "evidence_source": "Identified memcpy overflow in coap_resolve_address_info via addrstr[256].",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "crash-given condition (Ollama). Correctly identified target CVE.",
+  "vulnerability_class": "stack-buffer-overflow",
+  "location": {
+    "file": "src/coap_address.c",
+    "function": "coap_resolve_address_info",
+    "line": 616
+  },
+  "confidence": 0.9,
+  "model": "ollama/qwen2.5-coder:7b",
+  "prompt_id": "libcoap-ollama-c2@v1",
+  "run_index": 1
+}

@@ -1,0 +1,28 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "The bounds check guarding the CRLF after the chunk-size hex digits is off by one. It requires only `len >= i + 1`, but the code then reads `buf[i + 1]`, which needs `len >= i + 2`. When the buffered data ends exactly after the hex digits plus one byte (for example, the recv buffer holds `ab` followed by a single byte, with len == i + 1), the `buf[i + 1]` read lands one byte past the valid received data. An attacker controls the chunk-size bytes and the amount of data sent, so they can place the message boundary at this position. If the recv buffer is allocated to exactly that size, the read falls outside the heap allocation.",
+    "evidence": "1003: `while (i < len && is_hex_digit(buf[i])) i++;`\n1004: `if (i == 0) return -1;`\n1005: `if (i > (int) sizeof(int) * 2) return -1;`\n1006: `if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // Error`\n\nCalled from http_cb with `s = c->recv.buf + ofs + n` and `len = c->recv.len - ofs - n`, so `len` is the count of valid bytes.",
+    "confidence": 0.6
+  },
+  {
+    "rank": 2,
+    "location": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1010},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "The chunk-length bound `n > len - i - 4` is computed with signed int arithmetic. When `len < i + 4`, the right side is negative, so the test always returns 0 for any n >= 0. This avoids the later reads at 1011, so it is not an exploitable overflow by itself. It is listed as a lower-confidence candidate because the later accesses `buf[i + n + 2]` and `buf[i + n + 3]` depend entirely on this check being correct.",
+    "evidence": "1009: `if (n < 0) return -1;`\n1010: `if (n > len - i - 4) return 0;  // Chunk not yet fully buffered`\n1011: `if (buf[i + n + 2] != '\\r' || buf[i + n + 3] != '\\n') return -1;  // Error`",
+    "confidence": 0.2
+  },
+  {
+    "rank": 3,
+    "location": {"file": "mongoose/src/http.c", "function": "http_cb", "line": 1103},
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "The chunk de-chunking memmove writes `dl` bytes to `s + hm.body.len` and reads from `s + o + pl`. Writes stay inside the receive buffer because `hm.body.len <= o` in the normal case, and `dl` is bounded by skip_chunk. If skip_chunk's bounds (the issue in candidate 1) are wrong, `dl` or the source offset could exceed the valid data. This is a secondary candidate that relies on skip_chunk being correct.",
+    "evidence": "1102: `while ((cl = skip_chunk(s + o, len - o, &pl, &dl)) > 0) {`\n1103: `memmove(s + hm.body.len, s + o + pl, (size_t) dl);`\n1104: `o += cl, hm.body.len += (size_t) dl, hm.message.len += (size_t) dl;`",
+    "confidence": 0.1
+  }
+]
+```

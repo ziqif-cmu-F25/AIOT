@@ -1,0 +1,31 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1006},
+    "bug_class": "oob-read",
+    "hypothesis": "The bounds check `len < i + 1` is off by one: when the hex length digits are followed by a lone '\\r' at the very end of the buffer (i + 1 == len), the check passes and `buf[i + 1]` reads one byte past the end of the received data.",
+    "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // Error",
+    "trigger_condition": "A chunked body whose currently buffered data ends right after the chunk-size line's '\\r', e.g. exactly \"12\\r\" (len=3, i=2) or \"1234\\r\" (len=5, i=4). The attacker sends the size digits and '\\r', then pauses before sending '\\n', so `buf[len]` is read out of bounds.",
+    "confidence": 0.85
+  },
+  {
+    "rank": 2,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1011},
+    "bug_class": "oob-read",
+    "hypothesis": "The trailing-CRLF read at `buf[i + n + 2]` and `buf[i + n + 3]` depends on the line-1010 guard `n > len - i - 4`. Any inconsistency in `len` versus the actual buffer size, or a negative `len - i - 4`, could let these indexes reach past the buffer end.",
+    "vulnerable_line": "if (buf[i + n + 2] != '\\r' || buf[i + n + 3] != '\\n') return -1;",
+    "trigger_condition": "A chunk size such that n equals len - i - 4 exactly, with the buffer holding exactly the chunk data plus CRLF. In the excerpt the arithmetic appears safe (i + n + 3 <= len - 1), so this is a lower-confidence hypothesis.",
+    "confidence": 0.15
+  },
+  {
+    "rank": 3,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1007},
+    "bug_class": "integer-overflow",
+    "hypothesis": "Up to 8 hex digits are accepted and decoded into a signed int. Values of 0x80000000 and above may wrap negative or be handled inconsistently by mg_str_to_num, which could feed a bad `n` into the later index computations.",
+    "vulnerable_line": "if (mg_str_to_num(mg_str_n(buf, (size_t) i), 16, &n, sizeof(int)) == false)",
+    "trigger_condition": "A chunk size line such as \"FFFFFFFF\\r\\n\" or \"80000000\\r\\n\". The `n < 0` check mitigates this, so it is low confidence.",
+    "confidence": 0.1
+  }
+]
+```

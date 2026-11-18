@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-002",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "Requests for functions that contain no address field can cause modbus_reply to read two bytes beyond the received request because it unconditionally decodes an address before dispatching on the function code.",
+  "evidence_source": "Line 724 always reads `req[offset + 1]` and `req[offset + 2]`. However, compute_meta_length_after_function returns zero for functions such as MODBUS_FC_READ_EXCEPTION_STATUS and MODBUS_FC_REPORT_SLAVE_ID, and also for unknown function codes above the handled ranges, so a TCP indication may contain only the backend header and function byte. modbus_reply performs no req_length check before the reads.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "If the request is stored in an exactly sized buffer, a header-plus-function request for a no-address function can trigger an out-of-bounds read or an AddressSanitizer heap/stack-buffer-overflow report at address decoding. With the customary oversized request buffer, it instead reads uninitialized bytes.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "The decoded address is not used by all affected cases, but the access itself occurs unconditionally. RTU checksum bytes may mask the spatial over-read; TCP requests have no trailing checksum and expose it directly.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 724
+  },
+  "confidence": 0.86,
+  "model": "openai/gpt-5.6-sol",
+  "prompt_id": "libmodbus-0367-source-review@v1",
+  "run_index": 1
+}

@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-003",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "A Write Multiple Coils request whose byte count is larger than the exact number of bytes required by its coil count is incorrectly accepted because validation checks only that the declared bytes are sufficient, not that the two fields agree exactly.",
+  "evidence_source": "Line 845 rejects only when `nb_bits * 8 < nb`. The protocol-required relationship is `nb_bits == (nb + 7) / 8`. Thus, for example, a quantity of one coil and a byte count of two passes validation, and the receive path reads both attacker-declared data bytes.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "The server accepts a malformed request with inconsistent quantity and byte-count fields, consumes the excess bytes, modifies the requested coils, and returns a successful response instead of an illegal-data-value exception. On a stream transport this can also consume bytes the sender intended as additional framed data.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "This is a request length-consistency defect rather than a direct memory overwrite: modbus_set_bits_from_bytes uses only `nb` bits, so the declared data is at least large enough under the existing check.",
+  "vulnerability_class": "other",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 845
+  },
+  "confidence": 0.91,
+  "model": "openai/gpt-5.6-sol",
+  "prompt_id": "libmodbus-0367-source-review@v1",
+  "run_index": 1
+}

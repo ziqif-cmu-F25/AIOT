@@ -1,0 +1,14 @@
+```json
+{
+  "training_cutoff": "2023-04",
+  "known_cves": [
+    {
+      "cve": "CVE-2022-25664",
+      "file_function": "src/modbus.c:modbus_receive",
+      "bug_class": "Use-after-free",
+      "recall_confidence": 0.95
+    }
+  ],
+  "notes": "The CVE-2022-25664 is a known memory-safety vulnerability in libmodbus that affects versions on or before v3.1.6. It was disclosed in 2022 and affects the modbus_receive function in the src/modbus.c file. The bug class is a use-after-free vulnerability."
+}
+```

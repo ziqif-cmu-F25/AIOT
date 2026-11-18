@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "Integer overflow in chunk length calculation could lead to buffer overflow during memmove in the chunked body relocation pass.",
+  "evidence_source": "Chunk length value causing integer overflow when added to offset pointers during memmove operation.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Heap corruption or segfault during memmove with overflowed offset.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "rejected",
+  "oracle_verdict": "wrong_bug",
+  "notes": "Model stated line: skip_chunk/memmove offset calculation. Model's rank-1 does NOT match CVE-2026-52056 (skip_chunk off-by-one). The model proposed a different potential issue. The target bug was not mentioned anywhere in the response.",
+  "vulnerability_class": "integer-overflow",
+  "location": {
+    "file": "src/http.c",
+    "function": "http_cb",
+    "line": 114
+  },
+  "confidence": 0.5,
+  "model": "deepseek/deepseek-chat-v3.1",
+  "prompt_id": "mongoose-c0-rerun@v1",
+  "run_index": 1
+}

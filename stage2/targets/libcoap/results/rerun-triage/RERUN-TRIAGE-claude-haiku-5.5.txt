@@ -1,0 +1,9 @@
+```json
+{
+  "hypothesis": "The unbounded memcpy of the attacker-supplied hostname into the fixed 256-byte static buffer `addrstr` overflows that buffer when `address->length` exceeds 256, corrupting adjacent static/BSS data. A hostname of exactly 256 bytes also leaves `addrstr` without a NUL terminator, so `getaddrinfo()` reads past the buffer.",
+  "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+  "bug_class": "buffer-overflow (static/global buffer write; off-by-one NUL-termination read at length == 256 leads to out-of-bounds read)",
+  "trigger_condition": "A CoAP request with a Proxy-Uri option whose host component has length > 256 bytes (write overflow), or length == 256 (no terminator, OOB read in getaddrinfo). The length is taken from the attacker-controlled option and the excerpt shows no prior bound check before this call. The server must run in forward-proxy mode so that coap_split_proxy_uri() feeds the host into coap_resolve_address_info().",
+  "confidence": 0.9
+}
+```

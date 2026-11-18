@@ -1,0 +1,7 @@
+{
+  "hypothesis": "memcpy(addrstr, address->s, address->length) copies an unbounded attacker-controlled hostname into the 256-byte static buffer addrstr with no length check, overflowing addrstr (and leaving it non-NUL-terminated for getaddrinfo) whenever address->length >= 256.",
+  "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+  "bug_class": "buffer-overflow",
+  "trigger_condition": "Proxy-Uri hostname with address->length > sizeof(addrstr) (256), which is copied unchecked from the untrusted CoAP option",
+  "confidence": 0.95
+}

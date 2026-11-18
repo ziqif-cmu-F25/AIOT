@@ -1,0 +1,7 @@
+{
+  "hypothesis": "The address bounds check copy-pastes `mapping_address < 0` twice and never tests `mapping_address_write < 0`, so a write start below `start_registers` with `mapping_address_write + nb_write <= nb_registers` makes the write loop index `tab_registers` at a negative offset (heap OOB write).",
+  "vulnerable_line": "mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers",
+  "bug_class": "oob-write",
+  "trigger_condition": "Valid read mapping and legal nb/nb_write, but address_write < start_registers so mapping_address_write < 0 while mapping_address_write + nb_write <= nb_registers (e.g. start_registers=100, nb_registers=50, address_write=90, nb_write=5).",
+  "confidence": 0.95
+}

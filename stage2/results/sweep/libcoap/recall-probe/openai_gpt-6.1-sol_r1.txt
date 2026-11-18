@@ -1,0 +1,5 @@
+{
+  "training_cutoff": "unknown",
+  "known_cves": [],
+  "notes": "My exact training-data cutoff is not available in this conversation. From memory alone, I cannot confidently identify a real public libcoap advisory together with its CVE ID, affected file/function, and bug class. An empty list does not mean no such vulnerabilities exist; I am avoiding guessed identifiers or details."
+}

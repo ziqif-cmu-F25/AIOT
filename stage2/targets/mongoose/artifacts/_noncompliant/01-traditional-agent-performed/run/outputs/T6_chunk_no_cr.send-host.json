@@ -1,0 +1,16 @@
+{
+  "host": "target",
+  "port": 8000,
+  "request_len": 82,
+  "request_sha256": "ed4df200965e8f8d8848354974a30e0b15ab20982f8a09fd4b5ac286e4678588",
+  "timeout_s": 3.0,
+  "timed_out": true,
+  "connected": true,
+  "response_len": 0,
+  "response_sha256": "",
+  "response_preview": "",
+  "error": "",
+  "elapsed_s": 3.0075,
+  "input_path": "/workspace/results/run-001/inputs/T6_chunk_no_cr.http",
+  "saved_request": "/workspace/results/run-001/outputs/T6_chunk_no_cr.req"
+}

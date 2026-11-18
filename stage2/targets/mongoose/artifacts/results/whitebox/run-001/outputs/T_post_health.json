@@ -1,0 +1,16 @@
+{
+  "host": "target",
+  "port": 8000,
+  "request_len": 48,
+  "request_sha256": "62369ccee6b533cdaea01c7e683a9e0e0b02cae673d2b7100a07ffa0547d7f12",
+  "timeout_s": 3.0,
+  "timed_out": false,
+  "connected": true,
+  "response_len": 207,
+  "response_sha256": "6cfecea57b6c1136c754ec6bd36737132ef09946afce798a5013eeedbcdaccd7",
+  "response_preview": "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nEtag: \"1793729682.103\"\r\nContent-Length: 103\r\n\r\n<!doctype html><html><head><title>lab</title></head><body><h1>mongoose-lab</h1><p>ok</p></body><",
+  "error": "",
+  "response_hex_preview": "485454502f312e3120323030204f4b0d0a436f6e74656e742d547970653a20746578742f68746d6c3b20636861727365743d7574662d380d0a457461673a2022313739333732393638322e313033220d0a436f6e74656e742d4c656e6774683a203130330d0a0d0a3c21646f63747970652068746d6c3e3c68746d6c3e3c686561643e3c7469746c653e6c61623c2f7469746c653e3c2f686561643e3c626f64793e3c68313e6d6f6e676f6f73652d6c61623c2f68313e3c703e6f6b3c2f703e3c2f626f64793e3c",
+  "elapsed_s": 3.0066,
+  "health_ok": true
+}

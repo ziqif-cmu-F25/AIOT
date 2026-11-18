@@ -1,0 +1,6 @@
+{
+  "root_cause_line": "memcpy(addrstr, address->s, address->length);",
+  "explanation": "The memcpy copies address->s (which comes from a Proxy-Uri option containing a hostname) into the static buffer addrstr[256] without checking if address->length exceeds the buffer size. When a 300-byte hostname is provided, it overflows the 256-byte buffer by 44 bytes.",
+  "fix": "Add a bounds check before the memcpy: if (address && address->length && address->length < sizeof(addrstr)) memcpy(addrstr, address->s, address->length); else /* handle error */",
+  "confidence": 1.0
+}

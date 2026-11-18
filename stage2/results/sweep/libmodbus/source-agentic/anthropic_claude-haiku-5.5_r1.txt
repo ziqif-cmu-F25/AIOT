@@ -1,0 +1,32 @@
+FINAL
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "_modbus_reply (MODBUS_FC_WRITE_AND_READ_REGISTERS case)",
+      "line": 964
+    },
+    "vulnerability_class": "oob-write",
+    "hypothesis": "The bounds check for the write half of FC 0x17 tests `mapping_address` (the read start) twice and never tests `mapping_address_write` for a negative value. `address_write` is a uint16_t and `mapping_address_write = address_write - mb_mapping->start_registers` is a signed int. If the attacker sends an address_write below mb_mapping->start_registers, mapping_address_write is negative. The upper-bound test `(mapping_address_write + nb_write) > nb_registers` is then false, so the check passes. The write loop at lines 978-982 then stores into `mb_mapping->tab_registers[i]` with negative i, writing before the start of the heap-allocated register array. The attacker controls the values written via the request payload. This requires a mapping with start_registers > 0 and address_write < start_registers. It is conditional, but it is a real out-of-bounds write reachable from a single unauthenticated request.",
+    "evidence": "964:                    mapping_address < 0 ||\n965:                    (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\n...\n952:         int mapping_address = address - mb_mapping->start_registers;\n953:         int mapping_address_write = address_write - mb_mapping->start_registers;\n...\n978:            for (i = mapping_address_write, j = 10;\n979:                 i < mapping_address_write + nb_write; i++, j += 2) {\n980:                 mb_mapping->tab_registers[i] =\n981:                     (req[offset + j] << 8) + req[offset + j + 1];",
+    "confidence": 0.6
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "_modbus_reply (MODBUS_FC_WRITE_MULTIPLE_COILS / MODBUS_FC_WRITE_MULTIPLE_REGISTERS cases)",
+      "line": 867
+    },
+    "vulnerability_class": "other",
+    "hypothesis": "The echo of the bit/register address and quantity copies 4 bytes from `req + rsp_length` (the response header offset), not from the request's address field at `req + offset`. This is a logic error, not a memory-safety bug: the source stays inside the 260-byte request buffer, so I am not treating it as an OOB read. It does echo the wrong bytes to the client. The same pattern appears at line 898.",
+    "evidence": "866:             /* 4 to copy the bit address (2) and the quantity of bits */\n867:             memcpy(rsp + rsp_length, req + rsp_length, 4);",
+    "confidence": 0.2
+  }
+]
+```
+
+Limitations: I did not read the mapping allocation (`modbus_mapping_new`) or confirm that `start_registers` can be nonzero for the mapping in use. Finding 1 depends on that. I also did not check `build_response_basis` return values per backend, so the offset analysis in finding 2 is inferred.

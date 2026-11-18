@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "If modbus_reply is called with a request shorter than header_length+3 bytes, it reads req[offset-1], req[offset], and req[offset+1]/[+2] out of bounds while parsing slave/function/address.",
+  "evidence_source": "modbus_reply: offset = ctx->backend->header_length; slave = req[offset - 1]; function = req[offset]; address = (req[offset + 1] << 8) + req[offset + 2]; No req_length validation precedes these accesses.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Server crash (SIGSEGV) or sanitizer out-of-bounds read report when processing a truncated request.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "modbus_reply never checks req_length against the minimum header/pdu sizes before indexing. An attacker sending a truncated frame (or a caller passing a too-small req_length) triggers OOB reads immediately.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 797
+  },
+  "confidence": 0.9,
+  "model": "openai/gpt-5",
+  "prompt_id": "libmodbus-modbus-reply@v1",
+  "run_index": 2
+}

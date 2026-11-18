@@ -1,0 +1,30 @@
+After reviewing the provided source files, I've identified a memory-safety vulnerability in the `coap_pdu_duplicate_lkd` function. Here are the top 3 candidates:
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "libcoap/src/coap_pdu.c", "function": "coap_pdu_duplicate_lkd", "line": 214},
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "When duplicating a PDU with options but no data, the calculation for the length to copy may overflow if the original PDU's data pointer is non-NULL but points beyond the used size. The code calculates 'length = old_pdu->used_size - old_pdu->e_token_length - (old_pdu->data ? old_pdu->used_size - (old_pdu->data - old_pdu->token) +1 : 0)' which can result in a negative value that gets cast to a large positive value, leading to a buffer overflow when memcpy is called.",
+    "evidence": "Lines 244-246: 'size_t length = old_pdu->used_size - old_pdu->e_token_length - (old_pdu->data ? old_pdu->used_size - (old_pdu->data - old_pdu->token) +1 : 0);' and line 250-251: 'memcpy(pdu->token + pdu->e_token_length, old_pdu->token + old_pdu->e_token_length, length);'",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "location": {"file": "libcoap/src/coap_pdu.c", "function": "coap_pdu_parse", "line": 1446},
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "If the parsed header size (hdr_size) is larger than the input data length, the memcpy operation can overflow the destination buffer. The check 'if (hdr_size > length)' prevents this, but there's a potential issue if hdr_size is exactly equal to length, leaving no room for the token/data section.",
+    "evidence": "Line 1455: 'if (!hdr_size || hdr_size > length)' and line 1462: 'memcpy(pdu->token - hdr_size, data, length);'",
+    "confidence": 0.7
+  },
+  {
+    "rank": 3,
+    "location": {"file": "libcoap/src/coap_pdu.c", "function": "coap_update_token", "line": 396},
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "When updating a token to a larger size, the memmove operation may overflow if the new token length plus bias exceeds the allocated size, despite the coap_pdu_check_resize call. The resize check might not account for all possible scenarios where the buffer needs to grow.",
+    "evidence": "Lines 429-430: 'memmove(&pdu->token[(len + bias) - pdu->e_token_length], pdu->token, pdu->used_size);'",
+    "confidence": 0.6
+  }
+]
+```

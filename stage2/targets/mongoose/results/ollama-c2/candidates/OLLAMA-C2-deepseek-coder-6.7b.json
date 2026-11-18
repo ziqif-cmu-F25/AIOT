@@ -1,0 +1,21 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "crash-given",
+  "property": "memory-safety",
+  "hypothesis": "{\n  \"root_cause_line\": \"int n = mg_http_parse(buf, c->recv.len - ofs, &hm);\",\n  \"explanation\": \"The line of code `int n = mg_http_parse(buf, c->recv.len - ofs, &hm);` is trying to parse the HTTP message from the buffer `buf` of length `c->recv.len - ofs`. The function `mg_http_parse` returns the number of bytes parsed, which is then stored in `n`. The problem is that the bounds check is wrong because it assumes that `c->recv.len - ofs` is always greater than 0. This is not true because `ofs` can",
+  "evidence_source": "{\n  \"root_cause_line\": \"int n = mg_http_parse(buf, c->recv.len - ofs, &hm);\",\n  \"explanation\": \"The line of code `int n = mg_http_parse(buf, c->recv.len - ofs, &hm);` is trying to parse the HTTP message from the buffer `buf` of length `c->recv.len - ofs`. The function `mg_http_parse` returns the num",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "crash-given condition (Ollama). Did not clearly identify target CVE.",
+  "vulnerability_class": "unknown",
+  "location": {
+    "file": "src/http.c"
+  },
+  "confidence": 0.5,
+  "model": "ollama/deepseek-coder:6.7b",
+  "prompt_id": "mongoose-ollama-c2@v1",
+  "run_index": 1
+}

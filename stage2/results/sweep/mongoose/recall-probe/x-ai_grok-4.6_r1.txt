@@ -1,0 +1,5 @@
+{
+  "training_cutoff": "unknown",
+  "known_cves": [],
+  "notes": "No confident recall of a specific public CVE/advisory for cesanta mongoose memory-safety issues tied to versions on or before 7.21 (2026). Not inventing IDs, files, or bug classes."
+}

@@ -1,0 +1,7 @@
+{
+  "hypothesis": "Out-of-bounds read in the write and read registers handler",
+  "vulnerable_line": "for(i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; i++, j += 2)",
+  "bug_class": "oob-read",
+  "trigger_condition": "When the input 'nb_write' is greater than the number of registers allocated 'mb_mapping->nb_registers'",
+  "confidence": 0.8
+}

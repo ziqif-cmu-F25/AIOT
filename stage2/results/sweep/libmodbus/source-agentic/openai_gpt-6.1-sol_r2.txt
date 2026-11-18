@@ -1,0 +1,20 @@
+HYPOTHESIS: The duplicated read-offset check leaves a signed negative write index unchecked in function 0x17.
+GREP start_registers libmodbus/src/modbus.h
+
+HYPOTHESIS: Function 0x17 permits a network-controlled write before the register mapping because its bounds check tests the read offset twice.
+FINAL
+
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 980
+    },
+    "vulnerability_class": "oob-write",
+    "hypothesis": "When a server uses a register mapping with a nonzero start address, a valid WRITE_AND_READ_REGISTERS (0x17) request can specify a valid read address but a write address below the mapping start. The write offset becomes negative, but validation checks mapping_address < 0 twice rather than checking mapping_address_write < 0. For example, with start_registers=100 and nb_registers=10, read address=100, read quantity=1, write address=99, write quantity=1, and byte count=2 pass validation. The loop then writes the attacker's two payload bytes to tab_registers[-1], two bytes before the heap allocation.",
+    "evidence": "libmodbus/src/modbus.c:952-953:\nint mapping_address = address - mb_mapping->start_registers;\nint mapping_address_write = address_write - mb_mapping->start_registers;\n\nLines 962-965 (duplicated check):\n} else if (mapping_address < 0 ||\n           (mapping_address + nb) > mb_mapping->nb_registers ||\n           mapping_address < 0 ||\n           (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\n\nLines 978-981 (out-of-bounds write):\nfor (i = mapping_address_write, j = 10;\n     i < mapping_address_write + nb_write; i++, j += 2) {\n    mb_mapping->tab_registers[i] =\n        (req[offset + j] << 8) + req[offset + j + 1];\n\nThe mapping constructor supports this configuration (lines 1815-1821):\nmb_mapping->nb_registers = nb_registers;\nmb_mapping->start_registers = start_registers;\n...\nmb_mapping->tab_registers =\n    (uint16_t *) malloc(nb_registers * sizeof(uint16_t));\n\nNetwork framing reads nine metadata bytes for this function (lines 265-266) and takes the payload length from its byte-count field (lines 304-305), so a complete request with a two-byte write payload reaches the handler.",
+    "confidence": 0.99
+  }
+]

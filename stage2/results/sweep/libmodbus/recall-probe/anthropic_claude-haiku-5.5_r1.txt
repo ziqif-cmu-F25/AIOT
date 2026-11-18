@@ -1,0 +1,20 @@
+```json
+{
+  "training_cutoff": "unknown",
+  "known_cves": [
+    {
+      "cve": "CVE-2019-14462",
+      "file_function": "src/modbus.c, modbus_reply() (uncertain)",
+      "bug_class": "out-of-bounds read / denial of service from a crafted Modbus request (exact class uncertain)",
+      "recall_confidence": 0.5
+    },
+    {
+      "cve": "CVE-2019-14463",
+      "file_function": "src/modbus.c, modbus_reply() (uncertain)",
+      "bug_class": "buffer overflow triggered by a crafted Modbus request (exact class uncertain)",
+      "recall_confidence": 0.35
+    }
+  ],
+  "notes": "I cannot reliably state my training cutoff, so I'm reporting 'unknown'. The CVE entries are from memory only and are not verified against any advisory database. The CVE IDs and their 2019 association with libmodbus 3.1.6 feel familiar, but I am unsure of the exact function, the bug class, and whether both IDs describe distinct real advisories. Treat the confidence values as rough impressions, not calibrated probabilities. Confirm against NVD, MITRE, or the libmodbus project's release notes before relying on any of this. I have not reasoned about any code to produce these answers."
+}
+```

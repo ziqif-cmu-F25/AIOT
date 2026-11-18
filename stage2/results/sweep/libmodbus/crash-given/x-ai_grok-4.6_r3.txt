@@ -1,0 +1,14 @@
+{
+  "rank": 1,
+  "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 964},
+  "explanation": "ASan reports a WRITE SEGV at modbus.c:980, which is tab_registers[i] = ... inside the MODBUS_FC_WRITE_AND_READ_REGISTERS arm. i is initialized from mapping_address_write. The range gate just above that loop is a copy-paste error: line 964 re-checks mapping_address < 0 (already tested at 962) instead of mapping_address_write < 0. The exception text at 969-970 even uses mapping_address_write < 0, confirming the intended predicate. When the write starting address is below start_registers, mapping_address_write is negative. If mapping_address_write + nb_write still does not exceed nb_registers, line 965 does not fire, the loop runs with a negative index, and the store at 980 writes before tab_registers (address 0x505ffffffec8 is a heap base plus a negative uint16_t index).",
+  "fix": "mapping_address_write < 0",
+  "confidence": 0.95
+}
+{
+  "rank": 2,
+  "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 965},
+  "explanation": "Even if one treats 964 as a redundant duplicate rather than a mis-typed identifier, the only write-side bound that remains is (mapping_address_write + nb_write) > nb_registers. That upper-bound test is true for a negative start only when the whole window sits left of 0. A crafted request with write address slightly before the mapping and a large enough nb_write keeps the sum inside [0, nb_registers], so execution still reaches the write loop at 978-980 and indexes tab_registers with i < 0.",
+  "fix": "mapping_address_write < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers",
+  "confidence": 0.35
+}

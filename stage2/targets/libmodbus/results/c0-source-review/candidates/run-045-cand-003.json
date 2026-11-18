@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-003",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "A truncated WRITE_MULTIPLE_COILS request with header present but missing or short value bytes will cause modbus_reply to pass a pointer into req[offset+6] to modbus_set_bits_from_bytes, which will read beyond the end of the request buffer.",
+  "evidence_source": "In modbus_reply, case MODBUS_FC_WRITE_MULTIPLE_COILS: int nb = (req[offset + 3] << 8) + req[offset + 4]; int nb_bits = req[offset + 5]; ... modbus_set_bits_from_bytes(..., nb, &req[offset + 6]); There is no check that req_length >= offset + 6 + byte_count.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Out-of-bounds read inside modbus_set_bits_from_bytes when it consumes nb bits from a truncated buffer; likely crash or sanitizer report.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "The code validates nb and nb_bits relation but not that the indicated byte_count bytes are actually present in the received frame.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 863
+  },
+  "confidence": 0.83,
+  "model": "openai/gpt-5",
+  "prompt_id": "libmodbus-0367-source-review@v1",
+  "run_index": 2
+}

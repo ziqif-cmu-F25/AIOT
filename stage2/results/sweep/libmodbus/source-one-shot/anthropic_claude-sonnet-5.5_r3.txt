@@ -1,0 +1,28 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 964
+    },
+    "vulnerability_class": "oob-write",
+    "hypothesis": "In the MODBUS_FC_WRITE_AND_READ_REGISTERS case, the address-range check tests `mapping_address < 0` twice. It never tests `mapping_address_write < 0`. A client sends a write address below `start_registers`, with a valid read address and valid counts. Since `address_write` is a uint16_t and `start_registers` can be nonzero, `mapping_address_write` becomes negative; for example, with start_registers=0 it is already negative whenever `address_write` is above 0x7FFF... more precisely, any value below `start_registers` makes it negative. The upper-bound check `mapping_address_write + nb_write > nb_registers` passes for a negative value. The write loop then stores attacker-controlled 16-bit values at `tab_registers[negative index]`, up to 2*nb_write bytes before the heap buffer. This is a heap out-of-bounds write, and it matches the pattern of the known CVE-2022-0367.",
+    "evidence": "int mapping_address_write = address_write - mb_mapping->start_registers;\n... } else if (mapping_address < 0 ||\n           (mapping_address + nb) > mb_mapping->nb_registers ||\n           mapping_address < 0 ||\n           (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\n...\nfor (i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; i++, j += 2) {\n    mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];\n}",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 845
+    },
+    "vulnerability_class": "oob-read",
+    "hypothesis": "For write-multiple-coils, the request's byte count (`nb_bits`) is only checked as `nb_bits * 8 < nb`. It is never checked against the number of bytes actually received. `modbus_set_bits_from_bytes` may therefore read past the received data in `req`. The over-read stays within the fixed request buffer, so impact is limited to stale data.",
+    "evidence": "if (nb < 1 || MODBUS_MAX_WRITE_BITS < nb || nb_bits * 8 < nb) ... modbus_set_bits_from_bytes(mb_mapping->tab_bits, mapping_address, nb, &req[offset + 6]);",
+    "confidence": 0.15
+  }
+]
+```

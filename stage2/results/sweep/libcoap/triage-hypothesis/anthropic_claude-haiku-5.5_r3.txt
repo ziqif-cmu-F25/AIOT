@@ -1,0 +1,31 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "coap_resolve_address_info (libcoap resolver)", "function": "coap_resolve_address_info", "line": 538},
+    "bug_class": "buffer-overflow",
+    "hypothesis": "The copy `memcpy(addrstr, address->s, address->length)` has no bound against `sizeof(addrstr)` (256 bytes, a static buffer), so a host string of 256 or more bytes overflows the static buffer in .bss. A length of exactly 256 also leaves `addrstr` without a NUL terminator, so the subsequent `getaddrinfo(addrstr, ...)` at line 547 reads past the buffer.",
+    "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "A coap_str_const_t host with address->length >= 256 reaches this function. This happens when a peer-influenced URI host (for example one parsed from a network-supplied URI or proxy target) is passed in as `address`. Line 509 bounds only the AF_UNIX path, not this path.",
+    "confidence": 0.8
+  },
+  {
+    "rank": 2,
+    "location": {"file": "coap_resolve_address_info (libcoap resolver)", "function": "coap_resolve_address_info", "line": 672},
+    "bug_class": "oob-read",
+    "hypothesis": "On the RIOT and Contiki paths, the host string is treated as a NUL-terminated C string even though `address` carries an explicit length. The parsers `netutils_get_ipv6`/`netutils_get_ipv4` (lines 672, 678) and `uiplib_ip6addrconv`/`uiplib_ip4addrconv` (lines 745, 751) read past `address->length` when the input is not NUL-terminated. The error path at lines 683 and 756 also passes `address->s` to `%s`, which can read past the end of the buffer.",
+    "vulnerable_line": "if (netutils_get_ipv6(&addr_ipv6, &netif, (const char *)address->s) >= 0) {",
+    "trigger_condition": "A non-NUL-terminated coap_str_const_t host whose bytes run to the end of a larger buffer, on a RIOT or Contiki build. Parsing an unterminated or invalid host triggers the out-of-bounds read, and the failure path logs it.",
+    "confidence": 0.45
+  },
+  {
+    "rank": 3,
+    "location": {"file": "coap_resolve_address_info (libcoap resolver)", "function": "coap_resolve_address_info", "line": 750},
+    "bug_class": "other",
+    "hypothesis": "In the Contiki branch, the IPv4 check tests `family == AF_UNSPEC`, but `family` is never declared or set in this branch, and the IPv6 success path never records it. The IPv4 parser can therefore run even after the IPv6 parse succeeded, and it writes a 4-byte uip_ip4addr_t over the start of `addr_ip`, which holds an IPv6 result. This is a logic error that could corrupt the parsed address.",
+    "vulnerable_line": "if (family == AF_UNSPEC && uiplib_ip4addrconv((const char *)address->s, (uip_ip4addr_t *)&addr_ip) > 0) {",
+    "trigger_condition": "A Contiki build with COAP_IPV4_SUPPORT enabled, where the host string parses as IPv6 and then is also accepted by the IPv4 converter. This is speculative and depends on the converter's behavior on IPv6 text. It would also fail to compile if `family` is undeclared in that branch.",
+    "confidence": 0.15
+  }
+]
+```

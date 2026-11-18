@@ -1,0 +1,56 @@
+Looking at the ASan report and the provided source code, I can identify the root cause of the global-buffer-overflow.
+
+The ASan report indicates:
+- WRITE of size 300 at address 0x7b7127637b40
+- This address is located 0 bytes after global variable 'coap_resolve_address_info.addrstr' defined in 'src/coap_address.c' (0x7b7127637a40) of size 256
+
+The issue is in the `coap_resolve_address_info` function in `src/coap_address.c`. Specifically, the problem is with the `addrstr` buffer which is defined as 256 bytes (line 498), but there is a write operation that copies more than 256 bytes into it.
+
+Looking at the code in `coap_resolve_address_info`:
+```c
+536:   memset(addrstr, 0, sizeof(addrstr));
+537:   if (address && address->length)
+538:     memcpy(addrstr, address->s, address->length);
+539:   else
+540:     memcpy(addrstr, "localhost", 9);
+```
+
+The `memcpy` on line 538 copies `address->length` bytes into `addrstr` without checking if `address->length` exceeds the size of `addrstr` (256 bytes). This is the root cause.
+
+Additionally, the `addrstr` is used in a call to `getaddrinfo` (line 547), which might also cause issues if the string is not null-terminated. However, the immediate overflow is due to the unchecked copy.
+
+The correct fix is to add a length check before the `memcpy` to ensure we don't write beyond the buffer.
+
+Here are the candidates:
+
+```json
+{
+  "rank": 1,
+  "root_cause": {"file": "libcoap/src/coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+  "explanation": "The memcpy copies address->length bytes into addrstr (size 256) without checking if address->length exceeds 256, leading to a buffer overflow.",
+  "fix": "Add a check: if (address && address->length) { if (address->length < sizeof(addrstr)) { memcpy(addrstr, address->s, address->length); addrstr[address->length] = '\\0'; } else { /* handle error */ } }",
+  "confidence": 1.0
+}
+```
+
+```json
+{
+  "rank": 2,
+  "root_cause": {"file": "libcoap/src/coap_address.c", "function": "coap_resolve_address_info", "line": 540},
+  "explanation": "The else branch copies \"localhost\" (9 bytes) which is safe, but the primary issue is the unchecked copy in the if branch.",
+  "fix": "Same as above.",
+  "confidence": 0.2
+}
+```
+
+```json
+{
+  "rank": 3,
+  "root_cause": {"file": "libcoap/src/coap_address.c", "function": "coap_resolve_address_info", "line": 547},
+  "explanation": "getaddrinfo() might be called with a non-null-terminated string if the copy was not properly terminated, but this is not the direct cause of the overflow.",
+  "fix": "Ensure the string is null-terminated after copying.",
+  "confidence": 0.1
+}
+```
+
+The primary issue is definitely the unchecked copy at line 538. The fix should include both a length check and proper null-termination.

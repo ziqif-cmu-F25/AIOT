@@ -1,0 +1,19 @@
+FINAL
+[
+  {
+    "rank": 1,
+    "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 964},
+    "vulnerability_class": "oob-write",
+    "hypothesis": "A crafted FC 0x17 (WRITE_AND_READ_REGISTERS) request can heap-underflow-write mb_mapping->tab_registers. The bounds check copy-pastes mapping_address < 0 twice and never tests mapping_address_write < 0. If the mapping is shifted (start_registers > 0, a supported configuration) and the write address is below start_registers, mapping_address_write is negative while mapping_address_write + nb_write still <= nb_registers, so the check passes. The following loop then does tab_registers[negative_index] = attacker-controlled data (nb_write is still accepted as 1..121). Untrusted TCP/RTU input reaches this path via modbus_receive -> modbus_reply.",
+    "evidence": "} else if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers) { ... } else { for (i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; i++, j += 2) { mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1]; } }  // exception text even uses mapping_address_write < 0, confirming the intended check",
+    "confidence": 0.95
+  },
+  {
+    "rank": 2,
+    "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 724},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "modbus_reply always reads req[offset+1] and req[offset+2] (and, for several FCs, later bytes through offset+9) without consulting req_length. Short indications (unknown FC, REPORT_SLAVE_ID, READ_EXCEPTION_STATUS) are received as header+function[+CRC] only, so those accesses go past the valid ADU. Harmless if the caller allocated MODBUS_MAX_ADU_LENGTH, but an OOB read if the receive buffer was sized to the returned length.",
+    "evidence": "offset = ctx->backend->header_length; slave = req[offset - 1]; function = req[offset]; address = (req[offset + 1] << 8) + req[offset + 2]; // no req_length check before this or before later req[offset+3..9] uses",
+    "confidence": 0.35
+  }
+]

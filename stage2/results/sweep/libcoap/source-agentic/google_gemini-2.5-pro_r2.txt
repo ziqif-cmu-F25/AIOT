@@ -1,0 +1,29 @@
+HYPOTHESIS: `coap_option_t->length` is of type `size_t`. This makes a simple integer overflow less likely on 64-bit systems, but still possible on 32-bit systems if a large length is specified. However, I've spotted a more direct vulnerability in `coap_opt_parse` in `libcoap/src/coap_option.c`.
+
+When parsing the extended delta and length (cases 13 and 14), the code does `result->delta += *opt & 0xff;` and `result->length += *opt & 0xff;`. The `+=` is the problem.
+
+Let's trace the logic for `result->length`:
+1. `result->length` is initialized from the lower 4 bits of the first option byte: `result->length = *opt & 0x0f;`.
+2. If the lower 4 bits are 13, we read the next byte and add it to `result->length`.
+3. If the lower 4 bits are 14, we read the next byte, multiply it by 256, add 269, and store it in `result->length`. Then it falls through to the case 13 logic, where it reads *another* byte and adds it to `result->length`.
+
+An attacker can set the initial length nibble to 14.
+- `result->length` becomes 14.
+- The code enters `case 14:`. It reads the next byte. Let's say this byte is `0xFF`.
+- `result->length` becomes `(0xFF << 8) + 269`, which is `65280 + 269 = 65549`.
+- The code then falls through to `case 13:`. It reads the *next* byte. Let's say this is also `0xFF`.
+- It then does `result->length += *opt & 0xff;`, so `result->length` becomes `65549 + 255 = 65804`.
+
+The problem is that the initial value of `result->length` (14) is not cleared. The RFC states that for a value of 14, the length is `(value of 2-byte integer) + 269`. The code incorrectly calculates it as `14 + (value of 1-byte integer) + (value of 1-byte integer << 8) + 269`. This allows creating an option length that is larger than what is checked for.
+
+The check `if (length < result->length)` at line 105 will fail, but the damage is already done. The return value `(opt + result->length) - opt_start` will be a large value. If this value wraps around (integer overflow), it will return a small `optsize`.
+
+Let's re-examine the return value calculation: `(opt + result->length) - opt_start`.
+`opt` points to the start of the option value. `opt_start` points to the beginning of the option. The difference `opt - opt_start` is the size of the option header (1, 2, or 3 bytes for delta; 1, 2, or 3 for length).
+If `result->length` is a huge value close to `SIZE_MAX`, `opt + result->length` can wrap around. The result of the subtraction will be a small positive number.
+This small `optsize` is returned to `next_option_safe`.
+`next_option_safe` updates `*length -= optsize` and `*optp += optsize`.
+The main loop in `coap_pdu_parse_opt` continues. `length` is now slightly smaller, but `opt` is also only slightly advanced. However, the *actual* option specified by the attacker was huge. The next iteration will read from `*opt`, which is now pointing somewhere inside the (very large, attacker-controlled) option value, interpreting it as a new option header. This will likely lead to an out-of-bounds read, as the code will be parsing data far beyond the end of the actual received packet.
+
+I'll formulate my final answer based on this integer overflow leading to an out-of-bounds read.
+FINAL

@@ -1,0 +1,22 @@
+HYPOTHESIS: `coap_pdu_parse_header` reads the extended token-length bytes `pdu->token[0]` and `pdu->token[1]` without first checking that they lie within the received datagram, which can read past the end of the PDU buffer.
+
+FINAL
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libcoap/src/coap_pdu.c",
+      "function": "coap_pdu_parse_header",
+      "line": 1091
+    },
+    "vulnerability_class": "oob-read",
+    "hypothesis": "A UDP/DTLS datagram whose first byte's low nibble (TKL) is 13 or 14 has no check that the extension byte(s) exist. For TKL==13, `pdu->token[0]` is read; for TKL==14, `pdu->token[0]` and `pdu->token[1]` are read. The only check, at line 1100, compares e_token_length against alloc_size, not against used_size, and it runs after the reads. If the datagram ends right after the 4-byte header (or after one byte for TKL==14), the read goes past the received bytes. Whether it also goes past the heap allocation depends on how coap_pdu_resize sizes the buffer when used_size is 0 or 1, which I did not confirm.",
+    "evidence": "coap_pdu_parse(): `hdr_size = coap_pdu_parse_header_size(proto, data); ... if (!coap_pdu_resize(pdu, length - hdr_size)) return 0; if (pdu->token - hdr_size != data) memcpy(pdu->token - hdr_size, data, length); pdu->used_size = length - hdr_size; return coap_pdu_parse_header(pdu, proto) && coap_pdu_parse_opt(pdu);`\n\ncoap_pdu_parse_header(): `e_token_length = hdr[0] & 0x0f; ... } else if (e_token_length == COAP_TOKEN_EXT_1B_TKL) { pdu->e_token_length = pdu->token[0] + COAP_TOKEN_EXT_1B_BIAS + 1; ... } else if (e_token_length == COAP_TOKEN_EXT_2B_TKL) { pdu->e_token_length = ((uint16_t)pdu->token[0] << 8) + pdu->token[1] + COAP_TOKEN_EXT_2B_BIAS + 2; ... } if (pdu->e_token_length > pdu->alloc_size || e_token_length == 15) {`\n\nThe bounds check on used_size only happens later, in coap_pdu_parse_opt(): `if (pdu->e_token_length > pdu->used_size) { ... invalid Token`. That check runs too late to protect the extension-byte reads.",
+    "confidence": 0.45
+  }
+]
+```
+
+Confidence is moderate because I did not read coap_pdu_resize, so I cannot confirm whether the stray read lands inside the heap allocation (a benign over-read) or outside it. The fix is to check `length - hdr_size >= 1` (or 2 for TKL==14) before reading the extension bytes, and to validate the computed token length against used_size inside coap_pdu_parse_header.

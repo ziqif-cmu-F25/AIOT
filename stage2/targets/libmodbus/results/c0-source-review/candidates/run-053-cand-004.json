@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-004",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "The compute_data_length_after_meta function does not properly validate the computed length against the maximum ADU length, potentially leading to a buffer overflow in _modbus_receive_msg.",
+  "evidence_source": "Lines 292-324: compute_data_length_after_meta returns a length without validating it against the maximum ADU length. In _modbus_receive_msg (line 451), there is a check that (msg_length + length_to_read) <= ctx->backend->max_adu_length, but if the computed length is negative or very large, it might bypass this check due to integer overflow.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Integer overflow leading to buffer overflow in the receive buffer.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "An attacker can provide a large value in the message that causes an integer overflow in the length calculation.",
+  "vulnerability_class": "integer-overflow",
+  "location": {
+    "file": "modbus.c",
+    "function": "_modbus_receive_msg",
+    "line": 451
+  },
+  "confidence": 0.7,
+  "model": "deepseek/deepseek-chat-v3.1",
+  "prompt_id": "libmodbus-0367-source-review@v1",
+  "run_index": 1
+}

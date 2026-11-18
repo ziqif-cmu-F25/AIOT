@@ -1,0 +1,30 @@
+**Primary finding:** an out-of-bounds heap write in the `MODBUS_FC_WRITE_AND_READ_REGISTERS` (function 0x17) handler of `modbus_reply`. The address check tests `mapping_address < 0` twice and never tests `mapping_address_write < 0`, so a network client can make the server write before the start of `tab_registers`.
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 964},
+    "vulnerability_class": "oob-write",
+    "hypothesis": "The FC 0x17 (write and read registers) bounds check repeats 'mapping_address < 0' instead of checking 'mapping_address_write < 0'. Suppose the server mapping uses start_registers > 0 (via modbus_mapping_new_start_address). A client sends a request with a valid read address and an address_write below start_registers. Then mapping_address_write = address_write - start_registers is negative. The upper-bound check (mapping_address_write + nb_write) > nb_registers still passes. The write loop at line 980 then stores attacker-controlled 16-bit values to tab_registers[i] for negative i. That is a heap buffer underflow of up to 121 registers, i.e. a remote out-of-bounds write before the start of tab_registers.",
+    "evidence": "} else if (mapping_address < 0 ||\n                   (mapping_address + nb) > mb_mapping->nb_registers ||\n                   mapping_address < 0 ||\n                   (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\n...\nfor (i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; i++, j += 2) {\n    mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 892},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "For FC 0x10 (write multiple registers), the payload values are read from req[offset+6 .. offset+6+2*nb]. This relies on nb_bytes == nb*2 matching the bytes actually received. A caller that passes a truncated or otherwise inconsistent req buffer could cause reads past the received data. This is less likely to be exploitable because _modbus_receive_msg reads exactly nb_bytes bytes.",
+    "evidence": "mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];",
+    "confidence": 0.1
+  },
+  {
+    "rank": 3,
+    "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 862},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "For FC 0x0F (write multiple coils), the check 'nb_bits * 8 < nb' allows a byte count larger than needed. The copy reads ceil(nb/8) bytes from req+offset+6, and these bytes are guaranteed to have been received. Only a malformed caller-supplied req could cause an over-read.",
+    "evidence": "modbus_set_bits_from_bytes(mb_mapping->tab_bits, mapping_address, nb, &req[offset + 6]);",
+    "confidence": 0.05
+  }
+]
+```

@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "input-drafting",
+  "property": "memory-safety",
+  "hypothesis": "In skip_chunk(), the guard `len < i + 1` allows reading buf[i+1] when len == i + 1 and buf[i] == '\\r'. The correct guard is `len < i + 2`. This causes a one-byte out-of-bounds read past the logical buffer.",
+  "evidence_source": "Proposed body '1\\r\\nA\\r' with TCP split. Concept correct (wants buffer ending in \\r) but skip_chunk passes the line 17 CRLF check on this input (len=5, i=1, buf[1]='\\r', buf[2]='\\n' ok) and returns 0 on line 21 (not buffered). No OOB triggered. Model self-assessed confidence 0.35 and noted caveat about not having seen the source.",
+  "input_artifact": "POST with body '1\\r\\nA\\r', TCP split after \\r",
+  "expected_behavior": "One-byte OOB read of buf[i+1] when chunk-size line ends with CR at the last buffered byte (line 17 of skip_chunk).",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "rejected",
+  "oracle_verdict": "wrong_input",
+  "notes": "Input-drafting condition (given hypothesis, draft one trigger input). Model proposed: POST with body '1\\r\\nA\\r', TCP split after \\r. Assessment: no_trigger (line 17 CRLF check passes; returns 0 on line 21). The correct triggering input for line 17 is 'ab\\r' (3 bytes: hex digits + CR with no LN) \u2014 none of the 4 responding models crafted this specific input.",
+  "vulnerability_class": "oob-read",
+  "location": {
+    "file": "src/http.c",
+    "function": "skip_chunk",
+    "line": 17
+  },
+  "confidence": 0.3,
+  "model": "anthropic/claude-haiku-5.5",
+  "prompt_id": "mongoose-input-drafting-rerun@v1",
+  "run_index": 1
+}

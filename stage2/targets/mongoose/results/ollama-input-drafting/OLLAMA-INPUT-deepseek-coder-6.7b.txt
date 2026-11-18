@@ -1,0 +1,7 @@
+{
+  "raw_request": "POST / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n",
+  "hex_body": "30\r\n\r\n",
+  "explanation": "The request is using Transfer-Encoding: chunked. The chunked body is crafted so that skip_chunk() receives a buffer where the last buffered byte is '\r' at position i, with no '\n' following it in the buffer (len == i + 1).",
+  "delivery_notes": "This request can be sent in one TCP segment as the entire request fits within the TCP segment size limit.",
+  "confidence": 1.0
+}

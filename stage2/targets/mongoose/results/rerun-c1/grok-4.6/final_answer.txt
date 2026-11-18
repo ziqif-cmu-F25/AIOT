@@ -1,0 +1,2 @@
+HYPOTHESIS: skip_chunk line 17 uses `len < i+1` then short-circuit-ORs into `buf[i+1]`, so a 3-byte incomplete chunk of the form HH\\r causes a 1-byte OOB read of network data.
+FINAL

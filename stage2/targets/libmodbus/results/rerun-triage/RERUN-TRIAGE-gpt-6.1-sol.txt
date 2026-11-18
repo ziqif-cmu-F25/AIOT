@@ -1,0 +1,7 @@
+{
+  "hypothesis": "The duplicated `mapping_address < 0` check fails to reject a negative `mapping_address_write`, allowing `mb_mapping->tab_registers[i]` to write before the allocated register array when the requested write address is below the mapping base and all other checks pass.",
+  "vulnerable_line": "mapping_address < 0 || /* second occurrence; should check mapping_address_write < 0 */",
+  "bug_class": "out-of-bounds-write",
+  "trigger_condition": "address_write < mb_mapping->start_registers, while the read range is valid, the register counts and byte count pass validation, and mapping_address_write + nb_write <= mb_mapping->nb_registers; the write loop then begins at a negative index.",
+  "confidence": 1.0
+}

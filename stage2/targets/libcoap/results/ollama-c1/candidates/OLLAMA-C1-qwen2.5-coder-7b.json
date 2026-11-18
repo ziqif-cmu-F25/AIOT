@@ -1,0 +1,21 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "source-agentic",
+  "property": "memory-safety",
+  "hypothesis": " HYPOTHESIS: The vulnerability might be related to memory allocation or deallocation in the CoAP message handling code, as untrusted input could potentially lead to buffer overflows or use-after-free errors.\n\nREQUEST: READ src/coap_pdu.c 1 300 The code snippet provided is from the `coap_pdu.c` file, which is part of the CoAP (Constrained Application Protocol) library. This file contains functions for handling CoAP Protocol Data Units (PDUs), which are the basic units of communication in CoAP.\n\nH",
+  "evidence_source": " HYPOTHESIS: The vulnerability might be related to memory allocation or deallocation in the CoAP message handling code, as untrusted input could potentially lead to buffer overflows or use-after-free errors.\n\nREQUEST: READ src/coap_pdu.c 1 300 The code snippet provided is from the `coap_pdu.c` file,",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "C1 agentic (Ollama), 2 turns. Status: unparseable. Did not identify target CVE.",
+  "vulnerability_class": "unknown",
+  "location": {
+    "file": "src/coap_address.c"
+  },
+  "confidence": 0.5,
+  "model": "ollama/qwen2.5-coder:7b",
+  "prompt_id": "libcoap-C1-ollama@v1",
+  "run_index": 1
+}

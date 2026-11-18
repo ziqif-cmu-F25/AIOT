@@ -1,0 +1,25 @@
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 964},
+    "explanation": "In the MODBUS_FC_WRITE_AND_READ_REGISTERS case, the address validation (lines 962-965) tests `mapping_address < 0` twice. The first test is on line 962 and the second, repeated test is on line 964. The write-side value `mapping_address_write = address_write - start_registers` (line 953) is never tested for being negative. The check only covers the upper bound, `mapping_address_write + nb_write > nb_registers`. A request whose write address is below `start_registers` therefore gives a negative `mapping_address_write`. That value passes validation, as long as the read range is valid and the sum with `nb_write` stays under `nb_registers`. The write loop at line 978-981 then starts at `i = mapping_address_write` (negative) and executes `mb_mapping->tab_registers[i] = ...` at line 980. This is a write before the start of the heap buffer. That matches the SEGV on a WRITE access at an address just below the mapped region. The line 964 check was clearly meant to be the write-address check but was copy-pasted from the read-address check.",
+    "fix": "Replace the duplicated condition on line 964 with `mapping_address_write < 0`. The check then reads: `mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address_write < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers`.",
+    "confidence": 0.93
+  },
+  {
+    "rank": 2,
+    "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 980},
+    "explanation": "This is the crash site itself, the unchecked store `tab_registers[i]` with `i` derived from `mapping_address_write`. It is the symptom of the missing lower-bound check on line 964. The loop has no independent guard, so it trusts the earlier validation.",
+    "fix": "Fix the validation on line 964. Optionally also reject the request before the write loop if `mapping_address_write < 0`.",
+    "confidence": 0.05
+  },
+  {
+    "rank": 3,
+    "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 965},
+    "explanation": "The upper-bound check on the write range uses the correct fields, but it is the only check guarding the write. It cannot catch a negative start index, so it does not by itself prevent the out-of-bounds store.",
+    "fix": "Keep the upper-bound check, and add the missing `mapping_address_write < 0` check next to it.",
+    "confidence": 0.02
+  }
+]
+```

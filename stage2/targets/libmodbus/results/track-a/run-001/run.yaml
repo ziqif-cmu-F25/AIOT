@@ -1,0 +1,15 @@
+run_id: run-001
+track: track-a
+condition: human-only
+target_repository: stephane/libmodbus
+target_commit: 2cbafa3113e276c3697d297f68e88d112b53174d
+target_tag: v3.1.10
+property: memory-safety
+start_utc: 2026-11-04T06:18:50Z
+end_utc: ""
+elapsed_s: ""
+investigator: ""
+notes: >
+  human-only investigation of the frozen libmodbus target. Record commands in
+  commands.log, saved frames in inputs/, observations in outputs/, hypotheses
+  and bottlenecks in notes.md, and candidate findings in findings.md.

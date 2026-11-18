@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-011",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "For WRITE_AND_READ_REGISTERS, the loop that writes values reads req[offset + j] and req[offset + j + 1] without checking that 2*nb_write bytes are present; a truncated request causes OOB reads.",
+  "evidence_source": "for (..., j = 10; ...; j += 2) { mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1]; } No check that req_length >= offset + 10 + 2*nb_write.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Crash or ASan OOB-read when the declared write count does not match the provided byte payload.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "Only nb_write_bytes is compared to nb_write*2, but the buffer length itself is not validated.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 1109
+  },
+  "confidence": 0.88,
+  "model": "openai/gpt-5",
+  "prompt_id": "libmodbus-modbus-reply@v1",
+  "run_index": 2
+}

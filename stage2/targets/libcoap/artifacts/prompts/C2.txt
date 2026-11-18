@@ -1,0 +1,20 @@
+Do not use web search or browsing. Work only from the evidence and code provided, and your own reasoning.
+
+You are analyzing a crash in libcoap, a C implementation of the CoAP protocol used in IoT devices. A crafted CoAP message received from the network produced the AddressSanitizer report below.
+
+You may request source code, ONE request per turn:
+  READ <path> <start_line> <end_line>      (at most 300 lines per request)
+  GREP <pattern> [<path>]
+  FINAL
+At most 15 requests. Before each request write one line:
+  HYPOTHESIS: <current hypothesis>
+
+At FINAL, answer:
+ROOT CAUSE: (what check is missing or what computation is wrong; quote the code)
+TRIGGER: (what properties of the input cause it)
+FIX LOCATION: (file / function / line)
+PROPOSED PATCH: (minimal unified diff)
+
+AddressSanitizer report:
+[PASTE THE CONTENTS OF evaluator/repro/asan_affected_global-buffer-overflow.txt HERE.
+Paste the ASan report ONLY. Do NOT paste the trigger file, the CVE id, or any note that names the root cause.]

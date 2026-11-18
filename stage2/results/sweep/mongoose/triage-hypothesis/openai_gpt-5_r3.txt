@@ -1,0 +1,11 @@
+[
+  {
+    "rank": 1,
+    "location": {"file": "<unknown>", "function": "skip_chunk", "line": 1006},
+    "bug_class": "oob-read",
+    "hypothesis": "Off-by-one length check allows reading buf[i + 1] past the end when only a single '\\r' follows the hex length and the trailing '\\n' has not yet arrived.",
+    "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // Error",
+    "trigger_condition": "After scanning hex digits, i == len - 1 and buf[i] == '\\r' (e.g., buffer contains \"<hex-digits>\\r\" without the following '\\n'); then len < i + 1 is false, buf[i] == '\\r' is true, causing evaluation of buf[i + 1] with i + 1 == len.",
+    "confidence": 0.95
+  }
+]

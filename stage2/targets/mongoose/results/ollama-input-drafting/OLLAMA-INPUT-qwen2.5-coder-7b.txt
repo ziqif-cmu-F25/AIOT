@@ -1,0 +1,9 @@
+```json
+{
+  "raw_request": "GET / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n1\r\n\r\n",
+  "hex_body": "01 0d",
+  "explanation": "The chunked body consists of a single chunk with a length of 1 byte ('1'), followed by the chunk data ('\\r'), and then the chunk trailer ('\\n'). The buffer in skip_chunk() will have '1\\r' at position i, with no '\\n' following it, causing the off-by-one read.",
+  "delivery_notes": "The request must be sent in one TCP segment. The HTTP headers and chunked body must be sent as a single packet to ensure that the buffer in skip_chunk() is correctly formed.",
+  "confidence": 1.0
+}
+```

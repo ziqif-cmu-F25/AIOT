@@ -1,0 +1,28 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "unknown",
+      "function": "unknown",
+      "line": 980
+    },
+    "bug_class": "oob-write",
+    "hypothesis": "The duplicated `mapping_address < 0` check on line 964 fails to reject a negative `mapping_address_write`, causing the loop to write before `mb_mapping->tab_registers` at line 980.",
+    "vulnerable_line": "mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];",
+    "trigger_condition": "A write-and-read-registers request with valid read fields and counts, but with `address_write < mb_mapping->start_registers`, makes `mapping_address_write` negative while `(mapping_address_write + nb_write) > mb_mapping->nb_registers` remains false.",
+    "confidence": 0.99
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "unknown",
+      "function": "unknown",
+      "line": 981
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "The write loop trusts the declared byte/count fields without checking that the request actually contains `nb_write * 2` value bytes, so a truncated request can make `req[offset + j + 1]` read past the received buffer.",
+    "vulnerable_line": "(req[offset + j] << 8) + req[offset + j + 1]",
+    "trigger_condition": "A truncated write-and-read-registers request declares valid `nb_write` and `nb_write_bytes == nb_write * 2` but supplies fewer than `10 + nb_write * 2` bytes after `offset`.",
+    "confidence": 0.72
+  }
+]

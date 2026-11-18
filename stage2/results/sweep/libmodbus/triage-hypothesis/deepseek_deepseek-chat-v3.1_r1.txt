@@ -1,0 +1,41 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libmodbus.c",
+      "function": "write_and_read_registers_handler",
+      "line": 978
+    },
+    "bug_class": "oob-write",
+    "hypothesis": "An attacker can cause out-of-bounds write to mb_mapping->tab_registers by providing nb_write that passes validation but where mapping_address_write + nb_write exceeds mb_mapping->nb_registers due to integer overflow in the calculation of mapping_address_write.",
+    "vulnerable_line": "for (i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; i++, j += 2)",
+    "trigger_condition": "When address_write is very large (close to UINT16_MAX) and nb_write is sufficiently large, causing mapping_address_write to wrap around to a negative value that passes the bounds check but leads to an out-of-bounds index.",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "libmodbus.c",
+      "function": "write_and_read_registers_handler",
+      "line": 985
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "An attacker can cause out-of-bounds read from mb_mapping->tab_registers by providing nb that passes validation but where mapping_address + nb exceeds mb_mapping->nb_registers due to integer overflow in the calculation of mapping_address.",
+    "vulnerable_line": "for (i = mapping_address; i < mapping_address + nb; i++)",
+    "trigger_condition": "When address is very large (close to UINT16_MAX) and nb is sufficiently large, causing mapping_address to wrap around to a negative value that passes the bounds check but leads to an out-of-bounds index.",
+    "confidence": 0.9
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "libmodbus.c",
+      "function": "write_and_read_registers_handler",
+      "line": 980
+    },
+    "bug_class": "buffer-overflow",
+    "hypothesis": "An attacker can cause buffer overflow when reading from req array by providing a large nb_write value that causes j to exceed the bounds of the req buffer.",
+    "vulnerable_line": "(req[offset + j] << 8) + req[offset + j + 1]",
+    "trigger_condition": "When nb_write is large enough that j (starting at 10 and incrementing by 2 for each iteration) plus offset exceeds the length of the req buffer.",
+    "confidence": 0.7
+  }
+]

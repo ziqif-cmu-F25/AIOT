@@ -1,0 +1,21 @@
+HYPOTHESIS: skip_chunk has an off-by-one bounds check that can read one byte beyond the supplied chunk buffer.
+FINAL
+
+CANDIDATES (ranked, max 5):
+1. **src/http.c / `skip_chunk` / approximately line 17 / out-of-bounds read (CWE-125)**
+
+   **Reasoning:** The CRLF validation reads two bytes but checks availability of only one:
+   ```c
+   if (len < i + 1 || buf[i] != '\r' || buf[i + 1] != '\n') return -1;
+   ```
+   When `i == len - 1` and `buf[i] == '\r'`, the first two conditions are false, so evaluation reads `buf[i + 1]`, which is `buf[len]`—outside the supplied range. Whether this also crosses the allocation boundary depends on receive-buffer capacity, which the supplied code does not establish.
+
+   **How untrusted input reaches it:** `mg_http_listen` installs HTTP processing for network connections. In `http_cb`, an accepted `Transfer-Encoding: chunked` header enables chunk parsing (lines 63–66). The first parsing pass calls:
+   ```c
+   skip_chunk(s + o, len - o, &pl, &dl)
+   ```
+   at line 104, with bytes from the network receive buffer.
+
+   **Input characteristics:** An incomplete chunk-size line whose currently buffered data ends immediately after its carriage return. The hexadecimal prefix must contain at least two digits to pass `len < 3`, and must satisfy the digit-count limit at line 16. Network fragmentation can create this state even for an otherwise valid request.
+
+   **Fix direction:** Check that both CRLF bytes are available before accessing either. An incomplete size line should return “need more data,” rather than an error. Also handle a hexadecimal prefix that reaches the current buffer end as incomplete, while retaining the existing size-limit checks.

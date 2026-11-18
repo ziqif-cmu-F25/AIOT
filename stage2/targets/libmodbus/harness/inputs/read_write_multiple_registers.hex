@@ -1,0 +1,6 @@
+# Benign seed: Read/Write Multiple Registers (function 0x17) — the function
+# family CVE-2022-0367 lives in. Valid, well-formed; does not trigger the bug.
+# MBAP: txn=0001 proto=0000 length=000D unit=FF
+# PDU: fn=17 read_addr=0x016B read_qty=0x0001 write_addr=0x016B write_qty=0x0001
+#      write_byte_count=0x02 write_data=0x0000
+00 01 00 00 00 0D FF 17 01 6B 00 01 01 6B 00 01 02 00 00

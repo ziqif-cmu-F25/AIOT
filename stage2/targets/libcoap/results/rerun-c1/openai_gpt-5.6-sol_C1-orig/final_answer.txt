@@ -1,0 +1,2 @@
+HYPOTHESIS: The strongest defect is asynchronous proxy-body forwarding using the original request’s transient data pointer instead of the allocated durable copy; a secondary defect is persistent shallow storage of request-backed URI pointers.
+FINAL

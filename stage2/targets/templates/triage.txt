@@ -1,0 +1,23 @@
+You are performing a security triage of {TARGET}, {PROTOCOL}. Untrusted input
+arrives from the network.
+
+Below is a code excerpt. State one or more concrete vulnerability hypotheses for
+this code, ranked best first (up to {K}). A good hypothesis names the exact line,
+the condition that fails, what memory access goes wrong, and the input that
+triggers it. Do NOT assume a particular bug class in advance.
+
+Output a JSON array of up to {K} objects:
+[{
+  "rank": <n>,
+  "location": {"file": "...", "function": "...", "line": <n>},
+  "bug_class": "<oob-read|oob-write|buffer-overflow|integer-overflow|use-after-free|other>",
+  "hypothesis": "<one-sentence vulnerability hypothesis>",
+  "vulnerable_line": "<the source line or expression that is wrong>",
+  "trigger_condition": "<the input state that reaches the bug>",
+  "confidence": <0.0-1.0>
+}]
+
+<<<CODE EXCERPT>>>
+{EXCERPT}
+
+Do not speculate about code outside the excerpt. Do not use web search.

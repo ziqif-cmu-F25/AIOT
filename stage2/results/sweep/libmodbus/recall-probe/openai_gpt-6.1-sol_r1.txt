@@ -1,0 +1,18 @@
+{
+  "training_cutoff": "unknown",
+  "known_cves": [
+    {
+      "cve": "CVE-2019-14462",
+      "file_function": "src/modbus.c: _modbus_receive_msg()",
+      "bug_class": "Heap-based buffer overflow",
+      "recall_confidence": 0.85
+    },
+    {
+      "cve": "CVE-2022-0367",
+      "file_function": "src/modbus.c: modbus_reply()",
+      "bug_class": "Buffer overflow; exact memory-access classification uncertain from recall",
+      "recall_confidence": 0.65
+    }
+  ],
+  "notes": "Memory-only response; no lookup or code analysis performed. Confidence values concern recalling real public advisories, not certainty about every associated detail. I recall CVE-2019-14462 as affecting releases before 3.1.6 and CVE-2022-0367 as affecting 3.1.6. An exact training cutoff is not reliably available to me in this session."
+}

@@ -1,0 +1,5 @@
+{
+  "training_cutoff": "unknown",
+  "known_cves": [],
+  "notes": "I do not have a reliably available training-data cutoff date. From memory alone, I cannot confidently name a real public memory-safety advisory for the Mongoose C networking library affecting versions on or before 7.21. This is a limitation of my recall, not a claim that no such advisory exists. I have not inspected code or consulted external sources."
+}

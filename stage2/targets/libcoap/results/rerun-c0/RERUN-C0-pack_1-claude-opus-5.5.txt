@@ -1,0 +1,79 @@
+**CANDIDATES (ranked, most likely first, max 5):**
+
+---
+
+**1. file: src/coap_address.c / function: coap_resolve_address_info / approx line: ~430 (the `memcpy` into `addrstr`)**
+
+**Bug class:** Global/static buffer overflow (out-of-bounds write). There is no bounds check on a length the attacker controls.
+
+**Reasoning:**
+```c
+static char addrstr[256];
+...
+memset(addrstr, 0, sizeof(addrstr));
+if (address && address->length)
+  memcpy(addrstr, address->s, address->length);
+```
+- `address->length` is copied into a fixed 256-byte static buffer without being compared to `sizeof(addrstr)`.
+- The AF_UNIX branch above it does check `address->length >= COAP_UNIX_PATH_MAX`. The IP/hostname branch has no equivalent check.
+- If the length is exactly 256, the buffer is also not NUL-terminated, so `getaddrinfo` reads past the end. Any length above 256 writes past the end of `addrstr` into adjacent `.bss` data.
+
+**How untrusted input reaches it:**
+1. A CoAP request arrives at a proxy configured with `COAP_PROXY_*_STRIP`. It flows through `coap_proxy_forward_request_lkd` → `coap_proxy_get_ongoing_session` → `coap_proxy_get_session`.
+2. `coap_proxy_get_session` calls `coap_split_proxy_uri(coap_opt_value(proxy_uri), coap_opt_length(proxy_uri), &server_use->uri)`.
+3. `uri.host` is set by `COAP_SET_STR(&uri->host, q - p, p)` and points directly into the option value. Its length is bounded only by the Proxy-Uri option length.
+4. `coap_pdu_parse_opt_base` allows Proxy-Uri up to 1034 bytes (`if (len < 1 || len > 1034)`), so the host can be about 1020 bytes or more.
+5. When no existing `proxy_entry->ongoing` session exists, `coap_resolve_address_info(&server_use->uri.host, ...)` is called and performs the `memcpy` overflow.
+6. Uri-Host via Proxy-Scheme is limited to 255 bytes and is safe. The Proxy-Uri path is not.
+
+**Triggering input characteristics:**
+- A CoAP request (any method) to the proxy resource.
+- It carries a Proxy-Uri option (option 35) of roughly 300–1034 bytes.
+- The value looks like `coap://AAAA…AAAA/` with a host component longer than 256 bytes and no `:`, `/` or `?` inside the host.
+- The scheme must be supported, e.g. `coap`, so that `coap_verify_proxy_scheme_supported` passes.
+- The host must not start with `%2F`, so it avoids the AF_UNIX branch.
+- The host must not match any existing proxy_list entry, so a new upstream session is created.
+
+---
+
+**2. file: src/coap_uri.c / function: check_segment / approx line: ~470**
+
+**Bug class:** Out-of-bounds read; an off-by-one escalates to a size_t underflow and an unbounded read loop.
+
+**Reasoning:**
+```c
+if (*s == '%') {
+  if (length < 2 || !(isxdigit(s[1]) && isxdigit(s[2])))
+    return -1;
+  s += 2;
+  length -= 2;
+}
+++s; ++n; --length;
+```
+- With `length == 2` and `*s == '%'`, the check reads `s[2]`, which is one byte past the segment.
+- If that byte happens to be a hex digit, `length` becomes 0 and then `--length` wraps to `SIZE_MAX`. The loop then runs off the end of the buffer.
+- `decode_segment` has the same `length -= 2` pattern and would also write past `buf`.
+- The check should be `length < 3`.
+
+**How untrusted input reaches it:**
+- The path is `coap_split_path` / `coap_split_query` → `write_option` → `make_decoded_option` → `check_segment`.
+- These are used by applications that split URIs, such as client tools or proxies that rebuild URIs with these helpers.
+- The proxy path shown here uses `coap_path_into_optlist` instead. Remote reachability therefore depends on the application, so I rank it lower.
+
+**Triggering input characteristics:**
+- A path or query segment ending in `%X`, i.e. a `%` followed by exactly one character before the segment ends.
+- The byte immediately after the segment must be a hex digit.
+
+---
+
+**3. file: src/coap_uri.c / functions: coap_path_into_optlist, coap_query_into_optlist, coap_uri_into_optlist / approx lines: ~620–700**
+
+**Bug class:** NULL pointer dereference on allocation failure.
+
+**Reasoning:**
+```c
+optlist = coap_new_optlist(optnum, s - p, p);
+coap_replace_percents(optlist);   // dereferences optlist->length without NULL check
+```
+- `coap_new_optlist` returns NULL on malloc failure, or under LWIP when the length exceeds `MEMP_LEN_COAPOPTLIST`.
+- `coap_replace

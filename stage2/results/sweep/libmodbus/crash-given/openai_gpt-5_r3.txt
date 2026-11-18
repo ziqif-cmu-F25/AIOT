@@ -1,0 +1,13 @@
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 964
+    },
+    "explanation": "In the MODBUS_FC_WRITE_AND_READ_REGISTERS case, the bounds check meant to validate the write range has a typo: it checks mapping_address < 0 twice and never checks mapping_address_write < 0. A crafted request with a write address below mb_mapping->start_registers makes mapping_address_write negative but passes this check. The subsequent loop writes mb_mapping->tab_registers[i] starting at i = mapping_address_write (line 980), performing a write before the start of the allocated array and causing the segfault.",
+    "fix": "Correct the condition to actually validate the write mapping: replace the second 'mapping_address < 0' with 'mapping_address_write < 0'. The fixed check should be:\nelse if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address_write < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers) {",
+    "confidence": 0.98
+  }
+]

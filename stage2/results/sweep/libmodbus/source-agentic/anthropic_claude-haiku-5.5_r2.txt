@@ -1,0 +1,46 @@
+FINAL
+
+**Ranked candidate findings**
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "_modbus_reply (MODBUS_FC_WRITE_AND_READ_REGISTERS case)",
+      "line": 953
+    },
+    "vulnerability_class": "oob-write",
+    "hypothesis": "The write address is converted to a table index as mapping_address_write = address_write - mb_mapping->start_registers, but the validation never rejects a negative mapping_address_write. The only checks are `mapping_address < 0` (repeated twice, lines 962 and 964) and an upper-bound check on `mapping_address_write + nb_write`. A remote client can send address_write < start_registers (for example address_write = 0 when start_registers > 0). The upper-bound check passes because the sum is small or negative, so the write loop at lines 978-982 runs with a negative index i and writes `mb_mapping->tab_registers[i]` before the start of the array. The error-message ternary at line 970 (`mapping_address_write < 0 ? ...`) shows the author intended this check to exist, so its absence looks like a copy-paste mistake that dropped the check.",
+    "evidence": "Line 953: `int mapping_address_write = address_write - mb_mapping->start_registers;`\nLines 962-965: `} else if (mapping_address < 0 ||\n           (mapping_address + nb) > mb_mapping->nb_registers ||\n           mapping_address < 0 ||\n           (mapping_address_write + nb_write) > mb_mapping->nb_registers) {`\nLines 978-982: `for (i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; i++, j += 2) { mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1]; }`\nLine 970: `mapping_address_write < 0 ? address_write : address_write + nb_write`",
+    "confidence": 0.7
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "_modbus_receive_msg / compute_data_length_after_meta",
+      "line": 302
+    },
+    "vulnerability_class": "other",
+    "hypothesis": "The body length for write requests comes straight from an untrusted byte at header+5 (or header+9 for write-and-read). Its effect on the receive buffer depends on the max_adu_length check at line 451, which I did not verify against the buffer size. This was not confirmed as a memory error. It is a lead only, and I did not read the rest of the handler paths that consume this length.",
+    "evidence": "Line 302: `length = msg[ctx->backend->header_length + 5];`\nLine 451: `if ((msg_length + length_to_read) > (int)ctx->backend->max_adu_length) {`",
+    "confidence": 0.2
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "_modbus_reply (MODBUS_FC_WRITE_MULTIPLE_REGISTERS / WRITE_MULTIPLE_COILS)",
+      "line": 898
+    },
+    "vulnerability_class": "other",
+    "hypothesis": "The reply copies 4 bytes from `req + rsp_length` where rsp_length is the response basis length. This reads the request's address and quantity fields, not the response, which looks like an intentional copy but is fragile. I found no concrete out-of-bounds read because the request is validated to be long enough. It is a code-smell observation, not an exploitable bug.",
+    "evidence": "Line 898: `memcpy(rsp + rsp_length, req + rsp_length, 4);`",
+    "confidence": 0.1
+  }
+]
+```
+
+**Notes on the review.** The strongest lead is candidate 1. The write-and-read handler checks the read-side mapping address for negative values but not the write-side one, which is the one that indexes `tab_registers` in the write loop. I did not confirm how `address_write` relates to `start_registers` at runtime, so the exploitability depends on a server configured with a nonzero `start_registers`. I did not read the function that allocates `tab_registers`, so I have not verified the bounds of that array. The other two candidates are weaker and are listed for completeness.

@@ -1,0 +1,32 @@
+The bounds check at lines 962-965 tests `mapping_address < 0` twice. It never tests `mapping_address_write < 0`. The second occurrence at line 964 was almost certainly meant to be `mapping_address_write < 0`.
+
+**Reachability:** `address_write` is a uint16_t and `start_registers` is an int, so `mapping_address_write = address_write - start_registers` goes negative whenever `address_write < start_registers`. With `start_registers = 0` it can never be negative, so the server must be configured with a nonzero start. Every other condition in the check is then satisfied:
+- `mapping_address >= 0`, so the read side passes.
+- `mapping_address_write + nb_write <= nb_registers`, which holds trivially for a negative base.
+
+**Effect:** The write loop at lines 978-982 starts at a negative `i` and stores `tab_registers[i]` for up to 121 registers. That is an out-of-bounds heap write of attacker-controlled 16-bit values at up to `start_registers` entries (2 bytes each) below the array. The values come from the request payload, so both the data and the offset are controlled.
+
+**Other issues:** The same code reads `req[offset+9]` and the data bytes `req[offset+10...]`. This excerpt does not show a check that the request length covers `nb_write_bytes`, so I won't speculate on it. The read side is protected, because `mapping_address` is checked for both the lower and upper bounds.
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "modbus.c", "function": "modbus_reply", "line": 962},
+    "bug_class": "oob-write",
+    "hypothesis": "The range check tests mapping_address < 0 twice and never checks mapping_address_write < 0, so a write address below start_registers passes validation and the write loop stores attacker-controlled 16-bit values at negative indices of tab_registers (heap OOB write).",
+    "vulnerable_line": "mapping_address < 0 ||  /* duplicated on line 964; should be mapping_address_write < 0 */ ... (mapping_address_write + nb_write) > mb_mapping->nb_registers",
+    "trigger_condition": "Server mapping has start_registers > 0. The request is FC 0x17 with a valid read address/quantity, write address < start_registers (so mapping_address_write is negative), nb_write in 1..121, and nb_write_bytes == 2*nb_write. The write loop then writes request-supplied data to tab_registers[negative index].",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "location": {"file": "modbus.c", "function": "modbus_reply", "line": 980},
+    "bug_class": "oob-write",
+    "hypothesis": "As a consequence of the missing lower-bound check, tab_registers[i] is written with i starting at a negative mapping_address_write, corrupting heap memory before the register array.",
+    "vulnerable_line": "mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];",
+    "trigger_condition": "address_write less than start_registers, giving a negative starting index in the write loop.",
+    "confidence": 0.6
+  }
+]
+```

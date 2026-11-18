@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "crash-given",
+  "property": "memory-safety",
+  "hypothesis": "An attacker-controlled Proxy-Uri hostname longer than 256 bytes causes memcpy(addrstr, address->s, address->length) in coap_resolve_address_info() to overflow the static addrstr[256] buffer, writing 300 bytes into 256 bytes of storage.",
+  "evidence_source": "ASan report: global-buffer-overflow WRITE of size 300 at coap_resolve_address_info.addrstr (src/coap_address.c), 0 bytes after global variable of size 256. Full report in artifacts/asan_c2_report.txt.",
+  "input_artifact": "coap-client -m get -B 5 -P coap://127.0.0.1:5683 \"coap://[300-byte hostname]/\" against ASan-instrumented coap-server configured as forward proxy (-P,thisserver). Reproduction script: docker/repro_c2.sh",
+  "expected_behavior": "AddressSanitizer reports global-buffer-overflow on WRITE of size 300 into coap_resolve_address_info.addrstr (256 bytes).",
+  "observed_behavior": "===== captured coap-server output =====\n=================================================================\n==9==ERROR: AddressSanitizer: global-buffer-overflow on address 0x7b7127637b40 at pc 0x58dfa072f7d8 bp 0x7ffd5fa8c670 sp 0x7ffd5fa8be30\nWRITE of size 300 at 0x7b7127637b40 thread T0\n==9==WARNING: invalid path to external symbolizer!\n==9==WARNING: Failed to use and restart external symbolizer!\n    #0 0x58dfa072f7d7  (/src/examples/.libs/coap-server+0xca7d7) (BuildId: b67abaea277c62ff2fc9bd5cf57f22ef6ee0a313)\n    #1 0x7b71274f229b  (/src/.libs/libcoap-3-notls.so.3+0x2529b) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)\n    #2 0x7b7127585206  (/src/.libs/libcoap-3-notls.so.3+0xb8206) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)\n    #3 0x7b7127583e4c  (/src/.libs/libcoap-3-notls.so.3+0xb6e4c) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)\n    #4 0x7b7127583b43  (/src/.libs/libcoap-3-notls.so.3+0xb6b43) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)\n    #5 0x58dfa07797fc  (/src/examples/.libs/coap-server+0x1147fc) (BuildId: b67abaea277c62ff2fc9bd5cf57f22ef6ee0a313)\n    #6 0x7b712755b7f0  (/src/.libs/libcoap-3-notls.so.3+0x8e7f0) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)\n    #7 0x7b7127551c66  (/src/.libs/libcoap-3-notls.so.3+0x84c66) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)\n    #8 0x7b7127554b54  (/src/.libs/libcoap-3-notls.so.3+0x87b54) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)\n    #9 0x7b712754d91a  (/src/.libs/libcoap-3-notls.so.3+0x8091a) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)\n    #10 0x7b7127553d5c  (/src/.libs/libcoap-3-notls.so.3+0x86d5c) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)\n    #11 0x7b7127552c68  (/src/.libs/libcoap-3-notls.so.3+0x85c68) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)\n    #12 0x7b712753beee  (/src/.libs/libcoap-3-notls.so.3+0x6eeee) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)\n    #13 0x7b712753b8f7  (/src/.libs/libcoap-3-notls.so.3+0x6e8f7) (BuildId:",
+  "status": "validated",
+  "oracle_verdict": "true_positive",
+  "notes": "Ground-truth oracle record from ASan reproduction of CVE-2025-34468 (libcoap v4.3.5, commit 7cf7465). Reproduced in Docker sandbox using stock coap-client/server binaries. This record is the C2 stimulus \u2014 the crash report that gets shown to models in the crash-given condition.",
+  "vulnerability_class": "buffer-overflow",
+  "location": {
+    "file": "src/coap_address.c",
+    "function": "coap_resolve_address_info",
+    "line": 538
+  },
+  "confidence": 1.0,
+  "model": "oracle/asan-reproduction",
+  "prompt_id": "libcoap-c2-oracle@v1",
+  "run_index": 1
+}

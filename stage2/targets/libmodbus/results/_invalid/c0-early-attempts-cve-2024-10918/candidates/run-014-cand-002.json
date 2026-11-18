@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-002",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "For function codes READ_COILS/READ_DISCRETE_INPUTS, if the request is shorter than header_length+5, reading the 'nb' field at req[offset+3]/[+4] is out of bounds.",
+  "evidence_source": "case MODBUS_FC_READ_COILS / MODBUS_FC_READ_DISCRETE_INPUTS: int nb = (req[offset + 3] << 8) + req[offset + 4]; No length checks against req_length.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Server crash or ASan OOB read when a client sends a truncated request missing the two-byte count.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "Even if the header and function are present, a short meta section leads to OOB when computing nb.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 813
+  },
+  "confidence": 0.86,
+  "model": "openai/gpt-5",
+  "prompt_id": "libmodbus-modbus-reply@v1",
+  "run_index": 2
+}

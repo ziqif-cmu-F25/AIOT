@@ -1,0 +1,28 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "libcoap/src/coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "The proxy path passes an attacker-controlled host to coap_resolve_address_info(). A remote client sends a request with a Proxy-Uri option, which coap_pdu_parse_opt_base allows up to 1034 bytes, or a Uri-Host option up to 255 bytes. For example, the Proxy-Uri 'coap://AAAA…(≈1000 bytes):5683/' gives host.length of about 1000. coap_split_proxy_uri accepts it without any host-length check. coap_resolve_address_info then does memcpy(addrstr, address->s, address->length) into the 256-byte static buffer addrstr. This overflows the static buffer by several hundred bytes and corrupts adjacent .bss/.data memory. Only the AF_UNIX branch checks the length. A host of exactly 256 bytes also leaves the buffer without a NUL terminator before getaddrinfo().",
+    "evidence": "static char addrstr[256]; ... memset(addrstr, 0, sizeof(addrstr)); if (address && address->length) memcpy(addrstr, address->s, address->length);  -- no check that address->length < sizeof(addrstr). The length is attacker-controlled via coap_proxy_get_ongoing_session -> coap_resolve_address_info(&server_use->uri.host, ...).",
+    "confidence": 0.8
+  },
+  {
+    "rank": 2,
+    "location": {"file": "libcoap/src/coap_proxy.c", "function": "coap_proxy_get_session", "line": 309},
+    "vulnerability_class": "use-after-free",
+    "hypothesis": "server_use->uri.host.s points directly into the incoming request PDU, either the Uri-Host option value or the Proxy-Uri option value. The new proxy_list entry stores a shallow copy with 'proxy_list[i].uri = server_use->uri'. After the request PDU is freed, the stored host.s dangles. Every later proxied request runs coap_string_equal(&proxy_list[i].uri.host, &server_use->uri.host), which reads freed heap memory. This is a heap use-after-free read, and it can also give wrong matching results.",
+    "evidence": "proxy_list[i].uri = server_use->uri;  (uri.host.s = coap_opt_value(opt) from the request / coap_split_proxy_uri pointing into the request option)  ...  coap_string_equal(&proxy_list[i].uri.host, &server_use->uri.host)",
+    "confidence": 0.45
+  },
+  {
+    "rank": 3,
+    "location": {"file": "libcoap/src/coap_uri.c", "function": "check_segment", "line": 446},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "The check 'length < 2' should be 'length < 3'. A trailing '%X' (a '%' followed by only one character) makes the code read s[2] one byte past the segment. If that byte happens to pass isxdigit, 's += 2; length -= 2' brings length to 0. The following '--length' then wraps the size_t, and the loop keeps scanning far past the buffer. decode_segment has the same over-read on seg[1]/seg[2]. This is reachable through coap_split_path and coap_split_query on URI strings.",
+    "evidence": "if (length < 2 || !(isxdigit(s[1]) && isxdigit(s[2]))) return -1; s += 2; length -= 2; ... ++s; ++n; --length;",
+    "confidence": 0.3
+  }
+]
+```

@@ -1,0 +1,123 @@
+The provided code snippet is from a C library for handling HTTP requests and responses, likely part of a web server or client implementation. The code defines functions for connecting to an HTTP server, listening for HTTP connections, and handling HTTP messages. Here's a breakdown of the key components and functionalities:
+
+1. **HTTP Header Parsing**:
+   - The code includes functions to parse HTTP headers, such as `mg_http_get_header` and `mg_http_status`.
+   - It checks for the presence of headers like `Transfer-Encoding` and `Content-Length` to determine how to handle the incoming data.
+
+2. **Chunked Transfer Encoding**:
+   - If the `Transfer-Encoding` header is set to `chunked`, the code processes the data in chunks. It skips over the chunk headers and trailers, relocating the actual data right after the headers.
+   - The `skip_chunk` function is used to parse each chunk and determine its length.
+
+3. **Content-Length Handling**:
+   - If the `Content-Length` header is not present, the code checks if the request method (e.g., POST, PUT) requires a body. If so, it returns an error (HTTP 411) because the content length is missing.
+
+4. **Connection Handling**:
+   - The code checks the `Connection` header to determine if the connection should be closed after the response is sent. If `Connection: close` is present, it sets `c->is_draining` to 1, indicating that the connection should be closed after the response is complete.
+
+5. **Event Handling**:
+   - The code uses event-driven programming to handle different events such as receiving HTTP headers (`MG_EV_HTTP_HDRS`) and complete HTTP messages (`MG_EV_HTTP_MSG`).
+   - User-defined event handlers (`fn`) are called to process these events.
+
+6. **Connection Management**:
+   - The `mg_http_connect` and `mg_http_listen` functions are used to establish connections to an HTTP server or listen for incoming HTTP connections, respectively.
+   - These functions set the appropriate callback function (`http_cb`) to handle the HTTP events.
+
+Here is a simplified version of the `http_cb` function, which is the event handler for HTTP events:
+
+```c
+static void http_cb(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
+  struct mg_http_message hm;
+  size_t ofs = 0;
+
+  while (1) {
+    int n = mg_http_read(c, &hm, 1024);
+    if (n < 0) {
+      MG_ERROR(("HTTP parse, %lu bytes", c->recv.len));
+      c->is_draining = 1;
+      mg_hexdump(buf, c->recv.len - ofs > 16 ? 16 : c->recv.len - ofs);
+      c->recv.len = 0;
+      return;
+    }
+    if (n == 0) break;  // Request is not buffered yet
+
+    mg_call(c, MG_EV_HTTP_HDRS, &hm);  // Got all HTTP headers
+    if (c->recv.len != old_len) {
+      MG_DEBUG(("%lu detaching HTTP handler", c->id));
+      c->pfn = NULL;
+      return;
+    }
+
+    if (ev == MG_EV_CLOSE) {
+      hm.message.len = c->recv.len - ofs;
+      hm.body.len = hm.message.len - (size_t) (hm.body.buf - hm.message.buf);
+    }
+
+    bool is_http_1_0 = mg_ncasecmp(hm.proto.buf, "HTTP/1.0", 8) == 0;
+    struct mg_str *te = mg_http_get_header(&hm, "Transfer-Encoding");
+    bool is_chunked = false;
+
+    if (!is_http_1_0 && te != NULL) {
+      if (mg_strcasecmp(*te, mg_str("chunked")) == 0) {
+        is_chunked = true;
+      } else {
+        mg_error(c, "Invalid Transfer-Encoding");
+        return;
+      }
+    } else if (mg_http_get_header(&hm, "Content-length") == NULL) {
+      bool is_response = mg_ncasecmp(hm.method.buf, "HTTP/", 5) == 0;
+      bool require_content_len = false;
+
+      if (!is_response && (mg_strcasecmp(hm.method, mg_str("POST")) == 0 || mg_strcasecmp(hm.method, mg_str("PUT")) == 0)) {
+        if (hm.body.len != 0) require_content_len = true;
+        ofs += (size_t) n;
+      } else if (is_response) {
+        int status = mg_http_status(&hm);
+        require_content_len = status >= 200 && status != 204 && status != 304;
+      }
+
+      if (require_content_len) {
+        if (!c->is_client) mg_http_reply(c, 411, "", "");
+        MG_ERROR(("Content length missing from %s", is_response ? "response" : "request"));
+      }
+    }
+
+    if (is_chunked) {
+      char *s = (char *) c->recv.buf + ofs + n;
+      int o = 0, pl, dl, cl, len = (int) (c->recv.len - ofs - (size_t) n);
+
+      while ((cl = skip_chunk(s + o, len - o, &pl, &dl)) > 0 && dl) o += cl;
+      if (cl == 0) break;
+      if (cl < 0) {
+        mg_error(c, "Invalid chunk");
+        break;
+      }
+
+      o = 0, hm.body.len = 0, hm.message.len = (size_t) n;
+      while ((cl = skip_chunk(s + o, len - o, &pl, &dl)) > 0) {
+        memmove(s + hm.body.len, s + o + pl, (size_t) dl);
+        o += cl, hm.body.len += (size_t) dl, hm.message.len += (size_t) dl;
+        if (dl == 0) break;
+      }
+      ofs += (size_t) (n + o);
+    } else {
+      size_t len = c->recv.len - ofs - (size_t) n;
+      if (hm.body.len > len) break;
+      ofs += (size_t) n + hm.body.len;
+    }
+
+    if (c->is_accepted) c->is_resp = 1;
+    mg_call(c, MG_EV_HTTP_MSG, &hm);
+    if (c->is_accepted && !c->is_resp) {
+      struct mg_str *cc = mg_http_get_header(&hm, "Connection");
+      if (cc != NULL && mg_strcasecmp(*cc, mg_str("close")) == 0) {
+        c->is_draining = 1;
+        break;
+      }
+    }
+  }
+
+  if (ofs > 0) mg_iobuf_del(&c->recv, 0, ofs);
+}
+```
+
+This function processes incoming HTTP data, handles chunked transfer encoding, and calls user-defined event handlers to process the HTTP messages.

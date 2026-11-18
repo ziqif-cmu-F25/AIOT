@@ -1,0 +1,3 @@
+HYPOTHESIS: The fixed 256-byte addrstr in coap_resolve_address_info() is overflown by memcpy() using attacker-controlled address->length (e.g., from Proxy-Uri/Uri-Host). This looks like a clear stack buffer overflow reachable via proxying.
+
+FINAL

@@ -1,0 +1,7 @@
+{
+  "hypothesis": "The chunk-header delimiter check permits len == i + 1, so when the buffer ends with a carriage return after hexadecimal length digits, buf[i + 1] reads one byte past the supplied buffer.",
+  "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+  "bug_class": "oob-read",
+  "trigger_condition": "The supplied buffer contains 2–8 hexadecimal digits followed by a final '\\r', with no following byte available (len == i + 1 and len >= 3); the bounds check passes and evaluation reaches buf[len].",
+  "confidence": 0.99
+}

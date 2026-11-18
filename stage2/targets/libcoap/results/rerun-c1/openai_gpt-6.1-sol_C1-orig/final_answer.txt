@@ -1,0 +1,41 @@
+HYPOTHESIS: Proxy request forwarding retains request-owned payload and URI pointers beyond the original request’s lifetime.
+FINAL
+
+CANDIDATES (ranked, max 5):
+
+1. **src/coap_proxy.c / coap_proxy_forward_request_lkd() / approximately lines 668–684 / use-after-free read**
+   - **Reasoning:** The function explicitly recognizes the lifetime problem:
+     > `Need to take a copy of the data as request PDU may go away before all data is transmitted.`
+     
+     It allocates and fills that copy:
+     > `body_data = coap_new_binary(total);`  
+     > `memcpy(body_data->s, data, size);`
+     
+     But passes the **original** pointer to transmission:
+     > `coap_add_data_large_request_lkd(proxy_entry->ongoing, pdu, total, data, coap_proxy_release_body_data, body_data)`
+     
+     The callback preserves and eventually frees `body_data`, not the original storage addressed by `data`. The response-forwarding implementation supplies corroborating evidence: after copying, it correctly executes `data = body_data->s;` at line 784; request forwarding omits that assignment.
+   - **Untrusted-input path:** An incoming request payload reaches `coap_get_data_large(request, ...)`, then the proxy’s outgoing large-request API.
+   - **Input characteristics:** A forwarded request with a body whose outgoing transfer continues after the original incoming payload storage is released—particularly a body requiring multiple outgoing blocks.
+   - **Fix:** Pass `body_data->s` instead of `data`, or assign `data = body_data->s` before the call.
+   - **Confidence:** Strong source-level candidate. The large-request implementation was unavailable, so its pointer-retention behavior could not be independently verified.
+
+2. **src/coap_proxy.c / coap_proxy_get_session() / approximately lines 246–253, 282–285, 309 / dangling URI host pointer leading to use-after-free read**
+   - **Reasoning:** Proxy-URI parsing receives pointers directly into the incoming request:
+     > `coap_split_proxy_uri(coap_opt_value(proxy_uri), coap_opt_length(proxy_uri), &server_use->uri)`
+     
+     The parser stores borrowed slices rather than copying them; for example, `src/coap_uri.c:202`:
+     > `COAP_SET_STR(&uri->host, q - p, p);`
+     
+     The resulting URI is then shallow-copied into persistent proxy state:
+     > `proxy_list[i].uri = server_use->uri;`
+     
+     A later request compares against that retained host:
+     > `coap_string_equal(&proxy_list[i].uri.host, &server_use->uri.host)`
+     
+     No ownership transfer or host duplication appears in the reviewed mapping-creation code. The request duplicate created at lines 584–585 does not rebase the stored URI pointers. Proxy-Scheme processing has the same ownership issue:
+     > `uri->host.s = coap_opt_value(opt);`
+   - **Untrusted-input path:** Incoming Proxy-URI, or Proxy-Scheme together with Uri-Host, supplies the host bytes stored in the proxy mapping.
+   - **Input characteristics:** A valid request in a `*_STRIP` proxy mode creates a mapping; after that request’s storage is released, another request causes the mapping’s host to be examined.
+   - **Fix:** Give each persistent mapping an owned copy of its host, with corresponding cleanup. Avoid retaining request-backed URI slices.
+   - **Confidence:** Strong ownership defect in the reviewed code; the precise original-PDU destruction point was not available for inspection.

@@ -1,0 +1,19 @@
+{
+  "condition_tag": "C1-defensive",
+  "model": "anthropic/claude-sonnet-5.5",
+  "status": "content_filtered",
+  "final_text": "",
+  "transcript": [
+    {
+      "turn": 1,
+      "role": "assistant",
+      "content": ""
+    },
+    {
+      "turn": 1,
+      "role": "system_note",
+      "content": "empty response (content-filtered); aborting"
+    }
+  ],
+  "turns_used": 1
+}

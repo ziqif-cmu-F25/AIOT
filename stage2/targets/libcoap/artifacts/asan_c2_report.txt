@@ -1,0 +1,60 @@
+===== captured coap-server output =====
+=================================================================
+==9==ERROR: AddressSanitizer: global-buffer-overflow on address 0x7b7127637b40 at pc 0x58dfa072f7d8 bp 0x7ffd5fa8c670 sp 0x7ffd5fa8be30
+WRITE of size 300 at 0x7b7127637b40 thread T0
+==9==WARNING: invalid path to external symbolizer!
+==9==WARNING: Failed to use and restart external symbolizer!
+    #0 0x58dfa072f7d7  (/src/examples/.libs/coap-server+0xca7d7) (BuildId: b67abaea277c62ff2fc9bd5cf57f22ef6ee0a313)
+    #1 0x7b71274f229b  (/src/.libs/libcoap-3-notls.so.3+0x2529b) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)
+    #2 0x7b7127585206  (/src/.libs/libcoap-3-notls.so.3+0xb8206) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)
+    #3 0x7b7127583e4c  (/src/.libs/libcoap-3-notls.so.3+0xb6e4c) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)
+    #4 0x7b7127583b43  (/src/.libs/libcoap-3-notls.so.3+0xb6b43) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)
+    #5 0x58dfa07797fc  (/src/examples/.libs/coap-server+0x1147fc) (BuildId: b67abaea277c62ff2fc9bd5cf57f22ef6ee0a313)
+    #6 0x7b712755b7f0  (/src/.libs/libcoap-3-notls.so.3+0x8e7f0) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)
+    #7 0x7b7127551c66  (/src/.libs/libcoap-3-notls.so.3+0x84c66) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)
+    #8 0x7b7127554b54  (/src/.libs/libcoap-3-notls.so.3+0x87b54) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)
+    #9 0x7b712754d91a  (/src/.libs/libcoap-3-notls.so.3+0x8091a) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)
+    #10 0x7b7127553d5c  (/src/.libs/libcoap-3-notls.so.3+0x86d5c) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)
+    #11 0x7b7127552c68  (/src/.libs/libcoap-3-notls.so.3+0x85c68) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)
+    #12 0x7b712753beee  (/src/.libs/libcoap-3-notls.so.3+0x6eeee) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)
+    #13 0x7b712753b8f7  (/src/.libs/libcoap-3-notls.so.3+0x6e8f7) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)
+    #14 0x7b712753b891  (/src/.libs/libcoap-3-notls.so.3+0x6e891) (BuildId: dcaa268a0003730d65be055a3c40178c29a47a8a)
+    #15 0x58dfa077159f  (/src/examples/.libs/coap-server+0x10c59f) (BuildId: b67abaea277c62ff2fc9bd5cf57f22ef6ee0a313)
+    #16 0x7b71271b81c9  (/lib/x86_64-linux-gnu/libc.so.6+0x2a1c9) (BuildId: 8cebda42d140fc2b09639f8b13a5d5f2e617ef09)
+    #17 0x7b71271b828a  (/lib/x86_64-linux-gnu/libc.so.6+0x2a28a) (BuildId: 8cebda42d140fc2b09639f8b13a5d5f2e617ef09)
+    #18 0x58dfa0696a44  (/src/examples/.libs/coap-server+0x31a44) (BuildId: b67abaea277c62ff2fc9bd5cf57f22ef6ee0a313)
+
+0x7b7127637b40 is located 0 bytes after global variable 'coap_resolve_address_info.addrstr' defined in 'src/coap_address.c' (0x7b7127637a40) of size 256
+SUMMARY: AddressSanitizer: global-buffer-overflow (/src/examples/.libs/coap-server+0xca7d7) (BuildId: b67abaea277c62ff2fc9bd5cf57f22ef6ee0a313) 
+Shadow bytes around the buggy address:
+  0x7b7127637880: f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9
+  0x7b7127637900: f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9
+  0x7b7127637980: f9 f9 f9 f9 00 00 00 00 00 f9 f9 f9 00 00 00 00
+  0x7b7127637a00: 00 00 00 04 f9 f9 f9 f9 00 00 00 00 00 00 00 00
+  0x7b7127637a80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+=>0x7b7127637b00: 00 00 00 00 00 00 00 00[f9]f9 f9 f9 f9 f9 f9 f9
+  0x7b7127637b80: 00 00 f9 f9 00 f9 f9 f9 00 f9 f9 f9 02 f9 f9 f9
+  0x7b7127637c00: 00 00 00 00 00 00 00 00 00 00 f9 f9 f9 f9 f9 f9
+  0x7b7127637c80: 04 f9 f9 f9 04 f9 f9 f9 05 f9 f9 f9 06 f9 f9 f9
+  0x7b7127637d00: 04 f9 f9 f9 00 00 00 00 00 00 00 00 00 00 00 00
+  0x7b7127637d80: 00 00 00 00 f9 f9 f9 f9 04 f9 f9 f9 00 00 00 00
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+==9==ABORTING

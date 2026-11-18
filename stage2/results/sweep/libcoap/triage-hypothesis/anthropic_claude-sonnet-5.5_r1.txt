@@ -1,0 +1,31 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+    "bug_class": "buffer-overflow",
+    "hypothesis": "address->length is never checked against sizeof(addrstr) (256) on the getaddrinfo path, so a host name of 256 bytes or more overflows the static addrstr buffer. The length check at line 509 only covers the AF_UNIX branch.",
+    "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "A URI or host string with a host component of 256 bytes or more, for example a long registered name in a coap:// URI or a Proxy-Uri/Uri-Host option that reaches this function. The host must not be treated as a unix-domain host. The copy then writes past the end of the 256-byte static buffer into adjacent .bss data. Even a length of exactly 256 leaves addrstr without a NUL terminator, so getaddrinfo reads past the buffer.",
+    "confidence": 0.7
+  },
+  {
+    "rank": 2,
+    "location": {"file": "coap_address.c", "function": "coap_resolve_address_info", "line": 672},
+    "bug_class": "oob-read",
+    "hypothesis": "In the RIOT branch, address->s is passed as a C string to netutils_get_ipv6/netutils_get_ipv4 and to the %s log calls. coap_str_const_t is length-delimited and not guaranteed to be NUL-terminated, so these functions can read past the end of the buffer.",
+    "vulnerable_line": "netutils_get_ipv6(&addr_ipv6, &netif, (const char *)address->s)",
+    "trigger_condition": "A RIOT build where the host string is a non-NUL-terminated slice, for example a host inside a longer URI buffer. The string functions run on past address->length.",
+    "confidence": 0.3
+  },
+  {
+    "rank": 3,
+    "location": {"file": "coap_address.c", "function": "coap_resolve_address_info", "line": 745},
+    "bug_class": "oob-read",
+    "hypothesis": "In the Contiki branch, address->s is likewise treated as a NUL-terminated string by uiplib_ip6addrconv/uiplib_ip4addrconv and by the error log. A non-terminated host slice causes a read beyond the buffer.",
+    "vulnerable_line": "uiplib_ip6addrconv((const char *)address->s, (uip_ip6addr_t *)&addr_ip)",
+    "trigger_condition": "A Contiki build where the host in the URI is not NUL-terminated, so parsing runs past address->length.",
+    "confidence": 0.2
+  }
+]
+```

@@ -1,0 +1,6 @@
+{
+  "root_cause_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // Error",
+  "explanation": "The check must ensure that both buf[i] and buf[i + 1] exist, requiring len >= i + 2. For the input \"ab\\r\", the hex-digit loop stops at i = 2 with len = 3. The existing check evaluates 3 < 3 as false, and buf[2] is '\\r', so evaluation proceeds to buf[3]. That is a one-byte read immediately past the exact-sized 3-byte allocation, matching the ASan report.",
+  "fix": "if (len < i + 2 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // Error",
+  "confidence": 1.0
+}

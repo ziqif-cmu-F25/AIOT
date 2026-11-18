@@ -1,0 +1,5 @@
+{
+  "hex_bytes": "00 01 00 00 00 17 01 17 00 00 00 01 00 01 FF FF 00 01 00 00 00 01 00 00",
+  "explanation": "Modbus TCP frame: Transaction ID=00 01, Protocol ID=00 00, Length=00 17, Unit ID=01, Function=17 (0x17). Function parameters: Read address=00 00 (0), Read quantity=00 01 (1), Write address=FF FF (65535, interpreted as -1), Write quantity=00 01 (1), Write byte count=00, Write data=00 00. The write address 65535 is interpreted as -1 (signed 16-bit), which is below start_registers=352. The guard checks mapping_address (0) but not mapping_address_write (-1), allowing negative index access in tab_registers.",
+  "expected_effect": "Sanitizer reports out-of-bounds write to tab_registers at negative index (-1) during the write loop."
+}

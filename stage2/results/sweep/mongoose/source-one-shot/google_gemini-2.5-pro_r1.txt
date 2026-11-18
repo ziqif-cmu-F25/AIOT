@@ -1,0 +1,17 @@
+
+
+
+So the integer overflow in `mg_str_to_num` is not a vulnerability.
+Let's remove that candidate.
+
+What about `mg_to_size_t`?
+```c
+26: bool mg_to_size_t(struct mg_str str, size_t *val) {
+27:   size_t i = 0, max = (size_t) -1, max2 = max / 10, result = 0, ndigits = 0;
+28:   while (i < str.len && (str.buf[i] == ' ' || str.buf[i] == '\t')) i++;
+29:   if (i < str.len && str.buf[i] == '-') return false;
+30:   while (i < str.len && str.buf[i] >= '0' && str.buf[i] <= '9') {
+31:     size_t digit = (size_t) (str.buf[i] - '0');
+32:     if (result > max2) return false;  // Overflow
+33:     result *= 10;
+34:     if (

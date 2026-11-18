@@ -1,0 +1,24 @@
+HYPOTHESIS: `mg_iobuf_del` clamps `ofs` and `len`, so the double `ofs += n` is not exploitable. The remaining candidate is the one-byte over-read in `skip_chunk`.
+
+FINAL
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "A chunked request whose buffered data ends exactly after the chunk-size hex digits and a lone '\\r' makes skip_chunk read one byte past the valid data. With i == len-1 and buf[i] == '\\r', the guard `len < i + 1` is false, so buf[i+1] is read at index len, which is outside the buffered data. If recv.len equals the iobuf allocation size, this is a heap over-read by 1 byte. The bad byte is only compared against '\\n'. The over-read is one byte and cannot be controlled, so the impact is low.",
+    "evidence": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // should be len < i + 2",
+    "confidence": 0.35
+  },
+  {
+    "rank": 2,
+    "location": {"file": "mongoose/src/http.c", "function": "http_cb", "line": 1072},
+    "vulnerability_class": "integer-overflow",
+    "hypothesis": "For a POST or PUT with no Content-Length and an empty body, `ofs += n` is applied at line 1072. The non-chunked branch then adds `n + hm.body.len` again at line 1111, so ofs can exceed recv.len. This double-counts consumed bytes and can skip or desynchronize pipelined requests. It does not cause a memory error, because mg_iobuf_del clamps ofs and len (iobuf.c lines 57-58). I rate this a logic bug with low memory-safety impact.",
+    "evidence": "ofs += (size_t) n;  // this request has been processed ... ofs += (size_t) n + hm.body.len;  and mg_iobuf_del: if (ofs > io->len) ofs = io->len;",
+    "confidence": 0.1
+  }
+]
+```

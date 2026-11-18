@@ -1,0 +1,43 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "mongoose.c",
+      "function": "skip_chunk",
+      "line": 1006
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "An incorrect bounds check `len < i + 1` instead of `len < i + 2` allows a one-byte out-of-bounds read when checking for a newline character.",
+    "vulnerable_line": "buf[i + 1] != '\\n'",
+    "trigger_condition": "The input `buf` contains a hex chunk size followed by '\\r' and the buffer ends immediately after it, for example `buf` = \"F\\r\" with `len` = 2.",
+    "confidence": 1.0
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "mongoose.c",
+      "function": "skip_chunk",
+      "line": 1011
+    },
+    "bug_class": "integer-overflow",
+    "hypothesis": "An integer overflow in an index calculation `i + n + 2` using a large chunk size `n` can result in a negative index, leading to an out-of-bounds read.",
+    "vulnerable_line": "buf[i + n + 2] != '\\r'",
+    "trigger_condition": "A large chunk size `n` (e.g., `0x7FFFFFFC` on 32-bit systems) causes the bounds check at line 1010 to incorrectly pass due to overflow, and the subsequent index calculation `i + n + 2` at line 1011 also overflows, resulting in a negative index.",
+    "confidence": 0.8
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "mongoose.c",
+      "function": "skip_chunk",
+      "line": 1013
+    },
+    "bug_class": "integer-overflow",
+    "hypothesis": "An integer overflow when calculating the return value `i + 2 + n + 2` can cause the function to return a negative size, which a caller might misinterpret.",
+    "vulnerable_line": "return i + 2 + n + 2;",
+    "trigger_condition": "A large chunk size `n` (e.g., `0x7FFFFFFC` on 32-bit systems) causes the sum `i + n + 4` to overflow and wrap around to a negative value.",
+    "confidence": 0.7
+  }
+]
+```

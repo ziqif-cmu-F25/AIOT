@@ -1,0 +1,44 @@
+**Root cause:** in the WRITE_AND_READ_REGISTERS (FC 0x17) handler, the bounds check meant to reject a negative write offset tests the read offset a second time. A negative `mapping_address_write` therefore passes, and line 980 writes before the start of `tab_registers`.
+
+**How the crash happens**
+
+- The crash is a WRITE in `modbus_reply` at line 980: `mb_mapping->tab_registers[i] = ...`.
+- That line is in the write loop, which starts at `i = mapping_address_write`.
+- Line 953 computes `mapping_address_write = address_write - mb_mapping->start_registers`.
+- `address_write` is a 16-bit value taken from the request. The test server uses a non-zero `start_registers`, so any `address_write` below `start_registers` makes `mapping_address_write` negative.
+- The address check at lines 962–965 is:
+  ```c
+  mapping_address < 0 ||
+  (mapping_address + nb) > nb_registers ||
+  mapping_address < 0 ||                          /* line 964: duplicate */
+  (mapping_address_write + nb_write) > nb_registers
+  ```
+- The write offset is only checked against the upper bound (line 965). Nothing checks that it is non-negative.
+- So a negative `mapping_address_write` passes, and line 980 writes to `tab_registers[negative]`. The write lands before the heap allocation; the faulting address `0x505ffffffec8` is consistent with a negative index from the register array.
+- Every other handler (e.g. lines 800, 825, 853, 882, 930) checks its own `mapping_address < 0`. This is clearly a copy-paste slip.
+
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 964},
+    "explanation": "In the MODBUS_FC_WRITE_AND_READ_REGISTERS case, the address validation repeats 'mapping_address < 0' instead of checking 'mapping_address_write < 0'. mapping_address_write = address_write - start_registers (line 953) is negative whenever the attacker-supplied write address is below start_registers. Only its upper bound is checked (line 965), so the write loop at lines 978-981 starts at a negative index and line 980 writes before the beginning of mb_mapping->tab_registers. That is the out-of-bounds heap WRITE / SEGV.",
+    "fix": "Replace the duplicated test on line 964 with the write-offset test: `} else if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address_write < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers) {`",
+    "confidence": 0.95
+  },
+  {
+    "rank": 2,
+    "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 953},
+    "explanation": "This line computes the signed write offset from the untrusted 16-bit address_write minus start_registers, with no validation that the result is non-negative. It is the source of the negative index used at line 980, though the missing guard itself belongs in the check at lines 962-965.",
+    "fix": "Validate before use: if (address_write < mb_mapping->start_registers) reply ILLEGAL_DATA_ADDRESS. This is equivalent to adding `mapping_address_write < 0` to the address check.",
+    "confidence": 0.35
+  },
+  {
+    "rank": 3,
+    "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 965},
+    "explanation": "The write-range validation checks only the upper bound (mapping_address_write + nb_write > nb_registers). It omits the lower bound, so the write range [mapping_address_write, mapping_address_write + nb_write) can begin below index 0.",
+    "fix": "Check both bounds of the write range: `mapping_address_write < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers`.",
+    "confidence": 0.3
+  }
+]
+```

@@ -1,0 +1,31 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1006},
+    "bug_class": "oob-read",
+    "hypothesis": "The bounds check only guarantees that buf[i] is in range, not buf[i+1], so when the hex length digits plus '\\r' fill the buffer exactly, reading buf[i+1] goes one byte past the end of the received data.",
+    "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "trigger_condition": "A chunked body whose buffered data ends right after the '\\r' that follows the chunk-size hex digits, e.g. buf=\"abc\\r\" with len=4. Here i=3, the check len < 4 is false, buf[3]=='\\r', and buf[4] is read out of bounds. The check should be len < i + 2.",
+    "confidence": 0.85
+  },
+  {
+    "rank": 2,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1003},
+    "bug_class": "oob-read",
+    "hypothesis": "If len is larger than the real buffer size, for example because the caller computes len from a stale or mismatched receive length, the hex-digit scan and later index reads could run past the buffer. The function trusts len completely.",
+    "vulnerable_line": "while (i < len && is_hex_digit(buf[i])) i++;",
+    "trigger_condition": "A caller passes a len that is inconsistent with the allocated buffer while processing a long run of hex digits in the chunk-size line.",
+    "confidence": 0.15
+  },
+  {
+    "rank": 3,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1011},
+    "bug_class": "oob-read",
+    "hypothesis": "The trailing CRLF check reads buf[i+n+2] and buf[i+n+3], relying only on the check at line 1010. That check holds for valid int ranges, so an out-of-bounds read here is unlikely unless the chunk length decodes to a value near INT_MAX that combines with i in an unexpected way.",
+    "vulnerable_line": "if (buf[i + n + 2] != '\\r' || buf[i + n + 3] != '\\n') return -1;",
+    "trigger_condition": "A chunk-size line of up to 8 hex digits (e.g. \"7fffffff\\r\\n\") arriving with a large len.",
+    "confidence": 0.1
+  }
+]
+```

@@ -1,0 +1,7 @@
+```json
+{
+  "hex_bytes": "00 01 00 00 00 06 00 17 00 00 00 00",
+  "explanation": "This Modbus TCP request frame triggers the vulnerability in the fn-0x17 (write_and_read_registers) handler of libmodbus. Here's a breakdown of the frame:\n\n- 00 01: Transaction identifier (arbitrary)\n- 00 00: Protocol identifier (Modbus TCP)\n- 00 00 00 06: Length of the PDU (6 bytes)\n- 00 17: Function code (0x17 - Write and Read Registers)\n- 00 00 00 00: Starting address (0)\n- 00 00 00 00: Quantity of registers to write (0)\n\nThe starting address (0) is less than the start_registers value of 352, which makes mapping_address_write negative. The remaining upper-bound test passes, and the write loop stores through tab_registers[i] with negative i, triggering the bug.",
+  "expected_effect": "The sanitizer should report a buffer overflow or memory corruption, as the write loop attempts to store data at a negative index in the tab_registers array."
+}
+```

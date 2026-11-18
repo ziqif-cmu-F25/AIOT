@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-002",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "In modbus_reply handling of READ_COILS/READ_DISCRETE_INPUTS, if the request is shorter than expected, reading the quantity field at req[offset+3] and req[offset+4] will read past the end of the buffer.",
+  "evidence_source": "Lines 736-744: int nb = (req[offset + 3] << 8) + req[offset + 4]; No prior verification that req_length >= offset+5.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "A truncated request will cause an out-of-bounds read detected by sanitizers or a crash.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "Similar missing-length checks appear in other function handlers; this candidate highlights the coil/input read case specifically.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 739
+  },
+  "confidence": 0.72,
+  "model": "openai/gpt-5",
+  "prompt_id": "libmodbus-0367-source-review@v1",
+  "run_index": 3
+}

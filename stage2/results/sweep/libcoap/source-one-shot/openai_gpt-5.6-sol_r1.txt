@@ -1,0 +1,38 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libcoap/src/coap_proxy.c",
+      "function": "coap_proxy_forward_request_lkd",
+      "line": 681
+    },
+    "vulnerability_class": "use-after-free",
+    "hypothesis": "A proxied request containing a payload can cause asynchronous transmission to retain a pointer into the original request PDU. Although the code copies the payload into body_data specifically because the request may be destroyed before transmission completes, it mistakenly passes the original data pointer rather than body_data->s. Once the incoming request PDU is freed, subsequent upstream transmission reads freed memory.",
+    "evidence": "/* Need to take a copy of the data as request PDU may go away before\n * all data is transmitted.\n */\nbody_data = coap_new_binary(total);\n...\nmemcpy(body_data->s, data, size);\nif (!coap_add_data_large_request_lkd(proxy_entry->ongoing, pdu, total, data,\n                                     coap_proxy_release_body_data, body_data)) {",
+    "confidence": 0.99
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "libcoap/src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 538
+    },
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "A network-supplied Proxy-Uri can contain a hostname longer than 255 bytes because Proxy-Uri options are accepted up to 1034 bytes. The hostname is passed to coap_resolve_address_info(), which copies address->length bytes into a fixed 256-byte static buffer without checking the length. A hostname longer than 256 bytes therefore overwrites memory beyond addrstr.",
+    "evidence": "static char addrstr[256];\n...\nmemset(addrstr, 0, sizeof(addrstr));\nif (address && address->length)\n  memcpy(addrstr, address->s, address->length);",
+    "confidence": 0.98
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "libcoap/src/coap_pdu.c",
+      "function": "coap_pdu_parse_size",
+      "line": 1042
+    },
+    "vulnerability_class": "oob-read",
+    "hypothesis": "A truncated CoAP-over-TCP header using an extended token-length nibble causes reads beyond the supplied network buffer. For example, with length == 2, a TCP length nibble below 13 and token-length nibble 13 sets token_start to data + 2 and immediately reads token_start[0]. Token-length nibble 14 reads two bytes. The function checks that the framing header is present but does not check that the extended token-length bytes are present.",
+    "evidence": "if (len < 13) {\n  size = len;\n  token_start = &data[2];\n}\n...\n} else if (tkl == COAP_TOKEN_EXT_1B_TKL) {\n  size += token_start[0] + COAP_TOKEN_EXT_1B_BIAS + 1;\n} else if (tkl == COAP_TOKEN_EXT_2B_TKL) {\n  size += ((uint16_t)token_start[0] << 8) + token_start[1] +\n          COAP_TOKEN_EXT_2B_BIAS + 2;\n}",
+    "confidence": 0.94
+  }
+]

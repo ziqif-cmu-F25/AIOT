@@ -1,0 +1,8 @@
+```json
+{
+  "root_cause_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // Error",
+  "explanation": "The guard `len < i + 1` only ensures that index i is valid. The next condition, `buf[i + 1] != '\\n'`, reads index i+1, which requires len >= i + 2. For the input \"ab\\r\" (len = 3), the hex scan stops at i = 2 because buf[2] = '\\r' is not a hex digit. The guard becomes `3 < 3`, which is false, so execution continues to `buf[i] == '\\r'`, which passes. Then `buf[i + 1]` evaluates `buf[3]`, one byte past the 3-byte malloc'd region. ASan reports this as a 1-byte READ at offset 3, 0 bytes past the end of the region. The `\\r` check passes, so the short-circuit `||` does not prevent the read of `buf[3]`. The off-by-one is in the length check, which should require two bytes past i, not one.",
+  "fix": "if (len < i + 2 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // Error",
+  "confidence": 0.95
+}
+```

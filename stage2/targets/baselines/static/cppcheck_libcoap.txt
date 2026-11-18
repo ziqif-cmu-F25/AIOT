@@ -1,0 +1,89 @@
+Checking vendor\libcoap\src\coap_address.c ...
+vendor\libcoap\src\coap_address.c:0:0: information: Too many #ifdef configurations - cppcheck only checks 12 of 28 configurations. Use --force to check all configurations. [toomanyconfigs]
+
+^
+vendor\libcoap\src\coap_address.c:16:0: information: Include file: "coap3/coap_libcoap_build.h" not found. [missingInclude]
+#include "coap3/coap_libcoap_build.h"
+^
+vendor\libcoap\src\coap_address.c:124:20: style: Condition 'coap_is_bcast(a)' is always false [knownConditionTrueFalse]
+  if (coap_is_bcast(a))
+                   ^
+vendor\libcoap\src\coap_address.c:124:20: note: Calling function 'coap_is_bcast' returns 0
+  if (coap_is_bcast(a))
+                   ^
+vendor\libcoap\src\coap_address.c:124:20: note: Condition 'coap_is_bcast(a)' is always false
+  if (coap_is_bcast(a))
+                   ^
+vendor\libcoap\src\coap_address.c:616:36: style: Condition 'coap_address_equals(&info_tmp->addr,&info->addr)' is always false [knownConditionTrueFalse]
+                coap_address_equals(&info_tmp->addr, &info->addr)) {
+                                   ^
+vendor\libcoap\src\coap_address.c:616:36: note: Calling function 'coap_address_equals' returns 0
+                coap_address_equals(&info_tmp->addr, &info->addr)) {
+                                   ^
+vendor\libcoap\src\coap_address.c:616:36: note: Condition 'coap_address_equals(&info_tmp->addr,&info->addr)' is always false
+                coap_address_equals(&info_tmp->addr, &info->addr)) {
+                                   ^
+vendor\libcoap\src\coap_address.c:62:39: style: Parameter 'addr' can be declared as pointer to const [constParameterPointer]
+coap_address_set_port(coap_address_t *addr, uint16_t port) {
+                                      ^
+Checking vendor\libcoap\src\coap_address.c: COAP_AF_UNIX_SUPPORT...
+vendor\libcoap\src\coap_address.c:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+vendor\libcoap\src\coap_address.c:527:9: style: Condition '!coap_address_set_unix_domain(&info->addr,address->s,address->length)' is always false [knownConditionTrueFalse]
+    if (!coap_address_set_unix_domain(&info->addr, address->s,
+        ^
+vendor\libcoap\src\coap_address.c:527:38: note: Calling function 'coap_address_set_unix_domain' returns 1
+    if (!coap_address_set_unix_domain(&info->addr, address->s,
+                                     ^
+vendor\libcoap\src\coap_address.c:527:9: note: Condition '!coap_address_set_unix_domain(&info->addr,address->s,address->length)' is always false
+    if (!coap_address_set_unix_domain(&info->addr, address->s,
+        ^
+vendor\libcoap\src\coap_address.c:648:0: information: Include file: "net/utils.h" not found. [missingInclude]
+#include "net/utils.h"
+^
+Checking vendor\libcoap\src\coap_address.c: COAP_AF_UNIX_SUPPORT;RIOT_VERSION;WITH_CONTIKI...
+vendor\libcoap\src\coap_address.c:655:12: style: Variable 'netif' can be declared as pointer to const [constVariablePointer]
+  netif_t *netif = NULL;
+           ^
+vendor\libcoap\src\coap_address.c:655:12: style: Variable 'netif' is assigned a value that is never used. [unreadVariable]
+  netif_t *netif = NULL;
+           ^
+Checking vendor\libcoap\src\coap_address.c: COAP_AF_UNIX_SUPPORT;RIOT_VERSION;WITH_CONTIKI;WITH_LWIP...
+Checking vendor\libcoap\src\coap_address.c: COAP_IPV4_SUPPORT;COAP_IPV6_SUPPORT;RIOT_VERSION;WITH_CONTIKI;WITH_LWIP...
+Checking vendor\libcoap\src\coap_address.c: COAP_IPV4_SUPPORT;HAVE_IFADDRS_H;RIOT_VERSION;WITH_CONTIKI;WITH_LWIP...
+Checking vendor\libcoap\src\coap_address.c: COAP_IPV4_SUPPORT;LWIP_IPV6;RIOT_VERSION;WITH_CONTIKI...
+Checking vendor\libcoap\src\coap_address.c: COAP_IPV4_SUPPORT;RIOT_VERSION...
+Checking vendor\libcoap\src\coap_address.c: COAP_IPV4_SUPPORT;RIOT_VERSION;WITH_CONTIKI...
+Checking vendor\libcoap\src\coap_address.c: COAP_IPV4_SUPPORT;RIOT_VERSION;WITH_CONTIKI;WITH_LWIP...
+vendor\libcoap\src\coap_address.c:731:0: information: Include file: <os/net/ipv6/uiplib.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <os/net/ipv6/uiplib.h>
+^
+Checking vendor\libcoap\src\coap_address.c: COAP_IPV4_SUPPORT;WITH_CONTIKI...
+Checking vendor\libcoap\src\coap_address.c: COAP_IPV6_SUPPORT;RIOT_VERSION...
+vendor\libcoap\src\coap_address.c:44:0: style: The function 'coap_address_get_port' is never used. [unusedFunction]
+coap_address_get_port(const coap_address_t *addr) {
+^
+vendor\libcoap\src\coap_address.c:109:0: style: The function 'coap_is_af_unix' is never used. [unusedFunction]
+coap_is_af_unix(const coap_address_t *a) {
+^
+vendor\libcoap\src\coap_address.c:119:0: style: The function 'coap_is_mcast' is never used. [unusedFunction]
+coap_is_mcast(const coap_address_t *a) {
+^
+vendor\libcoap\src\coap_address.c:311:0: style: The function 'coap_get_available_scheme_hint_bits' is never used. [unusedFunction]
+coap_get_available_scheme_hint_bits(int have_pki_psk, int ws_check,
+^
+vendor\libcoap\src\coap_address.c:486:0: style: The function 'coap_resolve_address_info' is never used. [unusedFunction]
+coap_resolve_address_info(const coap_str_const_t *address,
+^
+vendor\libcoap\src\coap_address.c:790:0: style: The function 'coap_free_address_info' is never used. [unusedFunction]
+coap_free_address_info(coap_addr_info_t *info) {
+^
+vendor\libcoap\src\coap_address.c:801:0: style: The function 'coap_address_copy' is never used. [unusedFunction]
+coap_address_copy(coap_address_t *dst, const coap_address_t *src) {
+^
+vendor\libcoap\src\coap_address.c:830:0: style: The function '_coap_address_isany_impl' is never used. [unusedFunction]
+_coap_address_isany_impl(const coap_address_t *a) {
+^
+nofile:0:0: information: Active checkers: 113/712 (use --checkers-report=<filename> to see details) [checkersReport]
+

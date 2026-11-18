@@ -1,0 +1,28 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 962
+    },
+    "vulnerability_class": "oob-write",
+    "hypothesis": "In the MODBUS_FC_WRITE_AND_READ_REGISTERS branch, the bounds check validates the read range and the write range only partially. `mapping_address_write` is never checked for being negative. A request whose write address (uint16) is below `mb_mapping->start_registers` makes `mapping_address_write` negative. The check `(mapping_address_write + nb_write) > nb_registers` then evaluates false, so the check passes. The write loop at lines 978-982 then writes `mb_mapping->tab_registers[i]` starting at a negative index, which is a heap write before the start of the register table. The attacker controls the address and value bytes, so this is an arbitrary-offset heap write. This only triggers when the mapping uses a nonzero `start_registers`, because with start_registers == 0 an unsigned 16-bit address cannot go negative.",
+    "evidence": "int mapping_address = address - mb_mapping->start_registers;\nint mapping_address_write = address_write - mb_mapping->start_registers;\n...\nif (nb_write < 1 || MODBUS_MAX_WR_WRITE_REGISTERS < nb_write ||\n    nb < 1 || MODBUS_MAX_WR_READ_REGISTERS < nb ||\n    nb_write_bytes != nb_write * 2) {\n...\n} else if (mapping_address < 0 ||\n           (mapping_address + nb) > mb_mapping->nb_registers ||\n           mapping_address < 0 ||\n           (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\n...\n} else {\n    ...\n    for (i = mapping_address_write, j = 10;\n         i < mapping_address_write + nb_write; i++, j += 2) {\n        mb_mapping->tab_registers[i] =\n            (req[offset + j] << 8) + req[offset + j + 1];\n    }",
+    "confidence": 0.8
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 749
+    },
+    "vulnerability_class": "oob-read",
+    "hypothesis": "The read-coils and read-registers paths compute `mapping_address = address - start_*` with a signed int and check `mapping_address < 0`, so the lower bound is enforced. The upper-bound check `(mapping_address + nb) > nb_bits` uses int arithmetic on values derived from attacker-controlled 16-bit fields. This is probably safe because nb is bounded to MODBUS_MAX_READ_*, but the same pattern in the write-and-read path is where the lower bound was dropped. This is a lower-confidence fallback candidate: I did not find a concrete out-of-bounds read in these branches.",
+    "evidence": "int mapping_address = address - start_bits;\n...\nif (nb < 1 || MODBUS_MAX_READ_BITS < nb) {\n...\n} else if (mapping_address < 0 || (mapping_address + nb) > nb_bits) {",
+    "confidence": 0.15
+  }
+]
+```

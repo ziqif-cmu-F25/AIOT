@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "crash-given",
+  "property": "memory-safety",
+  "hypothesis": "In skip_chunk(), the guard `len < i + 1` allows reading buf[i+1] when len == i + 1 and buf[i] == '\\r'. The correct guard is `len < i + 2`. This causes a one-byte out-of-bounds read past the logical buffer.",
+  "evidence_source": "Model correctly identified the guard `len < i + 1` as the root cause and proposed the fix `len < i + 2`. Analysis based on provided ASan crash report + source excerpt.",
+  "input_artifact": "ASan crash report + http_skip_chunk_excerpt.c provided in prompt",
+  "expected_behavior": "One-byte OOB read of buf[i+1] when chunk-size line ends with CR at the last buffered byte. ASan heap-buffer-overflow read.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "Model correctly traced the OOB to the `len < i + 1` guard and proposed `len < i + 2` as the fix. Self-reported confidence: 0.99. Ranked correct root cause as primary finding.",
+  "vulnerability_class": "oob-read",
+  "location": {
+    "file": "src/http.c",
+    "function": "skip_chunk",
+    "line": 17
+  },
+  "confidence": 0.95,
+  "model": "anthropic/claude-haiku-5.5",
+  "prompt_id": "mongoose-c2-rerun@v1",
+  "run_index": 1
+}

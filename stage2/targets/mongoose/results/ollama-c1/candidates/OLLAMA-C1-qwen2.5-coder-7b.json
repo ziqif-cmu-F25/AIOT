@@ -1,0 +1,21 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "source-agentic",
+  "property": "memory-safety",
+  "hypothesis": " HYPOTHESIS: The vulnerability might be related to improper handling of chunked transfer-encoded bodies in the HTTP parsing code.\n\nREQUEST:\nREAD src/http.c 1 300 HYPOTHESIS: The vulnerability might be related to improper handling of chunked transfer-encoded bodies in the HTTP parsing code, specifically in the `skip_chunk` function.\n\nREQUEST:\nREAD src/http.c 1 300 The code snippet provided is from a HTTP parsing function in a web server, specifically the `http_cb` function. This function handles ",
+  "evidence_source": " HYPOTHESIS: The vulnerability might be related to improper handling of chunked transfer-encoded bodies in the HTTP parsing code.\n\nREQUEST:\nREAD src/http.c 1 300 HYPOTHESIS: The vulnerability might be related to improper handling of chunked transfer-encoded bodies in the HTTP parsing code, specifica",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "C1 agentic (Ollama), 15 turns. Status: turn_limit_reached. Did not identify target CVE.",
+  "vulnerability_class": "unknown",
+  "location": {
+    "file": "src/http.c"
+  },
+  "confidence": 0.5,
+  "model": "ollama/qwen2.5-coder:7b",
+  "prompt_id": "mongoose-C1-ollama@v1",
+  "run_index": 1
+}

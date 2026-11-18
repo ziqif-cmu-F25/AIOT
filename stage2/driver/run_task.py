@@ -35,7 +35,7 @@ from driver.openrouter_client import (
     load_settings,
 )
 
-VIEWPOINT = "ai-source-review"
+VIEWPOINT = "ai-source-review"  # default when a task omits task.viewpoint; see schema/candidate_record.schema.json
 SUPPORTED_MODES = ("source-review",)   # extension point: "fuzzing-assist"
 REQUIRED_TASK_KEYS = (
     "task_id", "prompt_version", "property", "mode", "description",
@@ -282,7 +282,7 @@ class Run:
         for i, item in enumerate(data["candidates"], start=1):
             record = {
                 "candidate_id": f"CAND-{i:03d}",
-                "viewpoint": VIEWPOINT,
+                "viewpoint": self.task.get("viewpoint", VIEWPOINT),
                 "property": self.task["property"],
                 "hypothesis": item["hypothesis"],
                 "evidence_source": item["evidence_source"],
@@ -363,7 +363,7 @@ class Run:
         upstream = self.task["context"].get("upstream") or {}
         run_meta = {
             "run_id": self.run_id,
-            "viewpoint": VIEWPOINT,
+            "viewpoint": self.task.get("viewpoint", VIEWPOINT),
             "task_id": self.task["task_id"],
             "prompt_id": self.prompt_id,
             "mode": self.task["mode"],

@@ -1,0 +1,13 @@
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "libcoap/src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 539
+    },
+    "explanation": "A fixed-size buffer `addrstr[256]` is filled with `memcpy(addrstr, address->s, address->length);` without checking that `address->length` fits. A crafted host value (e.g., via Proxy-Uri/Uri-Host) longer than 256 bytes overflows `addrstr`, producing the ASan global-buffer-overflow. Additionally, if `address->length == 256`, the string is not NUL-terminated, which could lead to subsequent over-reads by `getaddrinfo`.",
+    "fix": "Bound the copy to the buffer size and ensure NUL-termination (or reject overlong input). For example:\n\nsize_t len = 0;\nmemset(addrstr, 0, sizeof(addrstr));\nif (address && address->length) {\n  if (address->length >= sizeof(addrstr)) {\n    coap_log_warn(\"coap_resolve_address_info: address too long\\n\");\n    return NULL; /* or clamp: len = sizeof(addrstr) - 1; */\n  }\n  len = address->length;\n  memcpy(addrstr, address->s, len);\n  addrstr[len] = '\\0';\n} else {\n  memcpy(addrstr, \"localhost\", 9);\n}\n",
+    "confidence": 0.95
+  }
+]

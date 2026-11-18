@@ -1,0 +1,18 @@
+```json
+[{
+  "rank": 1,
+  "location": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+  "vulnerability_class": "oob-read",
+  "hypothesis": "The bounds check on the chunk-size terminator uses `len < i + 1`, but it then reads `buf[i + 1]`, which requires `len >= i + 2`. When the buffered data ends exactly after the chunk-size line's `\\r` (so len == i + 1), the check passes and `buf[i + 1]` reads one byte past the valid received data. An attacker controls this by sending a chunked body whose size line ends with `\\r` as the final buffered byte, e.g. `...\\r\\n5\\r` with no following byte yet. The read lands on whatever byte follows `c->recv.len` in the heap buffer. The one-byte read is then compared against '\\n' and can influence whether parsing proceeds.",
+  "evidence": "1002: if (len < 3) return 0;\n1003: while (i < len && is_hex_digit(buf[i])) i++;\n1004: if (i == 0) return -1;\n1005: if (i > (int) sizeof(int) * 2) return -1;\n1006: if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // Error",
+  "confidence": 0.7
+},
+{
+  "rank": 2,
+  "location": {"file": "mongoose/src/http.c", "function": "http_cb", "line": 1101},
+  "vulnerability_class": "oob-write",
+  "hypothesis": "This is a lower-confidence candidate. The relocation loop assumes `hm.body.len` never exceeds the consumed chunk-framing offset `o`, so `memmove(s + hm.body.len, s + o + pl, dl)` stays inside the receive buffer. The first pass validates each chunk's framing, and the second pass rereads the same chunks, so the invariant appears to hold. I did not find a concrete violation, so this is listed only as an area to verify.",
+  "evidence": "1101: o = 0, hm.body.len = 0, hm.message.len = (size_t) n;\n1102: while ((cl = skip_chunk(s + o, len - o, &pl, &dl)) > 0) {\n1103:   memmove(s + hm.body.len, s + o + pl, (size_t) dl);\n1104:   o += cl, hm.body.len += (size_t) dl, hm.message.len += (size_t) dl;",
+  "confidence": 0.15
+}]
+```

@@ -1,0 +1,7 @@
+```json
+{
+  "hex_bytes": "50 4f 53 54 20 2f 20 48 54 54 50 2f 31 2e 31 0d 0a 48 6f 73 74 3a 20 61 0d 0a 54 72 61 6e 73 66 65 72 2d 45 6e 63 6f 64 69 6e 67 3a 20 63 68 75 6e 6b 65 64 0d 0a 0d 0a 33 0d 0a 61 62 0d",
+  "explanation": "Field by field: (1) Request line 'POST / HTTP/1.1' (15 bytes) + CRLF. (2) Header 'Host: a' + CRLF, a minimal Host header so the request is well-formed. (3) Header 'Transfer-Encoding: chunked' + CRLF, which routes the body into the chunked parser. (4) Blank line CRLF, which ends the header block. (5) Chunk-size line '3' + CRLF, declaring a 3-byte chunk. (6) Chunk data 'ab\\r' (3 bytes: 61 62 0d). The chunk ends exactly at the end of the frame, so the byte that should follow the data ('\\n') is absent. When skip_chunk() checks the CRLF at offset i, the data is 'ab\\r' and buf[i] == '\\r' holds. The guard `len < i + 1` is false when len == i + 1, so the code reads buf[i + 1] one byte past the end of the buffer, which triggers the heap OOB read. Caveat: the 'see harness' placeholder in the target configuration was not filled in, so the buffer allocation, chunk offset, and whether the body is copied into an exact-sized heap allocation are assumptions. Those must be checked against the real harness before this frame is used as a reproducer.",
+  "expected_effect": "AddressSanitizer should report a heap-buffer-overflow of READ size 1 in skip_chunk(), at the byte just past the end of the request buffer (the offset equal to the buffer length), with the faulting access coming from the buf[i + 1] comparison in the CRLF check."
+}
+```

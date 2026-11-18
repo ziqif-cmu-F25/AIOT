@@ -1,0 +1,38 @@
+You are assisting a human analyst in a controlled white-box security test of
+Mongoose, a C HTTP server library used in embedded and IoT devices.
+
+The analyst has already confirmed this vulnerability hypothesis:
+
+  In skip_chunk(), the guard `len < i + 1` allows reading buf[i+1] when
+  len == i + 1 and buf[i] == '\r'. The correct guard is `len < i + 2`.
+  This causes a one-byte out-of-bounds read past the logical buffer when
+  processing HTTP chunked transfer-encoded bodies.
+
+  The vulnerable code (line 17 of skip_chunk):
+    if (len < i + 1 || buf[i] != '\r' || buf[i + 1] != '\n') return -1;
+
+Your task: draft ONE concrete HTTP request (raw bytes) that a testing tool
+can send to a Mongoose HTTP server to exercise this specific off-by-one bug.
+
+Requirements:
+- The request must use Transfer-Encoding: chunked so the server enters the
+  chunked parsing path and calls skip_chunk().
+- The chunked body must be crafted so that skip_chunk() receives a buffer
+  where the last buffered byte is '\r' at position i, with no '\n' following
+  it in the buffer (len == i + 1).
+- The request must be a valid-enough HTTP/1.1 request that Mongoose parses
+  the headers before reaching the chunked body.
+- State whether the request must be sent in one TCP segment or split across
+  segments, and why.
+
+Output a JSON object:
+{
+  "raw_request": "<the raw HTTP request as a string with \\r\\n for line endings>",
+  "hex_body": "<hex-encoded bytes of just the chunked body portion>",
+  "explanation": "<why this input triggers the OOB read in skip_chunk>",
+  "delivery_notes": "<TCP segmentation or timing requirements, if any>",
+  "confidence": <0.0-1.0>
+}
+
+Do not use web search. Work only from the hypothesis and your knowledge of
+HTTP/1.1 chunked transfer encoding (RFC 7230 §4.1).

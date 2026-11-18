@@ -1,0 +1,31 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "src/modbus.c", "function": "modbus_reply", "line": 964},
+    "bug_class": "oob-write",
+    "hypothesis": "The negative-address guard is duplicated for the read address (line 962 and line 964) and never checks mapping_address_write, so a write address below start_registers passes validation and the write loop at lines 978-981 stores to tab_registers at negative indices, writing before the start of the heap array.",
+    "vulnerable_line": "mapping_address < 0 ||  (line 964 should be: mapping_address_write < 0 ||)",
+    "trigger_condition": "A FC 0x17 request with address_write (bytes 5-6) less than mb_mapping->start_registers, so mapping_address_write is negative. Then (mapping_address_write + nb_write) > nb_registers is false, since the sum is small or negative, and the request passes. The write loop then runs with i = mapping_address_write < 0 and writes tab_registers[i] for i in [mapping_address_write, mapping_address_write + nb_write), which is out of bounds. The attacker controls the offset to a negative value (up to 65535 - start_registers) and the written values via req bytes 10 onward.",
+    "confidence": 0.85
+  },
+  {
+    "rank": 2,
+    "location": {"file": "src/modbus.c", "function": "modbus_reply", "line": 980},
+    "bug_class": "oob-write",
+    "hypothesis": "Because the write loop bounds are derived from mapping_address_write without a lower-bound check (see rank 1), the store to tab_registers[i] at line 980 can land anywhere before the table, corrupting adjacent heap memory or function-pointer-bearing structures.",
+    "vulnerable_line": "mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];",
+    "trigger_condition": "Same as rank 1: address_write below start_registers, with nb_write in [1, MODBUS_MAX_WR_WRITE_REGISTERS] so that nb_write_bytes == nb_write*2 passes the check at line 957. The write offset is controlled by the attacker, and the written 16-bit values are attacker-chosen.",
+    "confidence": 0.6
+  },
+  {
+    "rank": 3,
+    "location": {"file": "src/modbus.c", "function": "modbus_reply", "line": 951},
+    "bug_class": "oob-read",
+    "hypothesis": "The request bytes are read at fixed offsets (offset+3 through offset+9 here, and offset+10 onward in the write loop) and nb_write_bytes is taken from the attacker-controlled byte at offset+9. The excerpt does not show that the total received frame length was validated against these offsets, so a short frame could make the reads at lines 948-981 go past the end of the request buffer.",
+    "vulnerable_line": "int nb_write_bytes = req[offset + 9];  (and the req[offset + j] reads at line 981)",
+    "trigger_condition": "A truncated write-and-read request whose declared byte count (req[offset+9]) matches nb_write*2 but whose actual frame is shorter than offset+10+nb_write_bytes. Whether this is reachable depends on length checks outside the excerpt, which I have not assumed.",
+    "confidence": 0.3
+  }
+]
+```

@@ -1,0 +1,20 @@
+```json
+{
+  "training_cutoff": "2023-04",
+  "known_cves": [
+    {
+      "cve": "CVE-2022-45391",
+      "file_function": "coap_dtls_free_session",
+      "bug_class": "Use-after-free",
+      "recall_confidence": 0.9
+    },
+    {
+      "cve": "CVE-2021-34443",
+      "file_function": "coap_block_build_body",
+      "bug_class": "Heap-based buffer overflow",
+      "recall_confidence": 0.85
+    }
+  ],
+  "notes": "Answering from memory as instructed. The year 2025 in the prompt seems to be a typo for a year before my training cutoff, as libcoap 4.3.x versions were released before then."
+}
+```

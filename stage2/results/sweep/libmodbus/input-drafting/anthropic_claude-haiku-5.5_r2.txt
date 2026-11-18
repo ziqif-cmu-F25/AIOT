@@ -1,0 +1,7 @@
+```json
+{
+  "hex_bytes": "00 01 00 00 00 0D 01 17 01 60 00 01 01 5F 00 01 02 00 2A",
+  "explanation": "MBAP header: transaction id 00 01; protocol id 00 00 (Modbus); length 00 0D = 13 bytes following (unit id + PDU). Unit id 01. PDU: function 17 (write_and_read_registers). Read starting address 01 60 = 352 (= start_registers, so mapping_address = 0). Read quantity 00 01 = 1. Write starting address 01 5F = 351, one below start_registers, so mapping_address_write = 351 - 352 = -1. Write quantity 00 01 = 1. Write byte count 02. Write value 00 2A (42). The read range 352..352 is valid. The write range's upper-bound check sees -1 + 1 = 0, which passes against nb_registers = 32, and the unchecked negative mapping_address_write is never rejected. The write loop then stores through tab_registers[-1], a 2-byte write just before the start of the register table.",
+  "expected_effect": "An AddressSanitizer report of heap-buffer-underflow (WRITE of size 2) in the fn-0x17 write loop, with the faulting index at tab_registers[-1], attributed to the write path of the write_and_read_registers handler. This is for the local white-box harness only; it should not be sent to any system you do not own or have authorization to test."
+}
+```

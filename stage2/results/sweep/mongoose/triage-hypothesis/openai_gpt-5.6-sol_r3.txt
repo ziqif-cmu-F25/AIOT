@@ -1,0 +1,15 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "unknown",
+      "function": "skip_chunk",
+      "line": 1006
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "The length check permits i == len - 1, so when buf[i] is '\\r', evaluating buf[i + 1] reads one byte past the supplied buffer.",
+    "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "trigger_condition": "A non-sentinel-terminated buffer of len >= 3 containing at most sizeof(int)*2 leading hexadecimal digits through index len-2 and '\\r' at index len-1, for example len=3 with bytes \"00\\r\".",
+    "confidence": 0.99
+  }
+]

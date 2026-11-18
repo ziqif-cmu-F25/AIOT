@@ -1,0 +1,24 @@
+[{
+  "rank": 1,
+  "location": {"file": "libcoap/src/coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+  "vulnerability_class": "buffer-overflow",
+  "hypothesis": "A network-controlled host string (Proxy-URI / Uri-Host) is memcpy'd into a 256-byte stack buffer with no length check. Host length >= 256 overflows addrstr (and length == 256 also leaves it without a NUL, so getaddrinfo reads off the stack).",
+  "evidence": "static char addrstr[256];\n  memset(addrstr, 0, sizeof(addrstr));\n  if (address && address->length)\n    memcpy(addrstr, address->s, address->length);\n\nNo comparison against sizeof(addrstr). Unix-domain hosts are bounded later, but the generic path is not. Proxy-URI may be up to 1034 bytes (coap_pdu_parse_opt_base) and coap_split_proxy_uri stores host as a pointer+length into that option; coap_proxy_get_ongoing_session then calls coap_resolve_address_info(&server_use->uri.host, ...).",
+  "confidence": 0.95
+},
+{
+  "rank": 2,
+  "location": {"file": "libcoap/src/coap_uri.c", "function": "check_segment", "line": 446},
+  "vulnerability_class": "oob-read",
+  "hypothesis": "Percent-encoding is validated with `length < 2` instead of `length < 3`. A segment whose last 1–2 bytes are `%` / `%X` (e.g. path `foo%2` or `foo%`) reads s[2] one byte past the segment; if that byte happens to look like hex, `length -= 2` then `--length` underflows size_t and the loop walks attacker-adjacent memory. decode_segment (line 417) has the same off-by-one and would OOB-write if it were reached.",
+  "evidence": "while (length) {\n    if (*s == '%') {\n      if (length < 2 || !(isxdigit(s[1]) && isxdigit(s[2])))\n        return -1;\n      s += 2;\n      length -= 2;\n    }\n    ++s;\n    ++n;\n    --length;\n  }\n\nA 3-byte `%XX` sequence is consumed as 2 extra bytes plus the unconditional ++s/--length; remaining length 2 still passes `length < 2` and indexes s[2]. Called from make_decoded_option → coap_split_path / coap_split_query.",
+  "confidence": 0.88
+},
+{
+  "rank": 3,
+  "location": {"file": "libcoap/src/coap_proxy.c", "function": "coap_proxy_forward_request_lkd", "line": 681},
+  "vulnerability_class": "use-after-free",
+  "hypothesis": "The code copies the request payload into body_data because 'request PDU may go away before all data is transmitted', but then passes the original `data` pointer into coap_add_data_large_request_lkd while the release callback frees body_data. After the inbound PDU is freed, block-wise retransmission uses a dangling pointer. (Related: proxy_list[i].uri.host.s is also aliased into the inbound PDU option bytes and used after that PDU is gone.)",
+  "evidence": "body_data = coap_new_binary(total);\n    ...\n    memcpy(body_data->s, data, size);\n    if (!coap_add_data_large_request_lkd(proxy_entry->ongoing, pdu, total, data,\n                                         coap_proxy_release_body_data, body_data))\n\nContrast the response path which does `data = body_data->s` before the analogous call. URI alias: uri->host.s = coap_opt_value(opt) then proxy_list[i].uri = server_use->uri.",
+  "confidence": 0.72
+}]

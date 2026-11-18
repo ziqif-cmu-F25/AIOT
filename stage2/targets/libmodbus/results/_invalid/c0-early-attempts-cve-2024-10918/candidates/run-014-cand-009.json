@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-009",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "In WRITE_MULTIPLE_REGISTERS, copying 4 bytes (address and count) from req + rsp_length assumes those 4 bytes exist; a truncated request leads to memcpy reading past req.",
+  "evidence_source": "memcpy(rsp + rsp_length, req + rsp_length, 4); No validation that req_length >= rsp_length + 4.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Out-of-bounds read or crash in memcpy when processing malformed requests.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "Similar echo of meta fields as in WRITE_MULTIPLE_COILS, with same lack of bounds checking.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 1014
+  },
+  "confidence": 0.82,
+  "model": "openai/gpt-5",
+  "prompt_id": "libmodbus-modbus-reply@v1",
+  "run_index": 2
+}

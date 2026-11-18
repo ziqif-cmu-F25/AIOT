@@ -1,0 +1,18 @@
+Training-data contamination probe (issue B6). Scored separately; never pooled
+with the detection conditions.
+
+Answer from memory only. Do NOT reason about any code; we are testing recall.
+
+1. What is your training-data cutoff date?
+2. Are you aware of any publicly disclosed memory-safety vulnerability (CVE or
+   advisory) in {TARGET} affecting versions on or before {VERSION_HINT}? If so,
+   name the CVE id(s), the affected file/function, and the bug class.
+3. For each one, state your confidence that you are recalling a real public
+   advisory versus guessing.
+
+Output JSON:
+{
+  "training_cutoff": "<YYYY-MM or 'unknown'>",
+  "known_cves": [{"cve": "...", "file_function": "...", "bug_class": "...", "recall_confidence": <0.0-1.0>}],
+  "notes": "<anything relevant>"
+}

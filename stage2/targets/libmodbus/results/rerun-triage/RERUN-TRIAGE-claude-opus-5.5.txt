@@ -1,0 +1,9 @@
+```json
+{
+  "hypothesis": "The address-validation branch checks `mapping_address < 0` twice and never checks `mapping_address_write < 0`, so a request whose write start address is below `mb_mapping->start_registers` passes validation; the write loop then stores attacker-supplied 16-bit values at `mb_mapping->tab_registers[i]` with negative `i`, an out-of-bounds heap write before the start of the register array.",
+  "vulnerable_line": "} else if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers) {   /* second 'mapping_address < 0' should be 'mapping_address_write < 0'; leads to OOB write at: mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1]; */",
+  "bug_class": "buffer-underflow (out-of-bounds heap write, negative index)",
+  "trigger_condition": "The server mapping has start_registers > 0. A peer sends an FC 0x17 request that meets all of these conditions: (1) the read address and count are valid (start_registers <= address and address - start_registers + nb <= nb_registers); (2) address_write < start_registers, so mapping_address_write is negative (for example, address_write = 0 when start_registers = 100 gives index -100); (3) nb_write is between 1 and MODBUS_MAX_WR_WRITE_REGISTERS, with nb_write_bytes == 2*nb_write. The check (mapping_address_write + nb_write) > nb_registers is trivially false for a negative base, so the write loop writes up to nb_write attacker-controlled uint16 values at negative offsets before tab_registers. This can corrupt heap metadata or adjacent objects.",
+  "confidence": 0.93
+}
+```

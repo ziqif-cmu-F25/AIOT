@@ -1,0 +1,38 @@
+```json
+{
+  "training_cutoff": "unknown",
+  "known_cves": [
+    {
+      "cve": "CVE-2024-0962",
+      "file_function": "src/coap_oscore.c : get_split_entry() (OSCORE configuration file handling), libcoap 4.3.4",
+      "bug_class": "Stack-based buffer overflow (CWE-121)",
+      "recall_confidence": 0.7
+    },
+    {
+      "cve": "CVE-2023-30362",
+      "file_function": "src/coap_net.c : coap_send_q_pdu() (possibly the related coap_send_pdu path), libcoap 4.3.1",
+      "bug_class": "Buffer overflow (CWE-120)",
+      "recall_confidence": 0.55
+    },
+    {
+      "cve": "CVE-2023-35862",
+      "file_function": "src/coap_block.c : coap_handle_request_put_block() (block-wise transfer handling), libcoap 4.3.1 and earlier",
+      "bug_class": "Missing bounds check leading to out-of-bounds read (CWE-125)",
+      "recall_confidence": 0.45
+    },
+    {
+      "cve": "CVE-2023-35861",
+      "file_function": "src/coap_oscore.c (OSCORE configuration/parsing; exact function not recalled), libcoap 4.3.1",
+      "bug_class": "Buffer overflow (exact class uncertain)",
+      "recall_confidence": 0.3
+    },
+    {
+      "cve": "CVE-2024-31031",
+      "file_function": "src/coap_pdu.c (PDU/option parsing; exact function not recalled), libcoap 4.3.4",
+      "bug_class": "Unsigned integer overflow/underflow leading to undefined behavior or out-of-bounds access (CWE-190/191)",
+      "recall_confidence": 0.4
+    }
+  ],
+  "notes": "Answered from recall only. I did not read or reason about any code. My exact training cutoff is not reliably known to me, so I reported 'unknown'; my knowledge appears to extend into roughly late 2024 or early 2025. Confidence is highest for CVE-2024-0962, which I recall as a VulDB-style advisory naming get_split_entry in coap_oscore.c. The CVE IDs for the others feel familiar, but their exact functions, files and version ranges may be conflated with each other. CVE-2023-35861 in particular may be partly reconstructed. I also have a vague sense that additional libcoap advisories were published in 2025, possibly third-party-assigned and possibly involving out-of-bounds reads or overflows in address or option handling in 4.3.5. I cannot recall specific IDs or functions for those, so I have not listed them, to avoid fabricating entries. Recurring themes across libcoap advisories are OSCORE config parsing, block-wise transfer handling and PDU/option parsing. Any detection result that lands on those areas could be influenced by prior exposure."
+}
+```

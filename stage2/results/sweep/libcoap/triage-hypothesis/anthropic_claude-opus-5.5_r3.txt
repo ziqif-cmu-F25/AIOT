@@ -1,0 +1,33 @@
+Line 538 copies `address->length` bytes into the static `addrstr[256]` without any length check. A host of 256 bytes or more overflows the static buffer. A host of exactly 256 bytes also removes the NUL terminator, so `getaddrinfo` reads past the end. The AF_UNIX branch checks its length, but the normal path does not.
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "src/coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+    "bug_class": "buffer-overflow",
+    "hypothesis": "address->length is never checked against sizeof(addrstr) (256), so a host string of 256 bytes or more, taken from an untrusted URI or Proxy-Uri, overflows the static addrstr buffer during memcpy.",
+    "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "coap_resolve_address_info is called with a host (for example from a parsed Proxy-Uri / Uri-Host option) of length >= 256 that is not a unix-domain host.",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "location": {"file": "src/coap_address.c", "function": "coap_resolve_address_info", "line": 547},
+    "bug_class": "oob-read",
+    "hypothesis": "With address->length == 256, addrstr is filled completely and has no NUL terminator, so getaddrinfo reads past the end of the static buffer.",
+    "vulnerable_line": "error = getaddrinfo(addrstr, NULL, &hints, &res);",
+    "trigger_condition": "A host string of exactly 256 bytes.",
+    "confidence": 0.5
+  },
+  {
+    "rank": 3,
+    "location": {"file": "src/coap_address.c", "function": "coap_resolve_address_info", "line": 683},
+    "bug_class": "oob-read",
+    "hypothesis": "In the RIOT branch, address->s is treated as a NUL-terminated C string by netutils_get_ipv6/ipv4 and by the %s log, but coap_str_const_t is length-delimited and may not be terminated, so the reads run past the buffer.",
+    "vulnerable_line": "netutils_get_ipv6(&addr_ipv6, &netif, (const char *)address->s)",
+    "trigger_condition": "A host taken from a packet option buffer without a trailing NUL, on a RIOT build.",
+    "confidence": 0.3
+  }
+]
+```

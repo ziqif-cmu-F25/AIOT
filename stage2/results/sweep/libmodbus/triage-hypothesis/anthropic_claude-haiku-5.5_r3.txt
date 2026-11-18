@@ -1,0 +1,31 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "src/modbus.c", "function": "modbus_reply", "line": 965},
+    "bug_class": "oob-write",
+    "hypothesis": "The bounds check at lines 962-965 tests `mapping_address < 0` twice and never tests `mapping_address_write < 0`, so a write address below `start_registers` makes `mapping_address_write` negative and the upper-bound test passes; the write loop at lines 978-982 then stores to `tab_registers[i]` at negative indices, writing before the start of the heap-allocated register table.",
+    "vulnerable_line": "(mapping_address + nb) > mb_mapping->nb_registers || mapping_address < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers  (line 964 should be mapping_address_write < 0)",
+    "trigger_condition": "mb_mapping->start_registers > 0 (e.g. 100), and the request's write-address field (req[offset+5..6]) is smaller than start_registers, so mapping_address_write = address_write - start_registers is negative. The read address must be valid, with nb_write and nb within the limits at lines 955-957. For example, with start_registers=100, address_write=0 and nb_write=1 gives i=-100 and an out-of-bounds write.",
+    "confidence": 0.85
+  },
+  {
+    "rank": 2,
+    "location": {"file": "src/modbus.c", "function": "modbus_reply", "line": 981},
+    "bug_class": "oob-read",
+    "hypothesis": "The write-data loop reads `req[offset + j]` and `req[offset + j + 1]` for nb_write values, but nothing checks that the received request buffer is long enough to contain 2*nb_write data bytes; `nb_write_bytes` is only checked for consistency with the client-supplied `nb_write`, not against the actual message length `req_length`.",
+    "vulnerable_line": "(req[offset + j] << 8) + req[offset + j + 1];  (line 981, with loop bound at line 979)",
+    "trigger_condition": "A truncated write-and-read request whose header fields (nb_write, byte count at req[offset+9]) are self-consistent and within limits but whose PDU is shorter than offset+10+2*nb_write, so the loop reads past the end of the received request buffer. The exact result depends on whether the framing layer validates the length earlier.",
+    "confidence": 0.4
+  },
+  {
+    "rank": 3,
+    "location": {"file": "src/modbus.c", "function": "modbus_reply", "line": 985},
+    "bug_class": "other",
+    "hypothesis": "The response construction at lines 974-988 relies on the bounds of `nb` and the rsp buffer size without an explicit capacity check; if MODBUS_MAX_WR_READ_REGISTERS were ever raised, or the response header were larger than assumed, the appends could exceed the rsp buffer.",
+    "vulnerable_line": "rsp[rsp_length++] = mb_mapping->tab_registers[i] >> 8;  (line 986, appended in a loop bounded by nb at line 985)",
+    "trigger_condition": "A read count nb equal to the maximum allowed by line 956 with a response header whose length is larger than the MODBUS_MAX_ADU_LENGTH margin reserved for it. This is a low-likelihood, defense-in-depth concern rather than a demonstrated overflow with current constants.",
+    "confidence": 0.15
+  }
+]
+```

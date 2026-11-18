@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "Option delta parsing in coap_opt_parse may integer-overflow, causing the subsequent length check to pass incorrectly.",
+  "evidence_source": "result->delta = ((*opt & 0xff) << 8) + 269;\nif (result->delta < 269) {",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Integer overflow/wraparound in option delta parsing when shifted value plus 269 wraps on 16-bit systems.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "rejected",
+  "oracle_verdict": "wrong_bug",
+  "notes": "Model stated line: 50. Model's rank-1 candidate does NOT match the target CVE-2025-34468 (coap_address.c:538 memcpy overflow). The model identified a different potential issue. Location reflects the model's own claim. oracle_verdict=wrong_bug means the target CVE was not the top-ranked finding.",
+  "vulnerability_class": "integer-overflow",
+  "location": {
+    "file": "src/coap_option.c",
+    "function": "coap_opt_parse",
+    "line": 50
+  },
+  "confidence": 0.5,
+  "model": "deepseek/deepseek-chat-v3.1",
+  "prompt_id": "libcoap-c0-rerun@v1",
+  "run_index": 1
+}

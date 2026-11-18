@@ -1,0 +1,3 @@
+HYPOTHESIS: The confirmed vulnerability is a remotely triggerable out-of-bounds write in function 0x17 handling: a nonzero register start address permits an attacker-controlled negative write index that is not rejected because the code checks the read index twice.
+
+FINAL

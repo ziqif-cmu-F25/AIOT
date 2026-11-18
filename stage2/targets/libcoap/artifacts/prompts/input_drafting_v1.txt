@@ -1,0 +1,41 @@
+You are assisting a human analyst in a controlled white-box security test of
+libcoap, a C implementation of the Constrained Application Protocol (CoAP,
+RFC 7252) used in IoT devices.
+
+The analyst has already confirmed this vulnerability hypothesis:
+
+  In coap_resolve_address_info(), the call
+    memcpy(addrstr, address->s, address->length)
+  copies address->length bytes into static char addrstr[256] with no bounds
+  check. When the server is configured as a forward proxy, address->s and
+  address->length come from the Proxy-Uri option of an incoming CoAP request,
+  parsed via coap_split_proxy_uri() into uri.host. A hostname longer than
+  256 bytes overflows the global addrstr buffer.
+
+  The vulnerable code (line 538 of src/coap_address.c):
+    memcpy(addrstr, address->s, address->length);
+
+Your task: draft ONE concrete CoAP message (raw bytes or hex) that a testing
+tool can send to a libcoap server configured as a forward proxy to exercise
+this specific buffer overflow.
+
+Requirements:
+- The message must be a valid CoAP GET request (or minimally valid enough
+  that the server parses it and reaches the proxy forwarding path).
+- The message must include a Proxy-Uri option whose hostname portion is
+  longer than 256 bytes, so that address->length > 256 when
+  coap_resolve_address_info() is called.
+- Explain which CoAP option number carries Proxy-Uri and how it is encoded.
+- State the minimum hostname length needed to overflow the buffer.
+
+Output a JSON object:
+{
+  "raw_message": "<hex-encoded CoAP message bytes, or a readable breakdown>",
+  "proxy_uri_value": "<the Proxy-Uri string used>",
+  "explanation": "<why this input triggers the overflow in coap_resolve_address_info>",
+  "delivery_notes": "<transport requirements: UDP datagram size, any fragmentation concerns>",
+  "confidence": <0.0-1.0>
+}
+
+Do not use web search. Work only from the hypothesis and your knowledge of
+CoAP message encoding (RFC 7252).

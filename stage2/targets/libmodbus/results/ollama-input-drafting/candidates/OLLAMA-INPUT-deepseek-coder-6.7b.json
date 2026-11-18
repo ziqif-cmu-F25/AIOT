@@ -1,0 +1,22 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "input-drafting",
+  "property": "memory-safety",
+  "hypothesis": "Here is a concrete Modbus TCP request that can be used to exploit the vulnerability:\n\n```json\n{\n  \"hex_bytes\": \"00 00 00 00 00 06 01 17 00 02 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 0",
+  "evidence_source": "Here is a concrete Modbus TCP request that can be used to exploit the vulnerability:\n\n```json\n{\n  \"hex_bytes\": \"00 00 00 00 00 06 01 17 00 02 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "input-drafting condition (Ollama). Did not clearly identify target CVE.",
+  "vulnerability_class": "unknown",
+  "location": {
+    "file": "src/modbus.c",
+    "function": "modbus_reply"
+  },
+  "confidence": 0.5,
+  "model": "ollama/deepseek-coder:6.7b",
+  "prompt_id": "libmodbus-ollama-input@v1",
+  "run_index": 1
+}

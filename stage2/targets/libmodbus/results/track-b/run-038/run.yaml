@@ -1,0 +1,75 @@
+run_id: run-038
+viewpoint: ai-source-review
+task_id: libmodbus-0367-source-review
+prompt_id: libmodbus-0367-source-review@v1
+mode: source-review
+property: memory-safety
+status: candidate
+candidate_count: 1
+run_index: 1
+repeats: 3
+group_id: group-001
+target_repository: stephane/libmodbus
+target_commit: f9fe3b0a5343f7fbb3f5c74196bd0fce88df39d5
+start_utc: '2026-11-04T08:03:17Z'
+end_utc: '2026-11-04T08:03:26Z'
+elapsed_s: 8.95
+model_requested: anthropic/claude-sonnet-5.5
+model_source: cli --model
+model_resolved:
+- anthropic/claude-sonnet-5.5
+provider:
+- Claude Platform on AWS
+response_ids:
+- gen-1793779402-q79sTGchArqXtCmWZOh4
+sampling:
+  temperature: 0.0
+  max_tokens: 20000
+attempts: 1
+usage:
+- completion_tokens: 1049
+  prompt_tokens: 34447
+  total_tokens: 35496
+  completion_tokens_details:
+    accepted_prediction_tokens: null
+    audio_tokens: 0
+    reasoning_tokens: 544
+    rejected_prediction_tokens: null
+    text_tokens: null
+    image_tokens: 0
+  prompt_tokens_details:
+    audio_tokens: 0
+    cache_write_tokens: 0
+    cached_tokens: 0
+    image_tokens: null
+    text_tokens: null
+    video_tokens: 0
+  cost: 0.079384
+  is_byok: false
+  cost_details:
+    upstream_inference_cost: 0.079384
+    upstream_inference_prompt_cost: 0.068894
+    upstream_inference_completions_cost: 0.01049
+usage_total:
+  prompt_tokens: 34447
+  completion_tokens: 1049
+  total_tokens: 35496
+  reasoning_tokens: 544
+  cost_usd: 0.079384
+error: null
+settings_source: C:\Users\alber\Documents\GitHub\AIOT\.env
+task_file: stage2/tasks/libmodbus-0367-source-review.yaml
+driver_commit: 84ab4b9438cf05d697cdbbb3991db690e3f0271c+dirty-stage2
+context:
+  source_root: vendor
+  files:
+  - path: modbus.c
+    sha256: a7c662ac8ce05043c92d92c742f3d97711a14bcdfa89ac6938b50fdf3a991835
+    line_range:
+    - 1
+    - 1911
+    total_lines: 1911
+withheld_notice: 'Withheld from the model: CVE identifier (CVE-2022-0367), CWE, advisory
+  text, fix commit, fixed release, which function or line is relevant, and any runtime
+  configuration. The model sees only modbus.c at the pinned commit.'
+investigator: ''

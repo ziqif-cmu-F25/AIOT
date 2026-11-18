@@ -1,0 +1,25 @@
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {"file": "libcoap/src/coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+    "explanation": "The function copies the caller-supplied host into the fixed buffer `static char addrstr[256]` with `memcpy(addrstr, address->s, address->length)`. Nothing checks `address->length` against `sizeof(addrstr)`. The only length check in the function is the AF_UNIX one, which does not cover this path. The ASan report shows a 300-byte WRITE whose first poisoned byte is exactly 0 bytes past `coap_resolve_address_info.addrstr`, which is 256 bytes. That matches a 300-byte memcpy into this buffer. The attacker reaches it through a proxy request. `coap_proxy_get_session` calls `coap_split_proxy_uri` on a Proxy-Uri option (up to 1034 bytes, allowed by `coap_pdu_parse_opt_base`), or reads Uri-Host in `coap_get_uri_proxy_scheme_info`. That yields `server_use->uri.host` with a length over 255. `coap_proxy_get_ongoing_session` then passes this host unchecked to `coap_resolve_address_info` (line 420). The memcpy overruns `addrstr` and corrupts adjacent globals. Even a length of exactly 256 would leave no NUL terminator for getaddrinfo, so the check must be `>= sizeof`.",
+    "fix": "Reject over-long hosts before the copy: `if (address && address->length >= sizeof(addrstr)) { coap_log_err(\"Host name too long\\n\"); return NULL; }`. Only then do `memcpy(addrstr, address->s, address->length)`. The memset on line 536 already zeroes the buffer, so the terminating NUL is preserved.",
+    "confidence": 0.93
+  },
+  {
+    "rank": 2,
+    "root_cause": {"file": "libcoap/src/coap_proxy.c", "function": "coap_proxy_get_session", "line": 266},
+    "explanation": "This is a missing upstream validation, not the faulting write. After parsing the Proxy-Uri or Proxy-Scheme, the code only checks `server_use->uri.host.length == 0`. It never bounds the host length, so a host of 256 bytes or more flows on to `coap_resolve_address_info` and overflows `addrstr`. The same host also feeds the `client_sni` buffer, but that path uses snprintf and truncates safely.",
+    "fix": "Reject hosts that are too long, for example `if (server_use->uri.host.length == 0 || server_use->uri.host.length > 255) { response->code = COAP_RESPONSE_CODE(505); return NULL; }`. This is defence in depth. The primary fix belongs in `coap_resolve_address_info`.",
+    "confidence": 0.3
+  },
+  {
+    "rank": 3,
+    "root_cause": {"file": "libcoap/src/coap_uri.c", "function": "coap_split_uri_sub", "line": 202},
+    "explanation": "The host is set with `COAP_SET_STR(&uri->host, q - p, p)` and no maximum host length is enforced. A Proxy-Uri of up to 1034 bytes can therefore yield a host of several hundred bytes. This is only the source of the oversized value, not where the out-of-bounds write happens.",
+    "fix": "Optionally enforce a maximum host length (255, matching the Uri-Host limit) when splitting URIs. The real fix is the bounds check in `coap_resolve_address_info`.",
+    "confidence": 0.1
+  }
+]
+```

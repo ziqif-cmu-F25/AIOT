@@ -1,0 +1,11 @@
+The provided code is a C implementation of the Modbus protocol. It includes functions for creating, initializing, and freeing a Modbus mapping structure. The Modbus mapping structure is used to map the Modbus registers, input registers, bits, and input bits to arrays of bytes.
+
+The `modbus_mapping_new_start_address` function creates a new Modbus mapping structure with the specified start addresses for the registers, bits, input registers, and input bits. It allocates memory for these arrays and initializes them to zero.
+
+The `modbus_mapping_new` function is a wrapper around `modbus_mapping_new_start_address` that sets all start addresses to 0.
+
+The `modbus_mapping_free` function frees the memory allocated for the arrays in the Modbus mapping structure.
+
+The `strlcpy` function is a safer version of the standard `strcpy` function. It ensures that the destination string is always null-terminated, even if the source string is larger than the destination size. This is important to prevent buffer overflows.
+
+Please note that this code is not a complete Modbus implementation, but rather a part of it. It's used as a base for building a complete Modbus library.

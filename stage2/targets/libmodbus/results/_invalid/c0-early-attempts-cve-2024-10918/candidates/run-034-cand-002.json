@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-002",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "An attacker-controlled request with a large 'nb' value in MODBUS_FC_WRITE_MULTIPLE_COILS can cause an out-of-bounds write in modbus_set_bits_from_bytes when writing to tab_bits array.",
+  "evidence_source": "In modbus_reply function (lines 940-976), the mapping_address is calculated as address - start_bits. If the request has a large nb value, and mapping_address + nb exceeds the allocated size of tab_bits, modbus_set_bits_from_bytes will write beyond array bounds.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Out-of-bounds write to the tab_bits array, potentially corrupting memory or causing a segmentation fault.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "The code checks if (mapping_address + nb) > mb_mapping->nb_bits but doesn't validate that mapping_address is non-negative.",
+  "vulnerability_class": "buffer-overflow",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 969
+  },
+  "confidence": 0.9,
+  "model": "deepseek/deepseek-chat-v3.1",
+  "prompt_id": "libmodbus-modbus-reply-ctx@v1",
+  "run_index": 2
+}

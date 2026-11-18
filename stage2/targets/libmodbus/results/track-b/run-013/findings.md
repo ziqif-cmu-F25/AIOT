@@ -1,0 +1,106 @@
+# Candidate findings
+
+Status values: candidate | validated | rejected | inconclusive
+
+Written by stage2/driver/run_task.py. Do not edit; scoring writes
+verdict.md instead. Machine-readable copy: candidates.json.
+
+```yaml
+candidate_id: CAND-001
+viewpoint: ai-source-review
+property: memory-safety
+hypothesis: A client can send a truncated Modbus request whose length is less than
+  header_length+3 bytes. modbus_reply() reads req[offset-1], req[offset], and req[offset+1..+2]
+  without checking req_length, causing an out-of-bounds read on req.
+evidence_source: "In modbus_reply():\n  offset = ctx->backend->header_length;\n  slave\
+  \ = req[offset - 1];\n  function = req[offset];\n  address = (req[offset + 1] <<\
+  \ 8) + req[offset + 2];\nNo prior check that req_length >= offset+3."
+input_artifact: not_available (static source review; no input artifact)
+expected_behavior: With a too-short request, the process may crash (segmentation fault)
+  or sanitizers report an out-of-bounds read when accessing req[offset-1] or req[offset+{0..2}].
+observed_behavior: not_available (static source review; nothing was executed)
+status: candidate
+oracle_verdict: pending
+notes: This affects many subsequent reads in modbus_reply() (e.g., req[offset+3..])
+  because no global minimal-length validation is performed before parsing fields.
+  The defect is attacker-reachable in server mode when passing unvalidated requests
+  to modbus_reply().
+vulnerability_class: out-of-bounds-read
+location:
+  file: src/modbus.c
+  function: modbus_reply
+  line: 797
+confidence: 0.9
+model: openai/gpt-5
+prompt_id: libmodbus-modbus-reply@v1
+run_index: 1
+```
+
+```yaml
+candidate_id: CAND-002
+viewpoint: ai-source-review
+property: memory-safety
+hypothesis: For function MODBUS_FC_WRITE_MULTIPLE_REGISTERS, an attacker can declare
+  nb and nb_bytes consistent (nb_bytes == 2*nb) but truncate the request body so fewer
+  than 2*nb data bytes are present. The for-loop then reads req[offset + j] and req[offset
+  + j + 1] past the end of the buffer.
+evidence_source: "In modbus_reply(), case MODBUS_FC_WRITE_MULTIPLE_REGISTERS:\n  int\
+  \ nb = (req[offset + 3] << 8) + req[offset + 4];\n  int nb_bytes = req[offset +\
+  \ 5];\n  ... only checks: nb < 1 || nb > MAX || nb_bytes != nb*2\n  ...\n  for (i\
+  \ = mapping_address, j = 6; i < mapping_address + nb; i++, j += 2) {\n      mb_mapping->tab_registers[i]\
+  \ = (req[offset + j] << 8) + req[offset + j + 1];\n  }\nNo check that req_length\
+  \ >= offset + 6 + 2*nb before indexing."
+input_artifact: not_available (static source review; no input artifact)
+expected_behavior: If the payload is shorter than declared, the loop will read beyond
+  req, leading to a crash or an out-of-bounds read detected by sanitizers.
+observed_behavior: not_available (static source review; nothing was executed)
+status: candidate
+oracle_verdict: pending
+notes: Even though nb_bytes is checked for internal consistency with nb, it is attacker-controlled
+  and does not guarantee that the buffer actually contains that many bytes. The code
+  trusts the declared counts without verifying the received length.
+vulnerability_class: out-of-bounds-read
+location:
+  file: src/modbus.c
+  function: modbus_reply
+  line: 1007
+confidence: 0.9
+model: openai/gpt-5
+prompt_id: libmodbus-modbus-reply@v1
+run_index: 1
+```
+
+```yaml
+candidate_id: CAND-003
+viewpoint: ai-source-review
+property: memory-safety
+hypothesis: For function MODBUS_FC_WRITE_AND_READ_REGISTERS, an attacker can set nb_write
+  and nb_write_bytes consistent but provide fewer than 2*nb_write data bytes. The
+  subsequent write loop reads req[offset + j] and req[offset + j + 1] past the end
+  of the buffer.
+evidence_source: "In modbus_reply(), case MODBUS_FC_WRITE_AND_READ_REGISTERS:\n  int\
+  \ nb_write = (req[offset + 7] << 8) + req[offset + 8];\n  int nb_write_bytes = req[offset\
+  \ + 9];\n  ... only checks: nb_write < 1 || nb_write > MAX || nb < 1 || nb > MAX\
+  \ || nb_write_bytes != nb_write*2\n  ...\n  for (i = mapping_address_write, j =\
+  \ 10; i < mapping_address_write + nb_write; i++, j += 2) {\n      mb_mapping->tab_registers[i]\
+  \ = (req[offset + j] << 8) + req[offset + j + 1];\n  }\nNo verification that req_length\
+  \ >= offset + 10 + 2*nb_write."
+input_artifact: not_available (static source review; no input artifact)
+expected_behavior: If the request body is truncated, this loop will read past req,
+  likely causing a crash or sanitizer-reported out-of-bounds read.
+observed_behavior: not_available (static source review; nothing was executed)
+status: candidate
+oracle_verdict: pending
+notes: 'This is similar to the MODBUS_FC_WRITE_MULTIPLE_REGISTERS issue: the code
+  trusts declared byte counts without checking the actual buffer length provided to
+  modbus_reply().'
+vulnerability_class: out-of-bounds-read
+location:
+  file: src/modbus.c
+  function: modbus_reply
+  line: 1105
+confidence: 0.9
+model: openai/gpt-5
+prompt_id: libmodbus-modbus-reply@v1
+run_index: 1
+```

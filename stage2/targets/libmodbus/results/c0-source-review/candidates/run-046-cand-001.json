@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "In modbus_reply, if a malicious client sends a request shorter than the minimal PDU (header + function + address), reading address = (req[offset+1]<<8) + req[offset+2] will access beyond the end of req, causing an out-of-bounds read.",
+  "evidence_source": "modbus_reply reads fields without verifying req_length: offset set from backend->header_length, then uses req[offset], req[offset+1], req[offset+2] immediately.\nLines 721-725: slave = req[offset - 1]; function = req[offset]; address = (req[offset + 1] << 8) + req[offset + 2];",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "With a truncated request buffer, AddressSanitizer or valgrind will report an out-of-bounds read; in production this can crash the server.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "No check exists to ensure req_length >= offset+3 before these dereferences. The server relies on external caller/backend to supply a sufficiently long buffer, but attacker-controlled inputs can be shorter.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 723
+  },
+  "confidence": 0.73,
+  "model": "openai/gpt-5",
+  "prompt_id": "libmodbus-0367-source-review@v1",
+  "run_index": 3
+}

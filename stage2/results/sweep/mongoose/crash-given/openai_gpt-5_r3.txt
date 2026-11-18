@@ -1,0 +1,23 @@
+[
+  {
+    "rank": 1,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+    "explanation": "When parsing the chunk-size line, the code checks `if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n')`. For input of length 3, with two hex digits followed by a lone '\\r' (\"ab\\r\"), `i` becomes 2. The condition `len < i + 1` (3 < 3) is false, so it proceeds to read `buf[i + 1]` (buf[3]), which is one byte past the end of the 3‑byte buffer, causing the heap-buffer-overflow. The guard is off-by-one and also misclassifies incomplete data as an error.",
+    "fix": "Split the check to avoid out-of-bounds and return 0 (need more data) when CRLF is incomplete:\nif (len < i + 2) return 0;  // Not enough buffered for CRLF\nif (buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "confidence": 0.95
+  },
+  {
+    "rank": 2,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skiptorn", "line": 231},
+    "explanation": "The condition `if (s >= end || (s[0] == '\\r' && s[1] != '\\n')) return NULL;` can read `s[1]` when `s` points to the last byte and equals '\\r' (incomplete CRLF), causing an out-of-bounds read.",
+    "fix": "Ensure `s + 1 < end` before reading `s[1]`, e.g.: `if (s >= end || (s[0] == '\\r' && (s + 1 >= end || s[1] != '\\n))) return NULL;`",
+    "confidence": 0.6
+  },
+  {
+    "rank": 3,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "mg_http_parse_headers", "line": 246},
+    "explanation": "The line `if (s[0] == '\\n' || (s[0] == '\\r' && s[1] == '\\n')) break;` dereferences `s[1]` without checking that `s + 1 < end`. If `s` is the last byte and is '\\r' (incomplete CRLF), this can read past the end.",
+    "fix": "Guard the second byte: `if (s[0] == '\\n' || (s[0] == '\\r' && s + 1 < end && s[1] == '\\n')) break;`",
+    "confidence": 0.5
+  }
+]

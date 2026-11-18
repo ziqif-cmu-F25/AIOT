@@ -1,0 +1,22 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "source-agentic",
+  "property": "memory-safety",
+  "hypothesis": " HYPOTHESIS: A function code handler might have an integer overflow or buffer overflow when calculating the size of a read/write operation based on untrusted quantity/address values.\nREAD src/modbus.c 1 50 HYPOTHESIS: The main parsing/dispatching logic is likely in modbus.c. I need to find the function that handles incoming requests and dispatches based on function code.\nREAD src/modbus.c 200 300 HYPOTHESIS: The compute_meta_length_after_function function shows how the parser determines how much",
+  "evidence_source": " HYPOTHESIS: A function code handler might have an integer overflow or buffer overflow when calculating the size of a read/write operation based on untrusted quantity/address values.\nREAD src/modbus.c 1 50 HYPOTHESIS: The main parsing/dispatching logic is likely in modbus.c. I need to find the funct",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "C1 agentic condition (C1-orig), 15 turns. Status: turn_limit_reached. Did not clearly identify target CVE.",
+  "vulnerability_class": "unknown",
+  "location": {
+    "file": "src/modbus.c",
+    "function": "modbus_reply"
+  },
+  "confidence": 0.5,
+  "model": "deepseek/deepseek-chat-v3.1",
+  "prompt_id": "libmodbus-C1-orig@v1",
+  "run_index": 1
+}

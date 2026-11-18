@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-006",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "In _modbus_receive_msg, the computed length_to_read may be very large due to attacker-controlled data, leading to a buffer overflow in the recv call.",
+  "evidence_source": "Lines 492-493: 'length_to_read = compute_data_length_after_meta(ctx, msg, msg_type);' and line 436: 'rc = ctx->backend->recv(ctx, msg + msg_length, length_to_read);' The computed length may exceed the buffer size.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Buffer overflow when receiving data, as length_to_read may be larger than the remaining space in the msg buffer.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "The msg buffer is of fixed size MAX_MESSAGE_LENGTH (260), but the computed length_to_read is not checked against the remaining buffer space.",
+  "vulnerability_class": "buffer-overflow",
+  "location": {
+    "file": "modbus.c",
+    "function": "_modbus_receive_msg",
+    "line": 436
+  },
+  "confidence": 0.7,
+  "model": "deepseek/deepseek-chat-v3.1",
+  "prompt_id": "libmodbus-modbus-reply@v1",
+  "run_index": 3
+}

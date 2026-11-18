@@ -1,0 +1,15 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "src/modbus.c",
+      "function": "modbus_reply",
+      "line": 980
+    },
+    "bug_class": "oob-write",
+    "hypothesis": "Line 964 repeats the read-address lower-bound check instead of checking mapping_address_write, allowing a write address below start_registers to reach line 980 and write before tab_registers.",
+    "vulnerable_line": "mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];",
+    "trigger_condition": "For a mapping with start_registers=100 and nb_registers=10, send a WRITE_AND_READ_REGISTERS request with read address=100, read count=1, write address=99, write count=1, byte count=2, and two payload bytes. mapping_address_write becomes -1, all shown validation checks pass, and the payload is written to tab_registers[-1].",
+    "confidence": 1.0
+  }
+]

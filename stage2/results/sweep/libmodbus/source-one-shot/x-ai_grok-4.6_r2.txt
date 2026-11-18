@@ -1,0 +1,22 @@
+[{
+  "rank": 1,
+  "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 962},
+  "vulnerability_class": "oob-write",
+  "hypothesis": "A crafted FC 0x17 (WRITE_AND_READ_REGISTERS) request can heap-write out of bounds into mb_mapping->tab_registers. The bounds check copy-pastes `mapping_address < 0` twice and never tests `mapping_address_write < 0`. If the mapping uses a non-zero start_registers (supported by modbus_mapping_new_start_address) and the write address is below that start, mapping_address_write is negative; `(mapping_address_write + nb_write) > nb_registers` can still be false, so the loop at 978-982 writes at negative indices. Read address/nb only need to be valid so the first clauses pass. Network-attacker-controlled.",
+  "evidence": "} else if (mapping_address < 0 ||\n           (mapping_address + nb) > mb_mapping->nb_registers ||\n           mapping_address < 0 ||\n           (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\n...\n            for (i = mapping_address_write, j = 10;\n                 i < mapping_address_write + nb_write; i++, j += 2) {\n                mb_mapping->tab_registers[i] =\n                    (req[offset + j] << 8) + req[offset + j + 1];\n            }",
+  "confidence": 0.93
+}, {
+  "rank": 2,
+  "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 724},
+  "vulnerability_class": "oob-read",
+  "hypothesis": "modbus_reply always reads req[offset+1] and req[offset+2] (and req[offset-1]) without checking req_length. For indication function codes whose meta-length is 0 (unknown functions, REPORT_SLAVE_ID, READ_EXCEPTION_STATUS), _modbus_receive_msg only delivers header+function[+CRC]. A caller that sizes the buffer to the returned length (or a short stack buffer) is then over-read. Even with a MAX_ADU-sized buffer this is an uninitialized read of two bytes past the received PDU.",
+  "evidence": "offset = ctx->backend->header_length;\n    slave = req[offset - 1];\n    function = req[offset];\n    address = (req[offset + 1] << 8) + req[offset + 2];",
+  "confidence": 0.62
+}, {
+  "rank": 3,
+  "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 810},
+  "vulnerability_class": "buffer-overflow",
+  "hypothesis": "Write-single / mask-write success paths memcpy(rsp, req, req_length) into a 260-byte stack buffer with no check that req_length <= MAX_MESSAGE_LENGTH. If a backend receive ever returns a larger length (or the public API is called directly with a network-sized buffer), this is a stack overflow. Same pattern at the WRITE_SINGLE_REGISTER and MASK_WRITE_REGISTER copies.",
+  "evidence": "if (data == 0xFF00 || data == 0x0) {\n                mb_mapping->tab_bits[mapping_address] = data ? ON : OFF;\n                memcpy(rsp, req, req_length);\n                rsp_length = req_length;",
+  "confidence": 0.38
+}]

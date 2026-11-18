@@ -1,0 +1,41 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "modbus.c",
+      "function": "modbus_reply",
+      "line": 980
+    },
+    "bug_class": "oob-write",
+    "hypothesis": "An out-of-bounds write occurs when nb_write is large enough that mapping_address_write + nb_write exceeds mb_mapping->nb_registers, allowing writing beyond the tab_registers array.",
+    "vulnerable_line": "mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];",
+    "trigger_condition": "nb_write passes the initial bounds check but mapping_address_write + nb_write > mb_mapping->nb_registers due to insufficient validation in the second condition (line 965 checks mapping_address_write + nb_write > mb_mapping->nb_registers but the condition is incorrectly written with mapping_address < 0 duplicated instead of mapping_address_write < 0).",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "modbus.c",
+      "function": "modbus_reply",
+      "line": 986
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "An out-of-bounds read occurs when nb is large enough that mapping_address + nb exceeds mb_mapping->nb_registers, allowing reading beyond the tab_registers array for the response.",
+    "vulnerable_line": "rsp[rsp_length++] = mb_mapping->tab_registers[i] >> 8;",
+    "trigger_condition": "nb passes the initial bounds check but mapping_address + nb > mb_mapping->nb_registers due to insufficient validation in the second condition (line 963 checks this correctly, but the condition is bypassed if mapping_address_write is invalid instead).",
+    "confidence": 0.8
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "modbus.c",
+      "function": "modbus_reply",
+      "line": 965
+    },
+    "bug_class": "other",
+    "hypothesis": "The condition on line 965 incorrectly duplicates 'mapping_address < 0' instead of checking 'mapping_address_write < 0', allowing negative mapping_address_write to bypass validation and lead to out-of-bounds access.",
+    "vulnerable_line": "mapping_address < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers",
+    "trigger_condition": "mapping_address_write is negative (due to address_write < mb_mapping->start_registers) but the condition fails to catch it because it checks mapping_address instead.",
+    "confidence": 0.7
+  }
+]

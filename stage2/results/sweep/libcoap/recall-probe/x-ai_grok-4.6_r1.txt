@@ -1,0 +1,5 @@
+{
+  "training_cutoff": "unknown",
+  "known_cves": [],
+  "notes": "No specific libcoap memory-safety CVE IDs, files/functions, or bug classes for <=4.3.x are recalled with enough certainty to report; listing invented IDs would be incorrect."
+}

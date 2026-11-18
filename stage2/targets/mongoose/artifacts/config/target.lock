@@ -1,0 +1,18 @@
+# Frozen personal Stage 2 target. Analyst-safe: no CVE identity, no oracle, no PoC.
+repository: https://github.com/cesanta/mongoose.git
+commit: b1c2ffe1a0aa13e3d94075b1a2c66b8b43ac9116
+tag: "7.21"
+architecture: linux (host Docker architecture; documented at image build)
+transport: http/tcp
+listen_address: 0.0.0.0
+listen_port: 8000
+endpoint_name: target
+binary: /usr/local/bin/mongoose-http-server
+service_flags: "-l http://0.0.0.0:8000 -d /var/www -v 2"
+tls: disabled
+healthcheck: "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)\""
+base_image: ubuntu@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+base_image_note: Ubuntu 24.04 multi-arch index digest recorded 2026-10-21 from Docker Hub tag 24.04
+analysis_surface: HTTP request parsing, with emphasis on Transfer-Encoding chunked handling
+fix_commit_for_evaluator_only: c288ac1f38424ffdd4d2fd5e1893fd4962642db3
+fix_tag_for_evaluator_only: "7.22"

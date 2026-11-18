@@ -1,0 +1,43 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "src/coap_net.c",
+      "function": "coap_resolve_address_info",
+      "line": 538
+    },
+    "bug_class": "buffer-overflow",
+    "hypothesis": "A long address string from the network can cause a static buffer overflow due to an unchecked memcpy, potentially leading to a denial of service or remote code execution.",
+    "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "The function is called with an `address` where `address->length` is greater than 255, causing `memcpy` to write past the end of the 256-byte `addrstr` buffer.",
+    "confidence": 1.0
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "src/coap_net.c",
+      "function": "coap_resolve_address_info",
+      "line": 556
+    },
+    "bug_class": "other",
+    "hypothesis": "The code dereferences the `info` pointer before it is initialized, causing a guaranteed NULL pointer dereference and a crash.",
+    "vulnerable_line": "if (ainfo->ai_addrlen > (socklen_t)sizeof(info->addr.addr))",
+    "trigger_condition": "Any call where `getaddrinfo` returns at least one result will trigger the crash, as `info` is initialized to NULL and only assigned a value inside a nested loop that has not yet been entered.",
+    "confidence": 1.0
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "src/coap_net.c",
+      "function": "coap_resolve_address_info",
+      "line": 547
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "An address string with a specific length can leave the `addrstr` buffer without a null terminator, causing `getaddrinfo` to read out of bounds.",
+    "vulnerable_line": "error = getaddrinfo(addrstr, NULL, &hints, &res);",
+    "trigger_condition": "The function is called with an `address` where `address->length` is exactly 256, which fills the `addrstr` buffer completely but does not add a null terminator, leading to an out-of-bounds read by `getaddrinfo`.",
+    "confidence": 1.0
+  }
+]
+```

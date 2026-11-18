@@ -1,0 +1,13 @@
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "libcoap/src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 537
+    },
+    "explanation": "The check at line 537 only tests whether address exists and its length is nonzero; it does not bound that length against the static addrstr[256] declared at line 498. Consequently, line 538 copies address->length bytes into a 256-byte global buffer. The reported 300-byte write matches this memcpy with address->length == 300, overrunning the buffer by 44 bytes. A network-controlled Proxy-Uri host can reach this copy through coap_split_proxy_uri(), coap_proxy_get_session(), and the resolver call at coap_proxy.c:420. The Proxy-Uri option's 1034-byte limit does not constrain its host to fit addrstr. A length of exactly 256 must also be rejected: it would overwrite every zero installed by memset, leaving no guaranteed NUL terminator for getaddrinfo().",
+    "fix": "Before the copy at line 538, reject oversized addresses: if (address && address->length >= sizeof(addrstr)) return NULL; Retain the existing memset and copy/default-localhost logic. This permits at most 255 address bytes and reserves a NUL terminator. Do not merely skip the copy on oversized input, since that would incorrectly fall back to localhost.",
+    "confidence": 1.0
+  }
+]

@@ -1,0 +1,19 @@
+{
+  "meta": {"prompt_id": "mongoose-chunked-review@v1", "model": "cursor-composer", "run_index": 2, "role": "fixed-prompt-repeat", "cost_usd": null},
+  "candidates": [
+    {
+      "hypothesis": "Incomplete chunk terminator CR without LF causes OOB read past logical buffer length.",
+      "vulnerability_class": "out-of-bounds-read",
+      "location": {"file": "mongoose/http_chunk_excerpt.c", "function": "skip_chunk", "line": 17},
+      "confidence": 0.82,
+      "notes": "Trigger sketch: body '12\\r'"
+    },
+    {
+      "hypothesis": "Missing Transfer-Encoding validation could confuse Content-Length with chunked.",
+      "vulnerability_class": "other-memory-safety",
+      "location": {"file": "mongoose/http_chunk_excerpt.c", "function": "http_cb", "line": 64},
+      "confidence": 0.25,
+      "notes": "Weak; excerpt alone does not prove CL+TE smuggling in 7.21."
+    }
+  ]
+}

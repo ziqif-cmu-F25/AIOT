@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "An attacker-controlled request with a large 'nb' value in MODBUS_FC_READ_COILS or MODBUS_FC_READ_DISCRETE_INPUTS function can cause an out-of-bounds read in the response_io_status function when accessing tab_io_status array.",
+  "evidence_source": "In modbus_reply function (lines 806-843), the mapping_address is calculated as address - start_bits. If the request has a large nb value, and the mapping_address + nb exceeds the allocated size of tab_bits/tab_input_bits, response_io_status will read beyond the array bounds.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Out-of-bounds read from the tab_bits or tab_input_bits arrays, potentially leaking sensitive memory or causing a segmentation fault.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "The code checks if (mapping_address + nb) > nb_bits but doesn't validate that mapping_address is non-negative, allowing negative indexing.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "response_io_status",
+    "line": 721
+  },
+  "confidence": 0.9,
+  "model": "deepseek/deepseek-chat-v3.1",
+  "prompt_id": "libmodbus-modbus-reply-ctx@v1",
+  "run_index": 2
+}

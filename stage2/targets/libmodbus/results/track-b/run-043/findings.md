@@ -1,0 +1,46 @@
+# Candidate findings
+
+Status values: candidate | validated | rejected | inconclusive
+
+Written by stage2/driver/run_task.py. Do not edit; scoring writes
+verdict.md instead. Machine-readable copy: candidates.json.
+
+```yaml
+candidate_id: CAND-001
+viewpoint: ai-source-review
+property: memory-safety
+hypothesis: In the MODBUS_FC_WRITE_AND_READ_REGISTERS handler, the address check tests
+  'mapping_address < 0' twice and never tests 'mapping_address_write < 0'. An attacker
+  can send a write address (address_write) lower than mb_mapping->start_registers,
+  for example when the mapping starts at a non-zero address. mapping_address_write
+  then becomes negative, and the write loop at lines 978-982 stores attacker-controlled
+  values at mb_mapping->tab_registers[negative index]. This is a heap buffer underflow
+  (out-of-bounds write).
+evidence_source: Line 953 computes 'int mapping_address_write = address_write - mb_mapping->start_registers;'.
+  The check at lines 962-965 reads 'mapping_address < 0 || (mapping_address + nb)
+  > nb_registers || mapping_address < 0 || (mapping_address_write + nb_write) > nb_registers';
+  the second 'mapping_address < 0' should be 'mapping_address_write < 0'. The loop
+  at lines 978-981 then executes 'mb_mapping->tab_registers[i] = ...' with i starting
+  at mapping_address_write.
+input_artifact: not_available (static source review; no input artifact)
+expected_behavior: Set up a server whose mapping has start_registers > 0. Send FC
+  0x17 with a valid read address and a write address below start_registers. ASan should
+  report a heap-buffer-overflow (write before the tab_registers allocation), or the
+  heap is silently corrupted.
+observed_behavior: not_available (static source review; nothing was executed)
+status: candidate
+oracle_verdict: pending
+notes: 'This matches CVE-2022-0367. The upper-bound check alone does not catch the
+  case: a negative mapping_address_write plus a small nb_write stays at or below nb_registers.
+  With start_registers == 0, address_write is a uint16_t, so the index cannot go negative;
+  the defect requires a shifted mapping.'
+vulnerability_class: buffer-overflow
+location:
+  file: modbus.c
+  function: modbus_reply
+  line: 964
+confidence: 0.85
+model: anthropic/claude-opus-5.5
+prompt_id: libmodbus-0367-source-review@v1
+run_index: 3
+```

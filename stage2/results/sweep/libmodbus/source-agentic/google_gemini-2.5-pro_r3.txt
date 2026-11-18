@@ -1,0 +1,15 @@
+FINAL
+```json
+{
+  "rank": 1,
+  "location": {
+    "file": "libmodbus/src/modbus.c",
+    "function": "_modbus_receive_msg",
+    "line": 405
+  },
+  "vulnerability_class": "buffer-overflow",
+  "hypothesis": "A malicious Modbus server can send a response with a crafted length field, causing a heap-based buffer overflow. The public API function `modbus_receive_confirmation` accepts a caller-allocated buffer `rsp`. This buffer is passed to `_modbus_receive_msg`, which determines the remaining data length by reading a byte from the response itself (in `compute_data_length_after_meta`). The code then attempts to `recv` this many bytes into the caller's buffer. The only size validation checks against the protocol's maximum possible packet length (`max_adu_length`), not the actual size of the provided buffer. If a user allocates a buffer smaller than this maximum (which is likely), a malicious server can specify a length greater than the buffer's size but less than `max_adu_length`, triggering a heap overflow.",
+  "evidence": "1. The public API `modbus_receive_confirmation` takes a user-provided buffer `rsp` and passes it to `_modbus_receive_msg`.\n   `libmodbus/src/modbus.c:508:     return _modbus_receive_msg(ctx, rsp, MSG_CONFIRMATION);`\n\n2. In `_modbus_receive_msg`, after reading the initial part of the response, `compute_data_length_after_meta` is called to get the length of the remaining data.\n   `libmodbus/src/modbus.c:449:                 length_to_read = compute_data_length_after_meta(`\n\n3. `compute_data_length_after_meta` reads this length directly from the (untrusted) response data.\n   `libmodbus/src/modbus.c:315:             length = msg[ctx->backend->header_length + 1];`\n\n4. The only check on this length is against the backend's maximum ADU length, not the size of the `msg` buffer provided by the caller.\n   `libmodbus/src/modbus.c:451:                 if ((msg_length + length_to_read) > (int)ctx->backend->max_adu_length) {`\n\n5. The code then calls `recv` with the attacker-controlled length, writing into the potentially undersized buffer.\n   `libmodbus/src/modbus.c:405:         rc = ctx->backend->recv(ctx, msg + msg_length, length_to_read);`",
+  "confidence": 1.0
+}
+```

@@ -1,0 +1,12 @@
+{
+  "meta": {"prompt_id": "mongoose-chunked-review@v1", "model": "cursor-composer", "run_index": 3, "role": "fixed-prompt-repeat", "cost_usd": null},
+  "candidates": [
+    {
+      "hypothesis": "When hex length prefix ends and only one byte remains that is CR, buf[i+1] is read out of bounds.",
+      "vulnerability_class": "out-of-bounds-read",
+      "location": {"file": "mongoose/http_chunk_excerpt.c", "function": "skip_chunk", "line": 17},
+      "confidence": 0.88,
+      "notes": "Trigger sketch: body 'ff\\r'"
+    }
+  ]
+}

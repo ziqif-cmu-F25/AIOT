@@ -1,0 +1,7 @@
+{
+  "hypothesis": "The unchecked memcpy(addrstr, address->s, address->length) writes beyond the static 256-byte addrstr buffer when an attacker-controlled Proxy-Uri hostname has address->length greater than 256.",
+  "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+  "bug_class": "buffer-overflow",
+  "trigger_condition": "A proxy request supplies a hostname longer than 256 bytes, reaching this function with address non-NULL and address->length > sizeof(addrstr), without any destination-size check before the copy.",
+  "confidence": 1.0
+}

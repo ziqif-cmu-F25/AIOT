@@ -1,0 +1,7 @@
+```json
+{
+  "hex_bytes": "61620D0A",
+  "explanation": "The HTTP request consists of a chunked body with the following components:\n- '6162' represents the chunk size 'ab' in hexadecimal, which is 170 in decimal.\n- '0D0A' represents the CRLF sequence, which is the end of the chunk header.\n- The body of the chunk is empty, as the chunk size is 0.\nThis request triggers the bug because the length check `len < i + 1` allows `i` to be equal to `len - 1`, and the subsequent access `buf[i + 1]` reads one byte past the buffer, leading to a one-byte heap OOB read.",
+  "expected_effect": "The sanitizer should report a heap out-of-bounds read vulnerability."
+}
+```

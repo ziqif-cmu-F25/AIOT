@@ -1,0 +1,13 @@
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 964
+    },
+    "explanation": "In the MODBUS_FC_WRITE_AND_READ_REGISTERS branch, line 964 repeats the read-side check `mapping_address < 0` instead of checking `mapping_address_write < 0`. The write index is computed at line 953 as `address_write - mb_mapping->start_registers`; it is negative when the requested write address is below the mapping's starting register. A valid read range and valid write quantity can therefore pass all checks: the write-side upper-bound check at line 965 does not reject a negative starting index. The loop at lines 978–981 initializes i to that negative index and writes to `mb_mapping->tab_registers[i]` at line 980, before the allocated register array, matching the reported WRITE fault.",
+    "fix": "Replace line 964 with `mapping_address_write < 0 ||`. The complete range check must be: `else if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address_write < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers)`. Keep the existing illegal-data-address exception handling.",
+    "confidence": 1.0
+  }
+]

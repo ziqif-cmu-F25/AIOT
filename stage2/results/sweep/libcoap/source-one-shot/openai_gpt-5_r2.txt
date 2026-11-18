@@ -1,0 +1,26 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libcoap/src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 539
+    },
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "A stack-based buffer overflow occurs when resolving a host name longer than 256 bytes. An attacker can send a CoAP request to a proxy with a Proxy-Uri (or Proxy-Scheme + Uri-Host) whose host component exceeds 256 bytes. That host is later passed to coap_resolve_address_info(), which memcpy()s it into a fixed 256-byte local buffer without bounds checking, overflowing the stack.",
+    "evidence": "static char addrstr[256];\n...\nmemset(addrstr, 0, sizeof(addrstr));\nif (address && address->length)\n  memcpy(addrstr, address->s, address->length);  // no bounds check\nelse\n  memcpy(addrstr, \"localhost\", 9);\n...\nerror = getaddrinfo(addrstr, NULL, &hints, &res);\n\nCall path from network input (proxy):\n- coap_proxy_get_ongoing_session() ->\n  info_list = coap_resolve_address_info(&server_use->uri.host, ...);\n  (coap_proxy.c: lines ~420-428)\n- server_use->uri.host comes from parsing Proxy-Uri / Proxy-Scheme + Uri-Host (coap_split_proxy_uri / coap_get_uri_proxy_scheme_info), where Proxy-Uri is allowed up to length 1034 (coap_pdu.c: coap_pdu_parse_opt_base(), case COAP_OPTION_PROXY_URI).",
+    "confidence": 0.95
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "libcoap/src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 539
+    },
+    "vulnerability_class": "oob-read",
+    "hypothesis": "If the host length is exactly 256 bytes, memcpy() fills the entire 256-byte buffer, removing the zero terminator that memset() had provided. The code then calls getaddrinfo() with a non-NUL-terminated string, causing getaddrinfo() to read past the end of addrstr in search of a NUL. This can result in out-of-bounds read of adjacent stack memory.",
+    "evidence": "static char addrstr[256];\nmemset(addrstr, 0, sizeof(addrstr));\nif (address && address->length)\n  memcpy(addrstr, address->s, address->length); // if length == 256, no NUL\n...\nerror = getaddrinfo(addrstr, NULL, &hints, &res); // expects NUL-terminated string",
+    "confidence": 0.8
+  }
+]

@@ -1,0 +1,7 @@
+{
+  "raw_message": "0x440100b4ffffffffdeadbeef3901ff" + "a".repeat(300) + "2f70617468",
+  "proxy_uri_value": "coap://" + "a".repeat(300) + "/path",
+  "explanation": "The Proxy-Uri option (number 35) contains a URI with a hostname portion longer than 256 bytes. When coap_split_proxy_uri() parses this URI, it extracts the hostname into uri.host, which gets passed to coap_resolve_address_info(). The memcpy(addrstr, address->s, address->length) call then copies 300 bytes into the 256-byte static buffer addrstr, causing a buffer overflow.",
+  "delivery_notes": "This 331-byte CoAP message must be sent as a single UDP datagram. The total size is within typical UDP MTU limits (1500 bytes), so no IP fragmentation should be required for delivery over standard Ethernet networks.",
+  "confidence": 0.95
+}

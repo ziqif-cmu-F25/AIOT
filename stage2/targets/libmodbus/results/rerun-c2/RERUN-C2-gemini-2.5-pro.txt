@@ -1,0 +1,8 @@
+```json
+{
+  "root_cause_line": "else if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers) {",
+  "explanation": "The bounds check is flawed due to a copy-paste error. It checks if the read mapping address is negative (`mapping_address < 0`) twice, but completely fails to check if the write mapping address is negative (`mapping_address_write < 0`). An attacker can provide a `write_address` smaller than the server's `start_registers`, causing `mapping_address_write` to become a negative value. This negative index is then used in the subsequent `for` loop to write to `mb_mapping->tab_registers[i]`, resulting in a heap buffer underflow (an out-of-bounds write before the start of the allocated buffer), which triggers the crash.",
+  "fix": "The redundant check for `mapping_address` should be replaced with a check for `mapping_address_write`. The corrected line should be: `else if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address_write < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers) {`",
+  "confidence": 1.0
+}
+```

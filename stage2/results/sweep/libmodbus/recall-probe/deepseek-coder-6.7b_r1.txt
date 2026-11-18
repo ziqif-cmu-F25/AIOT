@@ -1,0 +1,5 @@
+{
+  "training_cutoff": "unknown",
+  "known_cves": [],
+  "notes": "I don't have any information about the training data cutoff date or about any known memory safety vulnerabilities in libmodbus."
+}

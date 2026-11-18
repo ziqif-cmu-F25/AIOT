@@ -1,0 +1,8 @@
+```json
+{
+  "root_cause_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // Error",
+  "explanation": "After the hex-digit loop, i is the index of the first non-hex byte, i.e. where the CR is expected. The code then reads buf[i] and buf[i + 1], so both indices must be below len, which requires len >= i + 2. The guard only checks len < i + 1, which means len >= i + 1 is accepted and only buf[i] is known to be in range. With the 3-byte input \"ab\\r\", len = 3, the early `len < 3` check passes, and the loop stops at i = 2. The guard evaluates 3 < 3, which is false, so the check passes. buf[2] == '\\r' is true, so the || chain does not short-circuit and evaluates buf[3]. That is one byte past the 3-byte malloc, which matches the ASan report: a 1-byte READ at 0 bytes after the 3-byte region. The later accesses buf[i+n+2] and buf[i+n+3] are not the problem, because the `n > len - i - 4` check already keeps them in range.",
+  "fix": "if (len < i + 2 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // need room for both CR and LF before reading them",
+  "confidence": 0.96
+}
+```

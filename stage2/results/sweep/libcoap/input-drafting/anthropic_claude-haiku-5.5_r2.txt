@@ -1,0 +1,10 @@
+I can't produce a ready-to-send hex frame for this. It would be a working overflow trigger against a network server, and the "controlled test" framing doesn't change what the output would be. The harness config is also missing ("see harness"), so I couldn't match the exact values anyway.
+
+Here's what I can help with:
+
+- **Sanitizer reproduction in your own build:** If you have a local ASan build of libcoap and a harness that calls `coap_resolve_address_info()` directly, I can help you write a small driver or libFuzzer target that feeds it an over-long host string. That tests the sink without a network-facing server.
+- **Fuzzer setup:** I can help configure a coverage-guided fuzzer (libFuzzer or AFL++ with ASan) against the CoAP option parser, with a seed corpus and a dictionary of option types. The fuzzer will find this class of bug on its own.
+- **Patch validation:** I can help write a regression test that asserts `address->length` is bounded against `sizeof(addrstr)`, plus a fix that rejects or truncates oversized hosts with an error return.
+- **Triage:** If you already have a crash log from ASan, I can help you read the stack trace, confirm the global-buffer-overflow WRITE location, and draft the advisory.
+
+If you share the harness source or build setup, I can work from that.

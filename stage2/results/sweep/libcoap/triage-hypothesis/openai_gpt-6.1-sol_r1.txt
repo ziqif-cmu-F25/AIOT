@@ -1,0 +1,41 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "<not provided>",
+      "function": "coap_resolve_address_info",
+      "line": 538
+    },
+    "bug_class": "buffer-overflow",
+    "hypothesis": "The unchecked address->length passed to memcpy allows a network-derived address longer than 256 bytes to overwrite memory beyond the static 256-byte addrstr buffer.",
+    "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "Build without RIOT_VERSION or WITH_CONTIKI; supply a non-NULL address with length greater than 256 and a backing buffer of that length, without taking the Unix-domain early-return path.",
+    "confidence": 1.0
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "<not provided>",
+      "function": "coap_resolve_address_info",
+      "line": 547
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "An address containing exactly 256 non-NUL bytes fills addrstr completely, leaving no string terminator and allowing getaddrinfo to read beyond addrstr while processing its hostname argument.",
+    "vulnerable_line": "error = getaddrinfo(addrstr, NULL, &hints, &res);",
+    "trigger_condition": "Build without RIOT_VERSION or WITH_CONTIKI; supply an address of length 256 whose bytes contain no NUL, without taking the Unix-domain early-return path.",
+    "confidence": 0.98
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "<not provided>",
+      "function": "coap_resolve_address_info",
+      "line": 683
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "The parse-error log formats the length-delimited address->s with unbounded %s, causing a read beyond its backing allocation when a rejected address is not NUL-terminated.",
+    "vulnerable_line": "coap_log_err(\"coap_resolve_address_info: Unable to parse '%s'\\n\", address->s);",
+    "trigger_condition": "Build with RIOT_VERSION and error logging enabled; supply a nonempty, non-NUL-terminated address occupying its entire backing allocation that the enabled IP parsers reject, leaving family equal to AF_UNSPEC.",
+    "confidence": 0.97
+  }
+]

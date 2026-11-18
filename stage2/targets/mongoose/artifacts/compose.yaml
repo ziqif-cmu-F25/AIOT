@@ -1,0 +1,224 @@
+name: mongoose-personal-stage2
+
+x-lab-security: &lab-security
+  read_only: true
+  init: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  mem_limit: 512m
+  cpus: 1.0
+  pids_limit: 256
+  restart: "no"
+
+x-target-build: &target-build
+  context: .
+  dockerfile: docker/target.Dockerfile
+  args:
+    UBUNTU_DIGEST: sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+    MONGOOSE_COMMIT: b1c2ffe1a0aa13e3d94075b1a2c66b8b43ac9116
+    MONGOOSE_TAG: "7.21"
+    MONGOOSE_VARIANT: vulnerable
+
+x-target-fixed-build: &target-fixed-build
+  context: .
+  dockerfile: docker/target.Dockerfile
+  args:
+    UBUNTU_DIGEST: sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+    MONGOOSE_COMMIT: c288ac1f38424ffdd4d2fd5e1893fd4962642db3
+    MONGOOSE_TAG: "7.22"
+    MONGOOSE_VARIANT: fixed
+
+services:
+  target-blackbox:
+    profiles: ["blackbox"]
+    image: mongoose-ps2-target:7.21
+    build: *target-build
+    <<: *lab-security
+    user: "1000:1000"
+    hostname: target
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    networks:
+      blackbox_net:
+        aliases:
+          - target
+    expose:
+      - "8000/tcp"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)\"",
+        ]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      start_period: 5s
+
+  target-whitebox:
+    profiles: ["whitebox"]
+    image: mongoose-ps2-target:7.21
+    build: *target-build
+    <<: *lab-security
+    user: "1000:1000"
+    hostname: target
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    networks:
+      whitebox_net:
+        aliases:
+          - target
+    expose:
+      - "8000/tcp"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)\"",
+        ]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      start_period: 5s
+
+  # Evaluator-only fixed replica for differential oracle checks.
+  target-fixed:
+    profiles: ["evaluator"]
+    image: mongoose-ps2-target:7.22
+    build: *target-fixed-build
+    <<: *lab-security
+    user: "1000:1000"
+    hostname: target-fixed
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    networks:
+      evaluator_net:
+        aliases:
+          - target-fixed
+    expose:
+      - "8000/tcp"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)\"",
+        ]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      start_period: 5s
+
+  blackbox:
+    profiles: ["blackbox"]
+    image: mongoose-ps2-blackbox:7.21
+    build:
+      context: .
+      dockerfile: docker/blackbox.Dockerfile
+      args:
+        UBUNTU_DIGEST: sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+        MONGOOSE_COMMIT: b1c2ffe1a0aa13e3d94075b1a2c66b8b43ac9116
+        MONGOOSE_TAG: "7.21"
+    <<: *lab-security
+    user: "1000:1000"
+    hostname: blackbox
+    working_dir: /workspace
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+      - /home/analyst:size=32m,mode=1777
+    volumes:
+      - ./results/blackbox:/workspace/results
+      - ./workspaces/blackbox/scratch:/workspace/scratch
+    environment:
+      HTTP_HOST: target
+      HTTP_PORT: "8000"
+      LAB_VIEWPOINT: black-box
+      LAB_TOOLS: /opt/lab/tools
+      LAB_RESULTS: /workspace/results
+    networks:
+      - blackbox_net
+    depends_on:
+      target-blackbox:
+        condition: service_healthy
+
+  whitebox:
+    profiles: ["whitebox"]
+    image: mongoose-ps2-whitebox:7.21
+    build:
+      context: .
+      dockerfile: docker/whitebox.Dockerfile
+      args:
+        UBUNTU_DIGEST: sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+        MONGOOSE_COMMIT: b1c2ffe1a0aa13e3d94075b1a2c66b8b43ac9116
+        MONGOOSE_TAG: "7.21"
+    <<: *lab-security
+    user: "1000:1000"
+    hostname: whitebox
+    working_dir: /workspace
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    mem_limit: 2g
+    pids_limit: 512
+    volumes:
+      - ./results/whitebox:/workspace/results
+      - ./workspaces/whitebox/scratch:/workspace/scratch
+    environment:
+      HTTP_HOST: target
+      HTTP_PORT: "8000"
+      LAB_VIEWPOINT: white-box
+      LAB_TOOLS: /opt/lab/tools
+      LAB_RESULTS: /workspace/results
+      MONGOOSE_SRC: /home/analyst/src/mongoose
+      BUILD_DIR: /workspace/scratch/wb-build
+    networks:
+      - whitebox_net
+    depends_on:
+      target-whitebox:
+        condition: service_healthy
+
+  evaluator:
+    profiles: ["evaluator"]
+    image: mongoose-ps2-whitebox:7.21
+    build:
+      context: .
+      dockerfile: docker/whitebox.Dockerfile
+      args:
+        UBUNTU_DIGEST: sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+        MONGOOSE_COMMIT: b1c2ffe1a0aa13e3d94075b1a2c66b8b43ac9116
+        MONGOOSE_TAG: "7.21"
+    <<: *lab-security
+    user: "1000:1000"
+    hostname: evaluator
+    working_dir: /workspace
+    mem_limit: 2g
+    pids_limit: 512
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - ./results/acceptance:/workspace/results
+      - ./evaluator:/opt/lab/evaluator:ro
+      - ./workspaces/whitebox/scratch:/workspace/scratch
+    environment:
+      HTTP_HOST: target-fixed
+      HTTP_PORT: "8000"
+      LAB_VIEWPOINT: evaluator
+      LAB_TOOLS: /opt/lab/tools
+      LAB_RESULTS: /workspace/results
+      MONGOOSE_SRC: /home/analyst/src/mongoose
+    networks:
+      - evaluator_net
+    depends_on:
+      target-fixed:
+        condition: service_healthy
+
+networks:
+  blackbox_net:
+    internal: true
+    driver: bridge
+  whitebox_net:
+    internal: true
+    driver: bridge
+  evaluator_net:
+    internal: true
+    driver: bridge

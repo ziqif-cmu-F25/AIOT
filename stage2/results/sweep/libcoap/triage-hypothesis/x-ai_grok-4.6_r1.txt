@@ -1,0 +1,29 @@
+[
+  {
+    "rank": 1,
+    "location": {"file": "coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+    "bug_class": "buffer-overflow",
+    "hypothesis": "address->length is copied into the fixed 256-byte addrstr with no upper bound, so a network-supplied hostname longer than 256 bytes overflows addrstr.",
+    "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "address != NULL && address->length > sizeof(addrstr) (256)",
+    "confidence": 0.95
+  },
+  {
+    "rank": 2,
+    "location": {"file": "coap_address.c", "function": "coap_resolve_address_info", "line": 547},
+    "bug_class": "oob-read",
+    "hypothesis": "When address->length == 256 the memcpy fills addrstr completely, leaving no NUL terminator, so getaddrinfo() reads past the end of addrstr.",
+    "vulnerable_line": "error = getaddrinfo(addrstr, NULL, &hints, &res);",
+    "trigger_condition": "address != NULL && address->length == 256 (addrstr has no terminating NUL)",
+    "confidence": 0.88
+  },
+  {
+    "rank": 3,
+    "location": {"file": "coap_address.c", "function": "coap_resolve_address_info", "line": 683},
+    "bug_class": "oob-read",
+    "hypothesis": "RIOT/Contiki paths pass address->s (a length-prefixed coap_str_const_t, not necessarily NUL-terminated) to %s and to IP parsers, causing a read past the hostname buffer.",
+    "vulnerable_line": "coap_log_err(\"coap_resolve_address_info: Unable to parse '%s'\\n\", address->s);",
+    "trigger_condition": "address->s is not NUL-terminated (typical for coap_str_const_t) and the parse fails or a C-string parser is invoked",
+    "confidence": 0.72
+  }
+]

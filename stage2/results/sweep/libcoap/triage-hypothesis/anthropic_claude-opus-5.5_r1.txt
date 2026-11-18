@@ -1,0 +1,33 @@
+Line 538 copies `address->length` bytes into the static 256-byte `addrstr` with no length check. The excerpt does not show any other memory-safety issue as clearly as this one.
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "src/coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+    "bug_class": "buffer-overflow",
+    "hypothesis": "The memcpy into the 256-byte static addrstr buffer copies address->length bytes without checking it against sizeof(addrstr). A host string of 256 bytes or more (e.g. from an untrusted URI host or Proxy-Uri) overflows the static buffer and corrupts adjacent global memory; a length of exactly 256 also leaves the string unterminated, so getaddrinfo reads past the buffer.",
+    "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "coap_resolve_address_info is called with an address whose length is >= 256, for example a long host component in a Proxy-Uri or Uri-Host option that a proxy or server resolves.",
+    "confidence": 0.85
+  },
+  {
+    "rank": 2,
+    "location": {"file": "src/coap_address.c", "function": "coap_resolve_address_info", "line": 683},
+    "bug_class": "oob-read",
+    "hypothesis": "In the RIOT build, address->s is a counted string that is not necessarily NUL-terminated, but it is passed to netutils_get_ipv6/netutils_get_ipv4 and printed with %s. These calls read past the end of the host buffer.",
+    "vulnerable_line": "coap_log_err(\"coap_resolve_address_info: Unable to parse '%s'\\n\", address->s);",
+    "trigger_condition": "A host slice taken from inside a received URI option, which is not NUL-terminated, is resolved on RIOT or Contiki builds.",
+    "confidence": 0.35
+  },
+  {
+    "rank": 3,
+    "location": {"file": "src/coap_address.c", "function": "coap_resolve_address_info", "line": 751},
+    "bug_class": "oob-read",
+    "hypothesis": "In the Contiki build, uiplib_ip6addrconv and uiplib_ip4addrconv parse address->s as a C string without regard to address->length. They read beyond the counted string when it is not terminated.",
+    "vulnerable_line": "uiplib_ip4addrconv((const char *)address->s, (uip_ip4addr_t *)&addr_ip) > 0",
+    "trigger_condition": "A non-NUL-terminated host string taken from network input is resolved on a Contiki build.",
+    "confidence": 0.25
+  }
+]
+```

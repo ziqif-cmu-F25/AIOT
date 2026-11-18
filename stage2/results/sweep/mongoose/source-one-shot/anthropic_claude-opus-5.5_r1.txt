@@ -1,0 +1,30 @@
+**Assessment:** I could not find a clear-cut memory-safety bug in this file. The best candidate is a 1-byte over-read in `skip_chunk`, and even that depends on whether the receive buffer has spare capacity past `recv.len`. Confidence is low across the board.
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "A chunked body whose received data ends with the hex length digits plus one more byte (e.g. the body is just 'AB\\r', so len = i+1) passes the guard 'len < i + 1'. The code then reads buf[i+1], which is buf[len]: one byte past the buffered data. In http_cb, s + len equals recv.buf + recv.len, so this reads past the valid receive data. If recv.len == recv.size, it reads past the heap allocation. The guard should be 'len < i + 2'. The chunk pointer is reached through attacker-chosen pipelining and offsets 'o', so the attacker controls where the buffered data ends.",
+    "evidence": "while (i < len && is_hex_digit(buf[i])) i++; ... if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "confidence": 0.4
+  },
+  {
+    "rank": 2,
+    "location": {"file": "mongoose/src/http.c", "function": "http_cb", "line": 1103},
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "The relocation pass trusts skip_chunk's pl and dl values. Any bounds slip in skip_chunk (the length check 'n > len - i - 4' and the terminator reads at buf[i+n+2] and buf[i+n+3]) would let memmove copy dl bytes from s+o+pl beyond recv.len. An attacker-supplied chunk length near the end of the buffer is the trigger.",
+    "evidence": "while ((cl = skip_chunk(s + o, len - o, &pl, &dl)) > 0) { memmove(s + hm.body.len, s + o + pl, (size_t) dl); ...",
+    "confidence": 0.2
+  },
+  {
+    "rank": 3,
+    "location": {"file": "mongoose/src/http.c", "function": "listdir", "line": 779},
+    "vulnerability_class": "oob-write",
+    "hypothesis": "mg_snprintf can return 10 when the length is truncated, and the check 'n > sizeof(tmp)' does not reject that case. memcpy then writes 10 bytes at off-12, overrunning the 9-space Content-Length placeholder into the CRLFCRLF and reading uninitialised bytes from tmp. A directory listing over about 1 GB would be needed.",
+    "evidence": "n = mg_snprintf(tmp, sizeof(tmp), \"%lu\", ...); if (n > sizeof(tmp)) n = 0; memcpy(c->send.buf + off - 12, tmp, n);",
+    "confidence": 0.1
+  }
+]
+```

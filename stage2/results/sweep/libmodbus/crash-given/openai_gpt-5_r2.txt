@@ -1,0 +1,13 @@
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 965
+    },
+    "explanation": "In the MODBUS_FC_WRITE_AND_READ_REGISTERS case, the bounds check for the write-address path is wrong: the condition mistakenly checks 'mapping_address < 0' twice and never checks 'mapping_address_write < 0'. If the crafted request provides a write address before the mapping start, 'mapping_address_write' becomes negative and the bad condition passes, then the loop at lines 979-982 writes to 'mb_mapping->tab_registers[i]' with a negative index, causing an out-of-bounds write (the ASan SEGV at line ~980).",
+    "fix": "In the else-if condition, replace the second 'mapping_address < 0' with 'mapping_address_write < 0':\n} else if (mapping_address < 0 ||\n           (mapping_address + nb) > mb_mapping->nb_registers ||\n           mapping_address_write < 0 ||\n           (mapping_address_write + nb_write) > mb_mapping->nb_registers) {",
+    "confidence": 0.98
+  }
+]

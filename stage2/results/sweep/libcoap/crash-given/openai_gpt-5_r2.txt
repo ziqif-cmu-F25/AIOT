@@ -1,0 +1,7 @@
+{
+  "rank": 1,
+  "root_cause": {"file": "libcoap/src/coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+  "explanation": "The function uses a fixed-size static buffer `addrstr[256]` and copies the provided host into it with `memcpy(addrstr, address->s, address->length)` without checking or clamping `address->length`. If the incoming host length is >= 256 (e.g., from a Proxy-Uri/Proxy-Scheme-derived host), `memcpy` writes past the end of `addrstr`. ASan reports the first invalid write at exactly `addrstr + 256` (0 bytes after the global), consistent with an oversized memcpy.",
+  "fix": "Validate and bound the copy. For example:\n\n  memset(addrstr, 0, sizeof(addrstr));\n  if (address && address->length) {\n    if (address->length >= sizeof(addrstr)) {\n      coap_log_warn(\"coap_resolve_address_info: host too long\\n\");\n      return NULL; /* or clamp if truncation is acceptable */\n    }\n    memcpy(addrstr, address->s, address->length);\n    addrstr[address->length] = '\\0';\n  } else {\n    memcpy(addrstr, \"localhost\", 9);\n  }\n\nAlternatively, clamp: `size_t n = address->length < sizeof(addrstr) - 1 ? address->length : sizeof(addrstr) - 1; memcpy(addrstr, address->s, n); addrstr[n] = '\\0';`",
+  "confidence": 0.98
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "mongoose/src/http.c",
+      "function": "skip_chunk",
+      "line": 1006
+    },
+    "vulnerability_class": "oob-read",
+    "hypothesis": "A network peer sends a request with Transfer-Encoding: chunked and a fragmented body ending in \"12\\r\", withholding the following newline. skip_chunk receives len == 3 and scans two hexadecimal digits, leaving i == 2. The check len < i + 1 is false, and buf[i] is '\\r', so it evaluates buf[i + 1], reading buf[3] beyond the supplied three-byte input. If the received data ends at the receive allocation boundary, this is a heap out-of-bounds read. The parser must establish that two bytes remain after the hexadecimal digits before inspecting both CR and LF.",
+    "evidence": "Network reachability: line 1090 sets len = (int) (c->recv.len - ofs - (size_t) n), and line 1093 calls skip_chunk(s + o, len - o, &pl, &dl).\nVulnerable bounds check:\n1002: if (len < 3) return 0;\n1003: while (i < len && is_hex_digit(buf[i])) i++;\n1004: if (i == 0) return -1;\n1005: if (i > (int) sizeof(int) * 2) return -1;\n1006: if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "confidence": 0.99
+  }
+]

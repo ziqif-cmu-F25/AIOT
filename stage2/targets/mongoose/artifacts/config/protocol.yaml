@@ -1,0 +1,71 @@
+protocol_id: personal-stage2-mongoose-traditional-ai-v1
+task: Traditional vs AI-assisted vulnerability investigation of a frozen Mongoose HTTP/TCP service
+transport: tcp
+scheme: http
+endpoint: target:8000
+public_contract:
+  - HTTP/1.1 request line, headers, and message framing
+  - Transfer-Encoding: chunked body framing (chunk-size CRLF chunk-data CRLF)
+  - Observable replies, connection close/reset, timeouts, and subsequent service health
+threat_model:
+  attacker_controls:
+    - TCP byte stream / raw HTTP request bytes
+    - request sequences on one or more connections
+    - inter-request delay and per-request timeout
+    - source TCP endpoint as assigned by the lab network
+  in_scope:
+    - HTTP parsing and request handling of the frozen mongoose-http-server
+    - memory safety and availability of the target process
+  out_of_scope:
+    - TLS, WebSockets, MQTT, PPP, built-in TCP/IP stack drivers, and physical-layer attacks
+    - attacks against Docker, the host, or other containers
+    - using evaluator-only files or unpublished matching rules
+budgets:
+  default_request_timeout_s: 3
+  sequence_max_requests: 16
+  recommended_run_wallclock_min: 90
+stopping_rules:
+  - Record a candidate when a saved input has a concrete observation.
+  - Stop when the 90-minute investigation budget is reached, even if no candidate is validated.
+validation_contract_public:
+  evidence_types:
+    - independently replayable external timeout, reset, unexpected reply, or service unavailability
+    - white-box sanitizer or debugger evidence from a permitted instrumented replica
+    - evaluator oracle result on a freshly started frozen target using the same saved bytes
+  insufficient_alone:
+    - a single timeout without a health-check follow-up
+    - source-location guess without a saved replayable request
+    - model confidence or code-match score without runtime evidence
+  hidden_oracle: retained by the evaluator only
+viewpoints:
+  black-box:
+    network: true
+    source: false
+    debugger: false
+    sanitizer_output: false
+    evaluator_files: false
+  white-box:
+    network: true
+    source: approved-revision-only
+    debugger: true
+    sanitizer_output: true
+    evaluator_files: false
+  ai-assisted:
+    network: true
+    source: approved-revision-only (same white-box allow-list)
+    debugger: true
+    sanitizer_output: true
+    evaluator_files: false
+    ai_use: review selected source ranges and draft candidate HTTP inputs; human must review and validate
+information_boundary:
+  analysts_may_see:
+    - config/target.lock
+    - config/protocol.yaml
+    - docs/protocol/*
+    - frozen source at the pinned commit (white-box / AI only)
+    - tools for send/replay and run logging
+  analysts_must_not_see:
+    - evaluator/*
+    - vulnerability identity, CVE id, patch commit discussion framed as the answer
+    - reference PoC bytes stored under evaluator/
+    - comparison report conclusions written before both runs finish

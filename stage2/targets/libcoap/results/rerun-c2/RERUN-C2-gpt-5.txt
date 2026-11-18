@@ -1,0 +1,6 @@
+{
+  "root_cause_line": "memcpy(addrstr, address->s, address->length);",
+  "explanation": "addrstr is a fixed 256-byte static buffer. When coap-server is used as a forward proxy, the Proxy-Uri hostname (parsed into address->s with length address->length) can exceed 256 bytes. The code copies address->length bytes into addrstr without checking that address->length <= sizeof(addrstr)-1, causing a write past the end of addrstr (e.g., 300 bytes) and a global-buffer-overflow. There is also no guarantee of NUL-termination for getaddrinfo when the source length is >= 256.",
+  "fix": "Replace the memcpy with a bounded copy and explicit NUL-termination, e.g.:\n\n  size_t src_len;\n  const char *src;\n  if (address && address->length) {\n    src = (const char *)address->s;\n    src_len = address->length;\n  } else {\n    src = \"localhost\";\n    src_len = strlen(src);\n  }\n  if (src_len >= sizeof(addrstr))\n    src_len = sizeof(addrstr) - 1;\n  memcpy(addrstr, src, src_len);\n  addrstr[src_len] = '\\0';\n\nOptionally, drop the prior memset(addrstr, 0, sizeof(addrstr)) as the explicit terminator suffices.",
+  "confidence": 0.96
+}

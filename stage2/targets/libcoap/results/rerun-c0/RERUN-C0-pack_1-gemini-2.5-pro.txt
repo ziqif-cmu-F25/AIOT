@@ -1,0 +1,45 @@
+
+CANDIDATES (ranked, most likely first, max 5):
+1. file: `src/coap_uri.c` / function: `coap_get_uri_path` / approx line: 1000
+   bug class: Heap-based Buffer Overflow
+   reasoning (quote the specific code line(s) involved):
+   The function calculates the required size for a path string by iterating through all `Uri-Path` options in a first pass. This calculated `length` can overflow if a malicious client sends a large number of `Uri-Path` options. The subsequent allocation `coap_new_string(length)` will then create an undersized buffer. A second pass over the same options then writes past the end of this small buffer, causing a heap overflow.
+   ```c
+   // src/coap_uri.c:995
+   coap_string_t *
+   coap_get_uri_path(const coap_pdu_t *request) {
+     // ...
+     size_t length = 0;
+     // ...
+     // First pass: Integer overflow can happen here
+     while ((q = coap_option_next(&opt_iter))) {
+       // ...
+       length += 1; // for '/'
+       // ...
+       for (i = 0; i < seg_len; i++) {
+         if (is_unescaped_in_path(seg[i]))
+           length += 1;
+         else
+           length += 3; // for percent encoding
+       }
+     }
+     // ...
+     // Allocation of a small buffer if 'length' has wrapped around
+     uri_path = coap_new_string(length);
+     if (uri_path) {
+       // ...
+       // Second pass: Heap buffer overflow happens here
+       while ((q = coap_option_next(&opt_iter))) {
+         // ...
+         *s++ = '/';
+         // ...
+         // This loop writes past the end of uri_path->s
+       }
+     }
+     return uri_path;
+   }
+   ```
+   how untrusted input reaches it (trace the data flow):
+   An attacker sends a CoAP request PDU from the network. This PDU contains a crafted series of `COAP_OPTION_URI_PATH` options designed to make the total reconstructed path length exceed `SIZE_MAX`. When server-side logic calls `coap_get_uri_path()` on this request, the vulnerability is triggered.
+   triggering input characteristics:
+   A CoAP request with a large number of `Uri-Path` options, such that the cumulative length calculated for the full path string (including separators and percent-encoding expansion) overflows the `size_t` type. On a 32-bit system, this would be a total length greater than 4GB.

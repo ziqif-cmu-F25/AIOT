@@ -1,0 +1,28 @@
+FINAL
+
+{
+  "rank": 1,
+  "location": {"file": "libcoap/src/coap_pdu.c", "function": "coap_pdu_resize", "line": 300},
+  "vulnerability_class": "integer-overflow",
+  "hypothesis": "An attacker can craft a CoAP PDU with very large option sizes that cause integer overflow in coap_pdu_resize when calculating new_size + pdu->max_hdr_size, leading to insufficient memory allocation and subsequent buffer overflow",
+  "evidence": "new_hdr = (uint8_t *)coap_realloc_type(COAP_PDU_BUF, pdu->token - pdu->max_hdr_size, new_size + pdu->max_hdr_size);",
+  "confidence": 0.8
+}
+
+{
+  "rank": 2,
+  "location": {"file": "libcoap/src/coap_option.c", "function": "coap_opt_encode_size", "line": 368},
+  "vulnerability_class": "integer-overflow",
+  "hypothesis": "An attacker can provide a very large length parameter to coap_opt_encode_size, causing integer overflow when adding n + length, which could lead to incorrect size calculations and buffer overflows",
+  "evidence": "return n + length;",
+  "confidence": 0.7
+}
+
+{
+  "rank": 3,
+  "location": {"file": "libcoap/src/coap_pdu.c", "function": "coap_pdu_check_resize", "line": 327},
+  "vulnerability_class": "integer-overflow",
+  "hypothesis": "An attacker can trigger the while loop in coap_pdu_check_resize with a very large size value, causing new_size *= 2 to overflow, leading to incorrect memory allocation calculations",
+  "evidence": "while (size > new_size)\n  new_size *= 2;",
+  "confidence": 0.6
+}

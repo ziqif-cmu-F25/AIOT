@@ -1,0 +1,37 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libcoap/src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 538
+    },
+    "hypothesis": "The function copies the host into a 256-byte static buffer `addrstr` with no length check. In proxy mode the host comes from a network request. The Proxy-Uri option may be up to 1034 bytes (see `coap_pdu_parse_opt_base`), and `coap_split_proxy_uri` accepts any host length. The host is passed unmodified through `coap_proxy_get_session` and `coap_proxy_get_ongoing_session` into `coap_resolve_address_info`. A Proxy-Uri such as `coap://<~900 'A's>/` therefore overflows the static `addrstr` by hundreds of bytes and corrupts adjacent .data/.bss. A host of exactly 256 bytes also leaves no NUL terminator before `getaddrinfo`. The length check exists only in the AF_UNIX branch, not here.",
+    "evidence": "static char addrstr[256];\n...\nmemset(addrstr, 0, sizeof(addrstr));\nif (address && address->length)\n  memcpy(addrstr, address->s, address->length);",
+    "confidence": 0.8
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "libcoap/src/coap_proxy.c",
+      "function": "coap_proxy_get_session",
+      "line": 309
+    },
+    "hypothesis": "In the *_STRIP proxy modes, `server_use->uri.host.s` points into the incoming request PDU (the Uri-Host option value or the Proxy-Uri option value). The whole `uri` struct is then stored by value in the long-lived `proxy_list[i].uri`. Once the request PDU is freed, that pointer dangles. A later request is compared against it with `coap_string_equal(&proxy_list[i].uri.host, ...)`, which reads freed heap memory. This is a heap use-after-free read, and it can cause wrong session matching.",
+    "evidence": "proxy_list[i].uri = server_use->uri;  ... coap_string_equal(&proxy_list[i].uri.host, &server_use->uri.host)",
+    "confidence": 0.4
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "libcoap/src/coap_uri.c",
+      "function": "check_segment",
+      "line": 446
+    },
+    "hypothesis": "The percent-encoding validation checks `length < 2` but then reads both `s[1]` and `s[2]`. A segment ending in `%X`, with only one character after the '%', reads one byte past the segment. `decode_segment` then reads `seg[2]` as well. The result is a one-byte out-of-bounds read, which can leak data or crash, with a small impact.",
+    "evidence": "if (length < 2 || !(isxdigit(s[1]) && isxdigit(s[2]))) return -1;",
+    "confidence": 0.3
+  }
+]
+```

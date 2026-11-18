@@ -1,0 +1,53 @@
+Looking at the ASan report and the provided source code, I can identify the root cause of the global-buffer-overflow.
+
+**ASan Report Analysis:**
+- The overflow is a WRITE of size 300 at address 0x7b7127637b40.
+- This address is located 0 bytes after global variable `coap_resolve_address_info.addrstr` defined in `src/coap_address.c` (0x7b7127637a40) of size 256.
+- The variable `addrstr` is a static char array of size 256.
+
+**Source Code Analysis:**
+In `libcoap/src/coap_address.c`, function `coap_resolve_address_info` (line 486) has:
+```c
+498:   static char addrstr[256];
+...
+536:   memset(addrstr, 0, sizeof(addrstr));
+537:   if (address && address->length)
+538:     memcpy(addrstr, address->s, address->length);
+539:   else
+540:     memcpy(addrstr, "localhost", 9);
+```
+The `memcpy` on line 538 copies `address->length` bytes into `addrstr` without checking if `address->length` exceeds 256.
+
+**Root Cause:**
+The function `coap_resolve_address_info` does not validate that the length of the `address` string does not exceed the size of `addrstr` (256 bytes). A crafted message with a long hostname (length > 256) will cause a buffer overflow when copied into `addrstr`.
+
+**Fix:**
+Add a bounds check before the `memcpy` to ensure we do not write beyond the buffer.
+
+**Corrected Code:**
+```c
+536:   memset(addrstr, 0, sizeof(addrstr));
+537:   if (address && address->length) {
+538:     if (address->length >= sizeof(addrstr)) {
+539:       coap_log_warn("coap_resolve_address_info: address too long\n");
+540:       return NULL;
+541:     }
+542:     memcpy(addrstr, address->s, address->length);
+543:   } else
+544:     memcpy(addrstr, "localhost", 9);
+```
+
+**Ranked Candidates:**
+Since the issue is clear and there is only one obvious candidate, I provide one candidate with high confidence.
+
+```json
+{
+  "rank": 1,
+  "root_cause": {"file": "libcoap/src/coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+  "explanation": "The memcpy copies address->s of length address->length into addrstr[256] without bounds checking. If address->length > 256, it causes a global buffer overflow.",
+  "fix": "Add a check: if (address->length >= sizeof(addrstr)) { coap_log_warn(...); return NULL; }",
+  "confidence": 0.99
+}
+```
+
+Note: There are no other strong candidates because the ASan report points directly to `addrstr` and the code location. The stack trace shows the call originated from `coap_resolve_address_info` (which uses `addrstr`). The other functions in the call chain (like those in `coap_proxy.c`) are not directly related to the buffer overflow.

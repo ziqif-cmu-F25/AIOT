@@ -1,0 +1,32 @@
+The bug is in the address bounds check at lines 962-965. The condition tests `mapping_address < 0` twice (lines 962 and 964) and never tests `mapping_address_write < 0`. The write address is never validated against the lower bound.
+
+`address_write` is a uint16_t, and `mapping_address_write = address_write - start_registers`. If `start_registers` is greater than `address_write`, the result is negative. This passes the check, because only the upper bound `(mapping_address_write + nb_write) > nb_registers` is tested, and a negative value satisfies it.
+
+The write loop at lines 978-982 then runs `i` from a negative index. It executes `mb_mapping->tab_registers[i] = ...` with attacker-controlled data from the request, which writes out of bounds before the start of the heap array. The write is at most 2*|negative offset| bytes before the buffer, with a range of up to start_registers. The attacker controls both the values and the offset. This is only reachable when `start_registers` is nonzero, or when the sum of the offset and `nb_write` is still less than `nb_registers`. In the default mapping `start_registers` is 0 and `address_write` is uint16 (non-negative), so exploitation needs a non-zero `start_registers`.
+
+A second, weaker issue is that the read side checks `mapping_address < 0` (twice), so the read is protected. The read loop at line 985 is safe, as `mapping_address` is validated.
+
+A third concern is the request length. The code at lines 948-951 reads `req[offset+3..9]`, and the loop reads `req[offset + j + 1]` up to `offset + 10 + 2*nb_write`. The excerpt does not show whether the request length is validated against `nb_write_bytes`, so a short request could cause an out-of-bounds read of the request buffer. This is speculative, since the length check is outside the excerpt. Because `req` is typically a fixed-size buffer, this would read stale data rather than crash.
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "modbus.c", "function": "modbus_reply", "line": 964},
+    "bug_class": "oob-write",
+    "hypothesis": "The bounds check tests mapping_address < 0 twice and never checks mapping_address_write < 0, so a write address below start_registers yields a negative index and the write loop stores attacker-controlled 16-bit values before tab_registers.",
+    "vulnerable_line": "mapping_address < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers  /* second mapping_address < 0 should be mapping_address_write < 0 */",
+    "trigger_condition": "Server mapping has start_registers > 0; request FC 0x17 with address_write < start_registers (so mapping_address_write is negative), valid read address/nb, nb_write in 1..MODBUS_MAX_WR_WRITE_REGISTERS, nb_write_bytes == 2*nb_write, and mapping_address_write + nb_write <= nb_registers.",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "location": {"file": "modbus.c", "function": "modbus_reply", "line": 981},
+    "bug_class": "oob-read",
+    "hypothesis": "The write loop reads req[offset + j + 1] for up to 2*nb_write bytes based on header fields, and nothing in the excerpt checks that the received request is that long, so a truncated request could cause reads past the received data.",
+    "vulnerable_line": "(req[offset + j] << 8) + req[offset + j + 1]",
+    "trigger_condition": "A short FC 0x17 request whose header claims nb_write up to 121 and nb_write_bytes == 2*nb_write, but which carries fewer data bytes. This depends on a length check outside the excerpt.",
+    "confidence": 0.15
+  }
+]
+```

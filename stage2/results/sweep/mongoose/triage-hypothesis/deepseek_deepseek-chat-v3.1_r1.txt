@@ -1,0 +1,41 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "mongoose.c",
+      "function": "skip_chunk",
+      "line": 1011
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "An out-of-bounds read occurs when accessing buf[i + n + 2] and buf[i + n + 3] if the chunk length n is large enough to exceed the buffer bounds.",
+    "vulnerable_line": "if (buf[i + n + 2] != '\\r' || buf[i + n + 3] != '\\n') return -1;",
+    "trigger_condition": "A chunk header with a valid hex length value n that is greater than (len - i - 4), causing the access to i+n+3 to exceed the buffer length.",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "mongoose.c",
+      "function": "skip_chunk",
+      "line": 1005
+    },
+    "bug_class": "integer-overflow",
+    "hypothesis": "An integer overflow can occur in the expression len - i - 4 at line 1010 when i is large and len is small, causing a negative value to be treated as a large positive number in the comparison.",
+    "vulnerable_line": "if (n > len - i - 4) return 0;",
+    "trigger_condition": "A chunk header with a large hex digit count i (close to len) and a small len value, making len - i - 4 negative which wraps to a large unsigned value when compared with n.",
+    "confidence": 0.7
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "mongoose.c",
+      "function": "skip_chunk",
+      "line": 1007
+    },
+    "bug_class": "integer-overflow",
+    "hypothesis": "The mg_str_to_num function may suffer from integer overflow when converting a large hex string to an integer, but the check at line 1005 may not prevent all overflow cases.",
+    "vulnerable_line": "if (mg_str_to_num(mg_str_n(buf, (size_t) i), 16, &n, sizeof(int)) == false)",
+    "trigger_condition": "A chunk header with a hex digit string that represents a value larger than INT_MAX but with i <= sizeof(int)*2 (e.g., 8 digits for 32-bit int), bypassing the length check.",
+    "confidence": 0.6
+  }
+]

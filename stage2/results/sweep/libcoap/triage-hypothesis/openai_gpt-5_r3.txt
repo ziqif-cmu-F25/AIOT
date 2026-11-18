@@ -1,0 +1,29 @@
+[
+  {
+    "rank": 1,
+    "location": {"file": "unknown", "function": "coap_resolve_address_info", "line": 538},
+    "bug_class": "oob-write",
+    "hypothesis": "A too-long host string causes memcpy to write past the 256-byte addrstr buffer.",
+    "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "On the non-RIOT/non-CONTIKI build, address is non-NULL and address->length >= 256 (and not a Unix domain host path caught earlier), causing memcpy to write address->length bytes into static char addrstr[256].",
+    "confidence": 0.95
+  },
+  {
+    "rank": 2,
+    "location": {"file": "unknown", "function": "coap_resolve_address_info", "line": 683},
+    "bug_class": "oob-read",
+    "hypothesis": "Logging an unparsed address with %s reads past the end of a non-NUL-terminated coap_str_const_t buffer.",
+    "vulnerable_line": "coap_log_err(\"coap_resolve_address_info: Unable to parse '%s'\\n\", address->s);",
+    "trigger_condition": "On the RIOT build, both netutils_get_ipv6 and netutils_get_ipv4 fail (family remains AF_UNSPEC) and address->s is not NUL-terminated (only length is known), so printf with %s reads beyond address->length until a NUL byte is found.",
+    "confidence": 0.85
+  },
+  {
+    "rank": 3,
+    "location": {"file": "unknown", "function": "coap_resolve_address_info", "line": 756},
+    "bug_class": "oob-read",
+    "hypothesis": "In the CONTIKI build, logging an unparsable address with %s can read out of bounds because address->s may not be NUL-terminated.",
+    "vulnerable_line": "coap_log_err(\"coap_resolve_address_info: Unable to parse '%s'\\n\", address->s);",
+    "trigger_condition": "On the CONTIKI build, if neither IPv6 nor IPv4 parsing succeeds (parsed_ip == 0) and address->s is not NUL-terminated, the %s format specifier reads past the provided buffer until a NUL is encountered.",
+    "confidence": 0.8
+  }
+]

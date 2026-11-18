@@ -1,0 +1,26 @@
+```json
+{
+  "training_cutoff": "2023-10",
+  "known_cves": [
+    {
+      "cve": "CVE-2020-12056",
+      "file_function": "coap_pdu_parse() in libcoap",
+      "bug_class": "Denial of Service (infinite loop)",
+      "recall_confidence": 0.9
+    },
+    {
+      "cve": "CVE-2020-12057",
+      "file_function": "coap_pdu_parse() in libcoap",
+      "bug_class": "Denial of Service (resource consumption)",
+      "recall_confidence": 0.9
+    },
+    {
+      "cve": "CVE-2020-12058",
+      "file_function": "coap_pdu_parse() in libcoap",
+      "bug_class": "Denial of Service (crash)",
+      "recall_confidence": 0.9
+    }
+  ],
+  "notes": "These CVEs from 2020 relate to parsing malformed CoAP PDUs that could cause various denial of service conditions. They affected versions prior to 4.2.1. I'm recalling these from memory of security advisories about libcoap vulnerabilities."
+}
+```

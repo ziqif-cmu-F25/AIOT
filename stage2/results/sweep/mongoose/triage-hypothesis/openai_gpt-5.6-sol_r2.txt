@@ -1,0 +1,15 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "unknown",
+      "function": "skip_chunk",
+      "line": 1006
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "The bounds check permits i == len - 1, so when the final buffered byte is '\\r', evaluating buf[i + 1] reads one byte past the input buffer.",
+    "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "trigger_condition": "A buffer of length at least 3 consisting of one or more hexadecimal digits followed by a terminal '\\r' and no buffered '\\n', for example len=3 with buf=\"12\\r\".",
+    "confidence": 0.99
+  }
+]

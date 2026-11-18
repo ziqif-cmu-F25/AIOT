@@ -1,0 +1,13 @@
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "mongoose/src/http.c",
+      "function": "skip_chunk",
+      "line": 1006
+    },
+    "explanation": "The bounds check permits reading buf[i + 1] when only buf[i] remains. For the three-byte input \"ab\\r\", the hexadecimal scan consumes 'a' and 'b', leaving i = 2 and len = 3. The test len < i + 1 becomes 3 < 3, which is false. buf[2] is '\\r', so evaluation proceeds to buf[3], a one-byte read immediately past the allocation, exactly matching ASan. The check must establish that both CRLF bytes are available before accessing either. It also needs to handle i == len when all buffered bytes are hexadecimal digits.",
+    "fix": "Replace line 1006 with: if (len < i + 2) return 0; if (buf[i] != '\\r' || buf[i + 1] != '\\n') return -1; This requires two available bytes before reading the CRLF and treats a truncated delimiter as incomplete input to buffer further.",
+    "confidence": 0.99
+  }
+]

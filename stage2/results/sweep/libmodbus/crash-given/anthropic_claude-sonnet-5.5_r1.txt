@@ -1,0 +1,25 @@
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 964},
+    "explanation": "In the MODBUS_FC_WRITE_AND_READ_REGISTERS case, the address-validation condition at lines 962-965 tests `mapping_address < 0` twice (lines 962 and 964). The second test was meant to be `mapping_address_write < 0`, so the write window's lower bound is never checked. The server's mapping uses a non-zero start_registers (the unit-test server maps registers at a non-zero start address), and the request's write address is a uint16_t. A write address below start_registers therefore gives a negative `mapping_address_write = address_write - start_registers`. The upper-bound test `(mapping_address_write + nb_write) > nb_registers` still passes, because a negative base makes the sum small. Line 980 then runs `tab_registers[i] = ...` starting at a negative index, writing before the start of the heap buffer. This is the faulting WRITE in the report, at a wild address below the allocation. The exception branch, which prints `mapping_address_write < 0 ? address_write : ...`, shows the author intended to check this variable.",
+    "fix": "Replace the duplicated test on line 964 with `mapping_address_write < 0`. The condition becomes: `mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address_write < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers`.",
+    "confidence": 0.93
+  },
+  {
+    "rank": 2,
+    "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 965},
+    "explanation": "This is the same defect seen from the other side. The write-range check on line 965 is only an upper-bound test on `mapping_address_write + nb_write`. It assumes `mapping_address_write` is non-negative, and nothing enforces that. A negative base plus nb_write passes the check while indexes before the array are still written.",
+    "fix": "Make sure the write range is validated on both ends: `mapping_address_write < 0 || mapping_address_write + nb_write > nb_registers`.",
+    "confidence": 0.05
+  },
+  {
+    "rank": 3,
+    "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 981},
+    "explanation": "The loop reads `req[offset + j]` without checking `req_length` against the 10 + 2*nb_write bytes the request must carry. This could cause a read over-run of the request buffer. It is a read, not a write, so it does not match the reported WRITE SEGV.",
+    "fix": "Validate that req_length >= offset + 10 + nb_write_bytes before the loop.",
+    "confidence": 0.02
+  }
+]
+```

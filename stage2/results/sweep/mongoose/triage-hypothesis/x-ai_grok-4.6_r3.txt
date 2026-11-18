@@ -1,0 +1,11 @@
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1006},
+    "bug_class": "oob-read",
+    "hypothesis": "Off-by-one length check uses len < i+1 but then reads buf[i+1], so a buffer of hex digits ending in '\\r' as the last byte performs a 1-byte read past buf[len].",
+    "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "trigger_condition": "len >= 3, first (len-1) bytes are hex digits, buf[len-1] == '\\r' (e.g. \"00\\r\"); short-circuit fails because len == i+1 and buf[i] == '\\r', then buf[i+1] == buf[len] is read.",
+    "confidence": 0.95
+  }
+]

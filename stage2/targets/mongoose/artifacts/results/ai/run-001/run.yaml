@@ -1,0 +1,12 @@
+run_id: run-001
+viewpoint: ai-assisted
+condition: ai-assisted
+target_commit: b1c2ffe1a0aa13e3d94075b1a2c66b8b43ac9116
+target_tag: "7.21"
+start_utc: 2026-11-03T18:32:39Z
+end_utc: 2026-11-03T19:05:00Z
+elapsed_s: "2100"
+investigation_budget_min: 90
+environment_manifest: /opt/lab/environment-manifest.txt
+protocol: /opt/lab/protocol.yaml
+investigator: "cursor-agent + AI-assist condition"

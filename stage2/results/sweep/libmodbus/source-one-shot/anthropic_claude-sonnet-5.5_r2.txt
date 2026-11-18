@@ -1,0 +1,15 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 964
+    },
+    "hypothesis": "In the MODBUS_FC_WRITE_AND_READ_REGISTERS case, the address validation tests `mapping_address < 0` twice and never tests `mapping_address_write < 0`. A remote client can send a request whose write address is below `start_registers` (for example, `start_registers` > 0 and a write address of 0, or any `address_write` smaller than the start). `mapping_address_write` is then negative while `mapping_address_write + nb_write` can still be <= `nb_registers`, so the check passes. The write loop then stores attacker-controlled 16-bit values at `tab_registers[negative index]`, which is a heap out-of-bounds write before the buffer. The write goes up to 32768 entries (64 KB) below the array. With `start_registers` = 0, `address_write` is a uint16_t, so `mapping_address_write` is never negative, but with a nonzero start it is. The read half is checked correctly, but the write half is not.",
+    "evidence": "} else if (mapping_address < 0 ||\n           (mapping_address + nb) > mb_mapping->nb_registers ||\n           mapping_address < 0 ||\n           (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\n...\nfor (i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; i++, j += 2) {\n    mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];\n}",
+    "confidence": 0.9
+  }
+]
+```

@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "input-drafting",
+  "property": "memory-safety",
+  "hypothesis": "{\n  \"hex_bytes\": \"00 01 00 00 00 17 01 17 00 00 00 0A 00 00 00 0A FF FF 00 02 00 00 00 00 00 00\",\n  \"explanation\": \"Step-by-step breakdown:\\n1. Modbus TCP header (first 7 bytes):\\n   - Transaction ID: 00 01 (arbitrary)\\n   - Protocol ID: 00 00 (Modbus)\\n   - Length: 00 17 (23 bytes following)\\n   - Unit ID: 01 (typical slave address)\\n\\n2. Function code: 17 (0x17 for Write/Read Multiple Registers)\\n\\n3. Read parameters:\\n   - Read start address: 00 00 (0 - valid within 0-9999 range)\\n   - Read q",
+  "evidence_source": "Identified copy-paste bounds check: mapping_address < 0 tested twice, mapping_address_write < 0 never tested.",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "input-drafting condition. Correctly identified CVE-2022-0367 copy-paste bounds check.",
+  "vulnerability_class": "oob-write",
+  "location": {
+    "file": "src/modbus.c",
+    "function": "modbus_reply",
+    "line": 963
+  },
+  "confidence": 0.9,
+  "model": "deepseek/deepseek-chat-v3.1",
+  "prompt_id": "libmodbus-input@v1",
+  "run_index": 1
+}

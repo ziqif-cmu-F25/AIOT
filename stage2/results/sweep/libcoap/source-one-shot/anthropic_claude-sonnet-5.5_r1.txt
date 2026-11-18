@@ -1,0 +1,28 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "libcoap/src/coap_proxy.c", "function": "coap_proxy_get_session", "line": 309},
+    "vulnerability_class": "use-after-free",
+    "hypothesis": "In the *_STRIP proxy modes, server_use->uri.host.s is filled with a pointer into the incoming request PDU's Uri-Host option. For Proxy-Uri it points into the Proxy-Uri option instead. The whole uri struct, including the host, path and query pointers, is then copied by value into the long-lived context->proxy_list[i]. The request PDU is freed after handling, so the stored pointer dangles. On every later request, the lookup loop calls coap_string_equal(&proxy_list[i].uri.host, ...), which reads freed heap memory. An attacker who sends a Proxy-Scheme/Proxy-Uri request and then any further proxied request triggers a heap use-after-free read. The result is a wrong host match or an out-of-bounds read of the stale length. The same dangling copy is reused for idle sessions.",
+    "evidence": "uri->host.length = coap_opt_length(opt); uri->host.s = coap_opt_value(opt);  ...  proxy_list[i].uri = server_use->uri;  ...  coap_string_equal(&proxy_list[i].uri.host, &server_use->uri.host)",
+    "confidence": 0.6
+  },
+  {
+    "rank": 2,
+    "location": {"file": "libcoap/src/coap_uri.c", "function": "check_segment", "line": 446},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "The guard `length < 2` is too weak: it permits length == 2, but the code then reads s[2], which is one byte past the segment. Consider a segment ending in '%X', where the byte after the segment (such as '/', '&' or the end of the buffer) happens to be a hex digit. The check passes, then `length -= 2` followed by `--length` underflows size_t to SIZE_MAX. The loop then keeps scanning far past the buffer and causes a large out-of-bounds read. The returned segment size is also wrong, and decode_segment is later driven by the same bad length.",
+    "evidence": "if (length < 2 || !(isxdigit(s[1]) && isxdigit(s[2]))) return -1;  s += 2; length -= 2; ... ++s; ++n; --length;",
+    "confidence": 0.4
+  },
+  {
+    "rank": 3,
+    "location": {"file": "libcoap/src/coap_proxy.c", "function": "coap_proxy_forward_request_lkd", "line": 675},
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "The destination buffer is allocated with `total` bytes (body_total), but the copy uses `size` (body_length or the payload length). The only guard is `assert(size == total)`, which is compiled out in release builds. If a PDU's body_length exceeds body_total, memcpy overflows the heap buffer. The same pattern appears in coap_proxy_forward_response_lkd for responses from the upstream server.",
+    "evidence": "body_data = coap_new_binary(total); memcpy(body_data->s, data, size);",
+    "confidence": 0.2
+  }
+]
+```

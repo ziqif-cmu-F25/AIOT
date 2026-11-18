@@ -1,0 +1,24 @@
+HYPOTHESIS: The only memory error I can confirm is a one-byte over-read in `skip_chunk`. The rest of the chunk parsing and relocation logic looks bounds-safe.
+
+FINAL
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "The bounds check `len < i + 1` is off by one. The code then reads buf[i+1], so it needs `len >= i + 2`. A remote client sends a chunked request whose buffered body ends exactly after the hex digits and a '\\r', for example 'POST ... Transfer-Encoding: chunked' followed by '10\\r'. Here len == i+1, buf[i] == '\\r', and buf[i+1] is read one byte past the buffered data (c->recv.len). If recv.len equals the iobuf capacity, this reads one byte beyond the heap allocation. The result is a small heap over-read, and it only changes control flow if that byte happens to be '\\n'. The over-read can be repeated for every partial chunk header received. The path is also reached while re-parsing partial chunk data on each MG_EV_READ.",
+    "evidence": "if (len < 3) return 0;\nwhile (i < len && is_hex_digit(buf[i])) i++;\n...\nif (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "confidence": 0.5
+  },
+  {
+    "rank": 2,
+    "location": {"file": "mongoose/src/http.c", "function": "http_cb (chunked second pass)", "line": 1103},
+    "vulnerability_class": "oob-write",
+    "hypothesis": "The in-place memmove relocation depends on skip_chunk validating chunk bounds. The first pass uses the same check as the second, so the memmove source and length stay inside the buffer. The check `n > len - i - 4` is performed on signed ints and n is non-negative, so I found no overflow. I rate this a low-probability candidate. It could only be exploitable if skip_chunk's validation is bypassed, for example through a MG_EV_HTTP_HDRS handler that changes the buffer.",
+    "evidence": "if (n > len - i - 4) return 0;\nif (buf[i + n + 2] != '\\r' || buf[i + n + 3] != '\\n') return -1;\n...\nmemmove(s + hm.body.len, s + o + pl, (size_t) dl);",
+    "confidence": 0.1
+  }
+]
+```

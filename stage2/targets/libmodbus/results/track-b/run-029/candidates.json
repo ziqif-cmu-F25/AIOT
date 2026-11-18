@@ -1,0 +1,25 @@
+[
+  {
+    "candidate_id": "CAND-001",
+    "viewpoint": "ai-source-review",
+    "property": "memory-safety",
+    "hypothesis": "When the server receives a request with a function code that has no meta fields (e.g., REPORT_SLAVE_ID 0x11 or READ_EXCEPTION_STATUS 0x07) or an unknown function code, _modbus_receive_msg stops after reading only header+function (8 bytes in TCP). modbus_reply then unconditionally reads req[offset+1] and req[offset+2] to compute 'address', causing a read past the actually received message bytes.",
+    "evidence_source": "In _modbus_receive_msg: initial length_to_read = header_length + 1 (line 386). For MSG_INDICATION, compute_meta_length_after_function returns 0 for functions without meta (0x07, 0x11) and for unknown codes (lines 271\u2013283). The state machine then falls through and compute_data_length_after_meta returns 0 for MSG_INDICATION non-write functions (lines 311\u2013321), so the loop exits with msg_length == header_length + 1 (8 for TCP). In modbus_reply, it always does 'address = (req[offset + 1] << 8) + req[offset + 2];' (line 798) before switching on function, reading bytes that were never received for these functions.",
+    "input_artifact": "not_available (static source review; no input artifact)",
+    "expected_behavior": "If the application passed a receive buffer sized to the actual received length (e.g., 8 bytes) or a sanitizer tracks bounds, modbus_reply will read out-of-bounds and may crash or trigger an AddressSanitizer report. Even with a larger static buffer, it will read uninitialized/stale bytes beyond the received data, leading to incorrect address calculations and logic errors.",
+    "observed_behavior": "not_available (static source review; nothing was executed)",
+    "status": "candidate",
+    "oracle_verdict": "pending",
+    "notes": "Reachable by an attacker sending a minimal TCP ADU containing only the MBAP (7 bytes) and one function byte for function codes 0x11 or 0x07 (both legitimate and have no meta in the request), or any unknown function. The MBAP length is not validated in the TCP backend, and the receive loop\u2019s step logic does not enforce presence of address fields for these functions, so modbus_reply\u2019s unconditional address read overruns the actually received message.",
+    "vulnerability_class": "out-of-bounds-read",
+    "location": {
+      "file": "src/modbus.c",
+      "function": "modbus_reply",
+      "line": 798
+    },
+    "confidence": 0.78,
+    "model": "openai/gpt-5",
+    "prompt_id": "libmodbus-modbus-reply-ctx@v1",
+    "run_index": 1
+  }
+]

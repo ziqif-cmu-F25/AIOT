@@ -1,0 +1,37 @@
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "libcoap/src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 538
+    },
+    "explanation": "The report shows a WRITE of size 300 that begins immediately after the 256-byte global `coap_resolve_address_info.addrstr`. That is the `static char addrstr[256]` at line 498. The only write of attacker-controlled length into it is `memcpy(addrstr, address->s, address->length)` at line 538. There is no check that `address->length` is less than `sizeof(addrstr)`. The AF_UNIX branch does check against COAP_UNIX_PATH_MAX, but the normal hostname path has no equivalent check. A host of 300 bytes therefore overruns the buffer and also loses the NUL terminator it needs. The host reaches this function from the proxy path: `coap_proxy_get_ongoing_session` passes `server_use->uri.host`, which comes from a Proxy-Uri option parsed by `coap_split_proxy_uri`. That option may be up to 1034 bytes, and `coap_split_uri_sub` puts the host into `uri->host` with no length limit. A 300-byte host in a Proxy-Uri reproduces the report. A Uri-Host option is capped at 255 bytes and would fit, so it is not the trigger.",
+    "fix": "Before the memcpy, reject oversized hosts: `if (address && address->length >= sizeof(addrstr)) { coap_log_err(\"Host name too long\\n\"); return NULL; }`. This leaves room for the terminating NUL. Only then do `memcpy(addrstr, address->s, address->length)`.",
+    "confidence": 0.93
+  },
+  {
+    "rank": 2,
+    "root_cause": {
+      "file": "libcoap/src/coap_uri.c",
+      "function": "coap_split_uri_sub",
+      "line": 202
+    },
+    "explanation": "The URI parser accepts a host of any length. `COAP_SET_STR(&uri->host, q - p, p)` is not bounded, so a Proxy-Uri with a host of about 300 bytes becomes `uri->host` and is later copied into the 256-byte `addrstr`. This is the source of the oversized length, but the overflow itself happens in rank 1.",
+    "fix": "Reject hosts longer than 255 bytes in `coap_split_uri_sub` (`if (q - p > 255) { res = -3; goto error; }`). This is defence in depth. The size check must still be added at the memcpy in `coap_resolve_address_info`.",
+    "confidence": 0.2
+  },
+  {
+    "rank": 3,
+    "root_cause": {
+      "file": "libcoap/src/coap_proxy.c",
+      "function": "coap_proxy_get_session",
+      "line": 266
+    },
+    "explanation": "The proxy code only tests `uri.host.length == 0` and does not set an upper bound before the host is handed to `coap_resolve_address_info`. An oversized host from Proxy-Uri therefore passes through unchecked. This is a missing upstream validation, not the faulting write.",
+    "fix": "Also reject hosts where `server_use->uri.host.length > 255` and return 5.05 or 4.00 instead of continuing.",
+    "confidence": 0.1
+  }
+]
+```

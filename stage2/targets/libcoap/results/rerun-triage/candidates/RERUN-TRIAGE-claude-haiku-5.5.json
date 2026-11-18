@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "triage-hypothesis",
+  "property": "memory-safety",
+  "hypothesis": "An attacker-controlled Proxy-Uri hostname longer than 256 bytes causes memcpy(addrstr, address->s, address->length) in coap_resolve_address_info() to overflow the static addrstr[256] buffer, writing past the end of the global variable.",
+  "evidence_source": "Identified unbounded memcpy into addrstr[256]; also noted NUL-terminator issue when length==256.",
+  "input_artifact": "not_available (triage-hypothesis condition; narrow code excerpt provided)",
+  "expected_behavior": "memcpy writes address->length bytes (>256) into static addrstr[256], overflowing into adjacent global memory. ASan would report global-buffer-overflow.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "Triage-hypothesis condition (one-shot, narrow code excerpt only, no ASan report). Correctly identified CVE-2025-34468 root cause.",
+  "vulnerability_class": "buffer-overflow",
+  "location": {
+    "file": "src/coap_address.c",
+    "function": "coap_resolve_address_info",
+    "line": 538
+  },
+  "confidence": 0.95,
+  "model": "anthropic/claude-haiku-5.5",
+  "prompt_id": "libcoap-triage@v1",
+  "run_index": 1
+}

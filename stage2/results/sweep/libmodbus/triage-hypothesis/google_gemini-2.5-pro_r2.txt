@@ -1,0 +1,43 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "src/modbus.c",
+      "function": "_modbus_reply",
+      "line": 981
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "A crafted request with a small actual packet length but a large 'nb_write' value can cause an out-of-bounds read from the 'req' buffer in the write loop.",
+    "vulnerable_line": "mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];",
+    "trigger_condition": "A request where 'nb_write' (from req[offset+7:8]) is large (e.g., 100) and 'nb_write_bytes' (req[offset+9]) is consistent (200), but the actual received packet length is less than offset + 10 + 200.",
+    "confidence": 0.95
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "src/modbus.c",
+      "function": "_modbus_reply",
+      "line": 986
+    },
+    "bug_class": "oob-write",
+    "hypothesis": "A request with a large 'nb' (number of registers to read) can cause the response-building loop to write past the end of the 'rsp' buffer.",
+    "vulnerable_line": "rsp[rsp_length++] = mb_mapping->tab_registers[i] >> 8;",
+    "trigger_condition": "A request where 'nb' (from req[offset+3:4]) is a large value (e.g., MODBUS_MAX_WR_READ_REGISTERS), such that the total response size (initial_length + 1 + 2 * nb) exceeds the allocated size of the 'rsp' buffer.",
+    "confidence": 0.9
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "src/modbus.c",
+      "function": "_modbus_reply",
+      "line": 965
+    },
+    "bug_class": "integer-overflow",
+    "hypothesis": "An integer overflow in the write address boundary check can cause the check to be bypassed, leading to a subsequent out-of-bounds write in the register write loop.",
+    "vulnerable_line": "(mapping_address_write + nb_write) > mb_mapping->nb_registers",
+    "trigger_condition": "A request where 'address_write' and 'nb_write' are chosen such that their sum as signed integers ('mapping_address_write + nb_write') overflows to a negative value, causing the boundary check to pass incorrectly.",
+    "confidence": 0.75
+  }
+]
+```

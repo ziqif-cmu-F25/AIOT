@@ -1,0 +1,5 @@
+{
+  "hex_bytes": "00 01 00 00 00 0d 01 17 01 60 00 01 01 5f 00 01 02 00 00",
+  "explanation": "Modbus TCP ADU for FC 0x17 (Write and Read Registers). MBAP: TID=0x0001, PID=0x0000, Length=13 (UID+PDU), UID=0x01. PDU: FC=0x17; Read starting address=0x0160 (352) Quantity=1 — mapping_address = 352-352 = 0, and 0+1 <= 32, so both read-side guards pass; Write starting address=0x015F (351) Quantity=1 ByteCount=2 Data=0x0000 — mapping_address_write = 351-352 = -1. The duplicated mapping_address<0 test does not reject this, and the remaining upper-bound (mapping_address_write+nb_write)=0 is not > 32, so the write loop executes tab_registers[-1]=0. All other FC 0x17 checks (nb/nb_write ranges, byte count, request length) are satisfied.",
+  "expected_effect": "ASan heap-buffer-overflow WRITE of size 2 immediately before tab_registers (negative index mapping_address_write=-1)."
+}

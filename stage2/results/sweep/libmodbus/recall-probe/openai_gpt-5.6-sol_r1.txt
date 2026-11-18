@@ -1,0 +1,24 @@
+{
+  "training_cutoff": "2024-06",
+  "known_cves": [
+    {
+      "cve": "CVE-2022-0367",
+      "file_function": "src/modbus.c, modbus_reply()",
+      "bug_class": "heap-based buffer overflow",
+      "recall_confidence": 0.86
+    },
+    {
+      "cve": "CVE-2019-14462",
+      "file_function": "src/modbus.c, modbus_reply()",
+      "bug_class": "heap-based buffer overflow",
+      "recall_confidence": 0.73
+    },
+    {
+      "cve": "CVE-2019-14463",
+      "file_function": "src/modbus.c, modbus_reply()",
+      "bug_class": "out-of-bounds read",
+      "recall_confidence": 0.68
+    }
+  ],
+  "notes": "Recalled from memory only. I am most confident that CVE-2022-0367 is a real libmodbus modbus_reply() heap-overflow advisory affecting 3.1.6-era releases. The two 2019 IDs and their association with modbus_reply() are also likely real, but my confidence in the exact mapping of CVE-2019-14462 versus CVE-2019-14463 to the respective bug classes is lower."
+}

@@ -1,0 +1,6 @@
+{
+  "root_cause_line": "} else if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers) {",
+  "explanation": "The bounds check mistakenly tests 'mapping_address < 0' twice and never checks 'mapping_address_write < 0'. If the attacker supplies a write start address below 'mb_mapping->start_registers', 'mapping_address_write' becomes negative but passes this check. The subsequent write loop indexes 'mb_mapping->tab_registers[i]' starting at this negative index, causing an out-of-bounds write before the array.",
+  "fix": "Replace the second 'mapping_address < 0' with 'mapping_address_write < 0':\n\n} else if (mapping_address < 0 ||\n           (mapping_address + nb) > mb_mapping->nb_registers ||\n           mapping_address_write < 0 ||\n           (mapping_address_write + nb_write) > mb_mapping->nb_registers) {",
+  "confidence": 0.86
+}

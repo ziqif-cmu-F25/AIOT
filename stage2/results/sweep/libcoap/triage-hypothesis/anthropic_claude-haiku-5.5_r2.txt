@@ -1,0 +1,31 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "libcoap (coap_resolve_address_info)", "function": "coap_resolve_address_info", "line": 538},
+    "bug_class": "oob-write",
+    "hypothesis": "The hostname is copied into the fixed 256-byte static buffer `addrstr` using `address->length` with no bounds check, so any hostname of 256 or more bytes overflows the global buffer; a length of exactly 256 also leaves it without a NUL terminator, so getaddrinfo() reads past the buffer.",
+    "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "The non-Unix-domain path is reached with address->length >= 256 (the only length check at line 509 applies to AF_UNIX addresses only). The hostname string must come from a URI host or similar attacker-influenced source that reaches this function.",
+    "confidence": 0.8
+  },
+  {
+    "rank": 2,
+    "location": {"file": "libcoap (coap_resolve_address_info, WITH_CONTIKI branch)", "function": "coap_resolve_address_info", "line": 776},
+    "bug_class": "oob-read",
+    "hypothesis": "The destination size is sizeof(info->addr.addr) but the source is the local `addr_ip`, which is only a uip_ipaddr_t (16 bytes for IPv6 or 4 bytes for IPv4). If the destination member is larger, this reads past the end of the stack variable and copies uninitialized stack bytes into the address, which can leak stack contents or make the address compare unpredictably.",
+    "vulnerable_line": "memcpy(&info->addr.addr, &addr_ip, sizeof(info->addr.addr));",
+    "trigger_condition": "The Contiki build is used and the address string parses as IPv4 (4 bytes written into addr_ip) or as IPv6 (16 bytes). The read then covers the remaining bytes of the destination size, so the trailing bytes come from uninitialized stack memory.",
+    "confidence": 0.5
+  },
+  {
+    "rank": 3,
+    "location": {"file": "libcoap (coap_resolve_address_info, RIOT_VERSION branch)", "function": "coap_resolve_address_info", "line": 672},
+    "bug_class": "oob-read",
+    "hypothesis": "`address->s` is a length-delimited coap_str_const_t that is not guaranteed to be NUL-terminated, but it is passed directly as a C string to netutils_get_ipv6/ipv4 (and to the log call at line 683). The parser can read beyond the end of the string until it finds a zero byte.",
+    "vulnerable_line": "if (netutils_get_ipv6(&addr_ipv6, &netif, (const char *)address->s) >= 0) {",
+    "trigger_condition": "The RIOT build is used and the address is a non-NUL-terminated slice of a larger buffer (for example, a URI host slice from a received packet) with no zero byte immediately after address->length.",
+    "confidence": 0.35
+  }
+]
+```

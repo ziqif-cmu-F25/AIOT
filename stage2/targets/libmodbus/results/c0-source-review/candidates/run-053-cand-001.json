@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "An attacker-controlled 'nb' value in a MODBUS_FC_WRITE_MULTIPLE_COILS request can cause an out-of-bounds write when processing the byte data, because the code does not validate that the byte count (nb_bits) matches the actual data length provided.",
+  "evidence_source": "Lines 840-870: The code checks if nb is within MODBUS_MAX_WRITE_BITS but does not validate that nb_bits (from req[offset+5]) is consistent with the number of bytes following. The memcpy in modbus_set_bits_from_bytes (line 863) uses &req[offset+6] without verifying that there are enough bytes.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Out-of-bounds read when accessing req array beyond its bounds, potentially leading to information disclosure or crash.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "The attacker can set nb_bits to a value larger than the actual data provided, causing the function to read beyond the request buffer.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 863
+  },
+  "confidence": 0.9,
+  "model": "deepseek/deepseek-chat-v3.1",
+  "prompt_id": "libmodbus-0367-source-review@v1",
+  "run_index": 1
+}

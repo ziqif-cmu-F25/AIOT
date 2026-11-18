@@ -1,0 +1,14 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 980
+    },
+    "vulnerability_class": "oob-write",
+    "hypothesis": "A network client can send a Write and Read Registers request (function 0x17) with a valid read range but a write address below the configured register mapping start. The bounds check tests mapping_address < 0 twice and never tests mapping_address_write < 0. A negative write index therefore passes validation and writes attacker-controlled 16-bit values before the heap-allocated tab_registers array. For example, with start_registers=100 and nb_registers=10, use read address=100, read quantity=1, write address=99, write quantity=1, and write byte count=2. mapping_address_write becomes -1; its upper-bound check passes because -1 + 1 is not greater than 10, and the loop writes tab_registers[-1].",
+    "evidence": "Lines 952–953: int mapping_address = address - mb_mapping->start_registers;\nint mapping_address_write = address_write - mb_mapping->start_registers;\nLines 962–965: } else if (mapping_address < 0 ||\n           (mapping_address + nb) > mb_mapping->nb_registers ||\n           mapping_address < 0 ||\n           (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\nLines 978–981: for (i = mapping_address_write, j = 10;\n     i < mapping_address_write + nb_write; i++, j += 2) {\n    mb_mapping->tab_registers[i] =\n        (req[offset + j] << 8) + req[offset + j + 1];\nLines 1820–1821: mb_mapping->tab_registers =\n    (uint16_t *) malloc(nb_registers * sizeof(uint16_t));",
+    "confidence": 1.0
+  }
+]

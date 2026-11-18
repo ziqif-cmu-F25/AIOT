@@ -1,0 +1,1 @@
+HYPOTHESIS: Token-length extension parsing may read past the packet; I'll inspect option decode and token-ext constants next.GREP coap_opt_parse libcoap/src/coap_option.c

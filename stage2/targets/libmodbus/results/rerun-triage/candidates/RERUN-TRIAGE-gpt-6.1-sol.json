@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "triage-hypothesis",
+  "property": "memory-safety",
+  "hypothesis": "{\n  \"hypothesis\": \"The duplicated `mapping_address < 0` check fails to reject a negative `mapping_address_write`, allowing `mb_mapping->tab_registers[i]` to write before the allocated register array when the requested write address is below the mapping base and all other checks pass.\",\n  \"vulnerable_line\": \"mapping_address < 0 || /* second occurrence; should check mapping_address_write < 0 */\",\n  \"bug_class\": \"out-of-bounds-write\",\n  \"trigger_condition\": \"address_write < mb_mapping->start_regist",
+  "evidence_source": "Identified copy-paste bounds check: mapping_address < 0 tested twice, mapping_address_write < 0 never tested.",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "triage-hypothesis condition. Correctly identified CVE-2022-0367 copy-paste bounds check.",
+  "vulnerability_class": "oob-write",
+  "location": {
+    "file": "src/modbus.c",
+    "function": "modbus_reply",
+    "line": 963
+  },
+  "confidence": 0.9,
+  "model": "openai/gpt-6.1-sol",
+  "prompt_id": "libmodbus-triage@v1",
+  "run_index": 1
+}

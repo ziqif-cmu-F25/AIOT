@@ -1,0 +1,13 @@
+AddressSanitizer:DEADLYSIGNAL
+=================================================================
+==13==ERROR: AddressSanitizer: SEGV on unknown address 0x505ffffffec8 (pc 0x7e3032c6d0df bp 0x7ffebbdcd170 sp 0x7ffebbdccf30 T0)
+==13==The signal is caused by a WRITE memory access.
+    #0 0x7e3032c6d0df in modbus_reply /opt/build/src/modbus.c:980
+    #1 0x61f20b5bcdb3 in main /opt/build/tests/unit-test-server.c:183
+    #2 0x7e3032a7a1c9  (/lib/x86_64-linux-gnu/libc.so.6+0x2a1c9) (BuildId: a4a7992a8e66555c8141ab2a08a8465ff6e0ea65)
+    #3 0x7e3032a7a28a in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x2a28a) (BuildId: a4a7992a8e66555c8141ab2a08a8465ff6e0ea65)
+    #4 0x61f20b5bc624 in _start (/usr/local/bin/unit-test-server+0x3624) (BuildId: 140db9724dc1c92c684e26e102a474ef8cbc4e04)
+
+AddressSanitizer can not provide additional info.
+SUMMARY: AddressSanitizer: SEGV /opt/build/src/modbus.c:980 in modbus_reply
+==13==ABORTING

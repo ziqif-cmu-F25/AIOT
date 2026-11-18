@@ -1,0 +1,2 @@
+HYPOTHESIS: The confirmed function 0x17 bounds-check typo allows a network client to write before the holding-register heap allocation when the server uses a nonzero register start address.
+FINAL

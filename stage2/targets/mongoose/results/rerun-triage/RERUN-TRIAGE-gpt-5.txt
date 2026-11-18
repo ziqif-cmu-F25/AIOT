@@ -1,0 +1,7 @@
+{
+  "hypothesis": "In skip_chunk(), the condition uses len < i + 1 but then reads buf[i + 1], so when the buffer ends right after the CR of the chunk-size line (len == i + 1), it performs an out-of-bounds read of buf[i + 1].",
+  "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+  "bug_class": "oob-read",
+  "trigger_condition": "An incomplete chunk-size line where i>=2 hex digits are followed by a single '\\r' as the last buffered byte (no '\\n' yet), so len == i + 1 and len >= 3 (e.g., \"FF\\r\").",
+  "confidence": 0.95
+}

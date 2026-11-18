@@ -1,0 +1,75 @@
+run_id: run-017
+viewpoint: ai-source-review
+task_id: libmodbus-modbus-reply
+prompt_id: libmodbus-modbus-reply@v1
+mode: source-review
+property: memory-safety
+status: candidate
+candidate_count: 1
+run_index: 2
+repeats: 3
+group_id: group-001
+target_repository: stephane/libmodbus
+target_commit: 2cbafa3113e276c3697d297f68e88d112b53174d
+start_utc: '2026-11-04T02:46:28Z'
+end_utc: '2026-11-04T02:48:23Z'
+elapsed_s: 114.62
+model_requested: google/gemini-2.5-pro
+model_source: cli --model
+model_resolved:
+- google/gemini-2.5-pro
+provider:
+- Google AI Studio
+response_ids:
+- gen-1793760391-DRjiQrrS2h6q1jLbs3JR
+sampling:
+  temperature: 0.0
+  max_tokens: 20000
+attempts: 1
+usage:
+- completion_tokens: 13778
+  prompt_tokens: 31186
+  total_tokens: 44964
+  completion_tokens_details:
+    accepted_prediction_tokens: null
+    audio_tokens: 0
+    reasoning_tokens: 13340
+    rejected_prediction_tokens: null
+    text_tokens: null
+    image_tokens: 0
+  prompt_tokens_details:
+    audio_tokens: 0
+    cache_write_tokens: 0
+    cached_tokens: 28651
+    image_tokens: null
+    text_tokens: null
+    video_tokens: 0
+  cost: 0.144530125
+  is_byok: false
+  cost_details:
+    upstream_inference_cost: 0.144530125
+    upstream_inference_prompt_cost: 0.006750125
+    upstream_inference_completions_cost: 0.13778
+usage_total:
+  prompt_tokens: 31186
+  completion_tokens: 13778
+  total_tokens: 44964
+  reasoning_tokens: 13340
+  cost_usd: 0.14453013
+error: null
+settings_source: C:\Users\alber\Documents\GitHub\AIOT\.env
+task_file: stage2/tasks/libmodbus-modbus-reply.yaml
+driver_commit: 81ef9fab144ec334427635fe91bfb35787b7227a+dirty-stage2
+context:
+  source_root: vendor
+  files:
+  - path: src/modbus.c
+    sha256: 782aaf3003713f65760fcba7b14fec9500ff6c60e9dc4f07c32d45a5619768c8
+    line_range:
+    - 1
+    - 2070
+    total_lines: 2070
+withheld_notice: 'Withheld from the model: CVE identifier (CVE-2024-10918), CWE, advisory
+  text, fix commit, fixed release, which function or line is relevant, and any Modbus
+  runtime configuration. The model sees only src/modbus.c at the pinned commit.'
+investigator: ''

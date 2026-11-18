@@ -1,0 +1,97 @@
+Looking at the ASan report and the provided source code, I need to identify the root cause of the heap-buffer-overflow. The ASan report indicates a read of size 1 at address 0x502000000013, which is located 0 bytes after a 3-byte region [0x502000000010,0x502000000013). The triggering input is 3 bytes: "ab\r" (hex 61 62 0d).
+
+The stack trace shows the read occurs at address 0xaaaaab730bac (which is likely inside the `mg_http_parse` function or a helper). The buffer was allocated with malloc(3) (exact size, no slack) at address 0xaaaaab730698.
+
+Given the input is only 3 bytes and the overflow occurs when reading 1 byte past the end, it suggests a function is reading beyond the allocated buffer while parsing the HTTP request.
+
+I need to look for functions that parse HTTP requests and might read beyond the buffer. The main parsing function is `mg_http_parse` (line 270). However, the issue might be in a helper function called by it.
+
+Another candidate is `mg_http_get_request_len` (line 191), which scans the buffer to find the end of the HTTP headers. Let's examine that function:
+
+```c
+191: int mg_http_get_request_len(const unsigned char *buf, size_t buf_len) {
+192:   size_t i;
+193:   for (i = 0; i < buf_len; i++) {
+194:     if (!isok(buf[i])) return -1;
+195:     if ((i > 0 && buf[i] == '\n' && buf[i - 1] == '\n') ||
+196:         (i > 3 && buf[i] == '\n' && buf[i - 1] == '\r' && buf[i - 2] == '\n'))
+197:       return (int) i + 1;
+198:   }
+199:   return 0;
+200: }
+```
+
+This function scans the buffer to find the end of the headers. It checks for two consecutive newlines or the pattern "\r\n\r\n". The input "ab\r" (which is 'a','b','\r') does not have a trailing '\n', so it doesn't match the pattern. However, note the condition on line 196: `i > 3 && buf[i] == '\n' && buf[i-1] == '\r' && buf[i-2] == '\n'`. This condition requires at least 4 bytes to be present (i>3). But for a 3-byte buffer, i can only be 0,1,2. So it won't trigger that condition.
+
+But there is another condition: line 195: `i > 0 && buf[i] == '\n' && buf[i-1] == '\n'`. For i=2, we check buf[2] and buf[1]. Our input is buf[0]='a', buf[1]='b', buf[2]='\r'. So buf[2] is '\r', not '\n'. So it doesn't match.
+
+Therefore, this function returns 0 (meaning no request found) for the input "ab\r". So it shouldn't cause an overflow.
+
+Now, let's look at `mg_http_parse` (line 270). It calls `mg_http_get_request_len` to get the request length. If it returns <=0, it returns early. So for our input, it should return 0? But wait: the ASan report says the buffer was allocated by thread T0 at #1 0xaaaaab730698. That is likely inside `mg_http_parse` or a function it calls.
+
+Another function that might be involved is `skiptorn` (line 228), which is called from `mg_http_parse_headers` and `mg_http_parse`. Let's look at `skiptorn`:
+
+```c
+228: static const char *skiptorn(const char *s, const char *end, struct mg_str *v) {
+229:   v->buf = (char *) s;
+230:   while (s < end && s[0] != '\n' && s[0] != '\r') s++, v->len++;  // To newline
+231:   if (s >= end || (s[0] == '\r' && s[1] != '\n')) return NULL;    // Stray \r
+232:   if (s < end && s[0] == '\r') s++;                               // Skip \r
+233:   if (s >= end || *s++ != '\n') return NULL;                      // Skip \n
+234:   return s;
+235: }
+```
+
+This function advances `s` until it finds a newline. Then it checks for "\r\n". In our case, the input is only 3 bytes: "ab\r". So when we call this function, we might be at the end of the buffer.
+
+Suppose we call `skiptorn` with `s` pointing to the beginning of the buffer and `end` pointing to the end (s+3). Then:
+
+- Line 230: while s < end and s[0] is not '\n' or '\r'. So it increments until it hits the '\r' at s[2]. Then v->len becomes 2.
+- Now s points to the '\r' at offset 2.
+- Line 231: s is not >= end (s=2, end=3), so we check: s[0] is '\r', and we check s[1] (which is at offset 3) to see if it is not '\n'. But s[1] is beyond the buffer! Because the buffer is only 3 bytes, so s[1] is the byte after the buffer.
+
+This is the out-of-bounds read: we are reading s[1] when we only have 3 bytes allocated. The condition should be changed to avoid reading beyond the end.
+
+Specifically, we should check that there is at least one more byte after the '\r' before accessing s[1]. So the fix is to change line 231 to:
+
+```c
+if (s >= end || (s[0] == '\r' && (s+1 >= end || s[1] != '\n'))) return NULL;
+```
+
+But wait, the code already has `s >= end` first. So if s is at the last byte (index 2 in a 3-byte buffer), then s+1 is beyond. So we need to check for s+1 >= end.
+
+Therefore, the root cause is in `skiptorn` at line 231: it accesses s[1] without checking if there is at least one more byte in the buffer.
+
+Now, let's confirm if this function is called for the input "ab\r". The input is not a valid HTTP request, but it might be passed to `mg_http_parse`, which calls `skiptorn` when parsing the request line or headers.
+
+So the candidate is:
+
+```json
+{
+  "rank": 1,
+  "root_cause": {"file": "mongoose/src/http.c", "function": "skiptorn", "line": 231},
+  "explanation": "The function reads s[1] to check for '\\n' after '\\r', but if the buffer ends with '\\r', s[1] is out-of-bounds.",
+  "fix": "Change the condition to: if (s >= end || (s[0] == '\\r' && (s+1 >= end || s[1] != '\\n'))) return NULL;",
+  "confidence": 0.95
+}
+```
+
+Other candidates might be in similar functions that scan for newlines, but `skiptorn` is the most likely given the input and the overflow.
+
+Note: There is another function `mg_http_parse_headers` that might call `skiptorn`, but the issue is in `skiptorn` itself.
+
+Therefore, the ranked list is:
+
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skiptorn", "line": 231},
+    "explanation": "When the buffer ends with '\\r', the code reads the next byte (which is beyond the buffer) to check for '\\n'.",
+    "fix": "Change the condition to: if (s >= end || (s[0] == '\\r' && (s+1 >= end || s[1] != '\\n'))) return NULL;",
+    "confidence": 0.95
+  }
+]
+```
+
+I only have one strong candidate. The others are less likely.

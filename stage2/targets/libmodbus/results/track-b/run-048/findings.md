@@ -1,0 +1,40 @@
+# Candidate findings
+
+Status values: candidate | validated | rejected | inconclusive
+
+Written by stage2/driver/run_task.py. Do not edit; scoring writes
+verdict.md instead. Machine-readable copy: candidates.json.
+
+```yaml
+candidate_id: CAND-001
+viewpoint: ai-source-review
+property: memory-safety
+hypothesis: If the `LIBMODBUS_VERSION_STRING` macro is longer than approximately 247
+  characters, a `REPORT_SLAVE_ID` request will cause a stack-based buffer overflow
+  in the `modbus_reply` function when it constructs the response.
+evidence_source: In `modbus_reply`, a fixed-size stack buffer `rsp` of `MAX_MESSAGE_LENGTH`
+  (260) bytes is declared at line 712. When handling `MODBUS_FC_REPORT_SLAVE_ID`,
+  the code at line 915 performs a `memcpy` into this buffer. The size of the copy
+  is determined by `str_len`, which is calculated from `strlen(LIBMODBUS_VERSION_STRING)`
+  at line 914. There is no check to ensure that `str_len` combined with the current
+  response length `rsp_length` does not exceed the size of the `rsp` buffer.
+input_artifact: not_available (static source review; no input artifact)
+expected_behavior: The server process will crash due to a segmentation fault or stack
+  corruption when handling a `REPORT_SLAVE_ID` request.
+observed_behavior: not_available (static source review; nothing was executed)
+status: candidate
+oracle_verdict: pending
+notes: The vulnerability is triggered by a standard Modbus request. The condition
+  for the overflow to occur depends on a compile-time constant (`LIBMODBUS_VERSION_STRING`).
+  For a typical TCP backend where the header length is 7 bytes, the overflow happens
+  if `strlen(LIBMODBUS_VERSION_STRING)` is greater than 247.
+vulnerability_class: buffer-overflow
+location:
+  file: modbus.c
+  function: modbus_reply
+  line: 915
+confidence: 1.0
+model: google/gemini-2.5-pro
+prompt_id: libmodbus-0367-source-review@v1
+run_index: 2
+```

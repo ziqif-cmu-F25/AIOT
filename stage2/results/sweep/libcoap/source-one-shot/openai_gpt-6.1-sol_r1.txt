@@ -1,0 +1,38 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libcoap/src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 538
+    },
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "A proxy request containing a Proxy-Uri with a non-Unix hostname longer than 256 bytes causes a static-buffer overflow. The URI parser does not limit hostname length, and the proxy passes that network-controlled hostname directly to this resolver. memcpy copies address->length bytes into a 256-byte buffer without checking the length. A hostname of exactly 256 non-NUL bytes also removes all termination before getaddrinfo, potentially causing an out-of-bounds read. The PDU validator permits Proxy-Uri values up to 1034 bytes, so the overflowing input need not violate that option-length check.",
+    "evidence": "coap_address.c:498: static char addrstr[256];\ncoap_address.c:536-538: memset(addrstr, 0, sizeof(addrstr)); if (address && address->length) memcpy(addrstr, address->s, address->length);\ncoap_address.c:547: error = getaddrinfo(addrstr, NULL, &hints, &res);\ncoap_uri.c:192-202: while (len && *q != ':' && *q != '/' && *q != '?') { ++q; --len; } ... COAP_SET_STR(&uri->host, q - p, p);\ncoap_proxy.c:251-253: coap_split_proxy_uri(coap_opt_value(proxy_uri), coap_opt_length(proxy_uri), &server_use->uri)\ncoap_proxy.c:420: info_list = coap_resolve_address_info(&server_use->uri.host,\ncoap_pdu.c:1255-1257: case COAP_OPTION_PROXY_URI: if (len < 1 || len > 1034) res = 0;",
+    "confidence": 1.0
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "libcoap/src/coap_pdu.c",
+      "function": "coap_pdu_parse_header",
+      "line": 1095
+    },
+    "vulnerability_class": "oob-read",
+    "hypothesis": "A truncated network PDU whose token-length nibble selects an extended token length causes token-prefix bytes to be read before their availability is checked. The one-byte extension reads token[0] even when there are no bytes after the header; the two-byte extension reads token[1] even when only one byte remains. These are physical out-of-bounds reads when the PDU backing allocation ends at that boundary, such as a tightly sized PDU or an incoming lwIP pbuf. Larger retained allocations can mask the physical overread, but do not make the validation correct. coap_pdu_parse_size has the analogous problem for TCP: its assertion checks only the base header size, not the extended-token prefix.",
+    "evidence": "coap_pdu.c:1090-1096: } else if (e_token_length == COAP_TOKEN_EXT_1B_TKL) { pdu->e_token_length = pdu->token[0] + COAP_TOKEN_EXT_1B_BIAS + 1; ... } else if (e_token_length == COAP_TOKEN_EXT_2B_TKL) { pdu->e_token_length = ((uint16_t)pdu->token[0] << 8) + pdu->token[1] + COAP_TOKEN_EXT_2B_BIAS + 2;\ncoap_pdu.c:1100: if (pdu->e_token_length > pdu->alloc_size || e_token_length == 15) {\ncoap_pdu.c:1464-1465: pdu->used_size = length - hdr_size; return coap_pdu_parse_header(pdu, proto) && coap_pdu_parse_opt(pdu);\ncoap_pdu.c:88-89: pdu->token = (uint8_t *)pbuf->payload + pdu->max_hdr_size; pdu->alloc_size = pbuf->tot_len - pdu->max_hdr_size;\ncoap_pdu.c:1010: assert(coap_pdu_parse_header_size(proto, data) <= length);\ncoap_pdu.c:1041-1045: size += token_start[0] + COAP_TOKEN_EXT_1B_BIAS + 1; ... size += ((uint16_t)token_start[0] << 8) + token_start[1] + COAP_TOKEN_EXT_2B_BIAS + 2;",
+    "confidence": 0.98
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "libcoap/src/coap_proxy.c",
+      "function": "coap_proxy_forward_request_lkd",
+      "line": 681
+    },
+    "vulnerability_class": "use-after-free",
+    "hypothesis": "A proxied request with a body requiring deferred or blockwise upstream transmission can cause a use-after-free. The function allocates a persistent body copy, but passes the original request's data pointer—not body_data->s—to coap_add_data_large_request_lkd. Once the original request body is released, subsequent upstream transmission can read freed memory. The release callback preserves and eventually frees the unused copy rather than preserving the buffer actually supplied for transmission. This candidate depends on the large-request API retaining the supplied data pointer for deferred transmission, which is strongly indicated by the surrounding lifetime comment and release-callback interface.",
+    "evidence": "coap_proxy.c:668: if (coap_get_data_large(request, &size, &data, &offset, &total)) {\ncoap_proxy.c:671-674: /* Need to take a copy of the data as request PDU may go away before all data is transmitted. */\ncoap_proxy.c:675: body_data = coap_new_binary(total);\ncoap_proxy.c:680-682: memcpy(body_data->s, data, size); if (!coap_add_data_large_request_lkd(proxy_entry->ongoing, pdu, total, data, coap_proxy_release_body_data, body_data)) {\ncoap_proxy.c:514-516: coap_proxy_release_body_data(coap_session_t *session COAP_UNUSED, void *app_ptr) { coap_delete_binary(app_ptr);\ncoap_proxy.c:783-784: memcpy(body_data->s, data, size); data = body_data->s;",
+    "confidence": 0.96
+  }
+]

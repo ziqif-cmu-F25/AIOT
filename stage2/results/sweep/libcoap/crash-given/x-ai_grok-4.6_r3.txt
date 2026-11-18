@@ -1,0 +1,21 @@
+{
+  "rank": 1,
+  "root_cause": {"file": "src/coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+  "explanation": "ASan reports a WRITE of size 300 immediately after the 256-byte static local `addrstr`. The only write that large into that object is `memcpy(addrstr, address->s, address->length)` at line 538. The preceding condition (`address && address->length`) never compares `address->length` to `sizeof(addrstr)`. A crafted CoAP Proxy-Uri (allowed up to 1034 bytes) can yield a host with length 300; that memcpy then writes 44 bytes past the buffer (and also omits a NUL if length >= 256, which `getaddrinfo` requires). The Unix-domain branch just above does length-check; this path does not.",
+  "fix": "Before the memcpy, reject an oversized host so a NUL always fits, e.g. `if (address && address->length) { if (address->length >= sizeof(addrstr)) { coap_log_err(\"Host name too long\\n\"); return NULL; } memcpy(addrstr, address->s, address->length); }`",
+  "confidence": 0.97
+}
+{
+  "rank": 2,
+  "root_cause": {"file": "src/coap_uri.c", "function": "coap_split_uri_sub", "line": 202},
+  "explanation": "Proxy-Uri is parsed here via `COAP_SET_STR(&uri->host, q - p, p)` with no cap. RFC 7252 Uri-Host is 1–255 bytes, but a Proxy-Uri host can be hundreds of bytes and is then passed straight into `coap_resolve_address_info`. This is how a 300-byte length reaches the overflowing memcpy; it is a missing validation on the attacker-controlled input, not the OOB itself.",
+  "fix": "After extracting the host, fail if it cannot fit a C string in the resolver buffer (and the CoAP Uri-Host limit), e.g. `if ((size_t)(q - p) >= 256) { res = -3; goto error; }` before `COAP_SET_STR`.",
+  "confidence": 0.55
+}
+{
+  "rank": 3,
+  "root_cause": {"file": "src/coap_proxy.c", "function": "coap_get_uri_proxy_scheme_info", "line": 119},
+  "explanation": "The Proxy-Scheme path copies Uri-Host with `uri->host.length = coap_opt_length(opt)` and no extra cap. PDU parse already rejects Uri-Host > 255, so this cannot produce a 300-byte write by itself; it is only a weaker, secondary missing check on the same resolve path.",
+  "fix": "If `coap_opt_length(opt) >= 256` (or > 255), return 0 before assigning `uri->host`.",
+  "confidence": 0.2
+}

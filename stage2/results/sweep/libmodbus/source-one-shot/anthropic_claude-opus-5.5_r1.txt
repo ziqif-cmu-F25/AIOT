@@ -1,0 +1,28 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 964},
+    "vulnerability_class": "oob-write",
+    "hypothesis": "In MODBUS_FC_WRITE_AND_READ_REGISTERS (0x17), the address check tests `mapping_address < 0` twice and never tests `mapping_address_write < 0`. A client can send a valid read address together with a write address below start_registers (for example, any write address when start_registers > 0). nb_write must still pass the bounds check (1..121, byte count = 2*nb_write). mapping_address_write is then negative and the condition `mapping_address_write + nb_write <= nb_registers` still holds. The write loop at line 980 then stores attacker-controlled 16-bit values at tab_registers[negative index], corrupting heap memory before the allocation.",
+    "evidence": "} else if (mapping_address < 0 ||\n                   (mapping_address + nb) > mb_mapping->nb_registers ||\n                   mapping_address < 0 ||\n                   (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\n...\n for (i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; i++, j += 2) {\n    mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 862},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "For WRITE_MULTIPLE_COILS, the bit data is read from req according to nb and the declared byte count. The check only requires nb_bits*8 >= nb and does not verify that the byte count matches ceil(nb/8). This mismatch could cause reads of stale or uninitialized bytes in the req buffer, though they likely stay within its bounds.",
+    "evidence": "if (nb < 1 || MODBUS_MAX_WRITE_BITS < nb || nb_bits * 8 < nb) {... modbus_set_bits_from_bytes(mb_mapping->tab_bits, mapping_address, nb, &req[offset + 6]);",
+    "confidence": 0.15
+  },
+  {
+    "rank": 3,
+    "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_report_slave_id", "line": 1557},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "rc comes from the response byte count, and the copy loop reads rsp[offset+2+i]. If the max_adu_length check were bypassed, this could read past the 260-byte rsp buffer.",
+    "evidence": "for (i=0; i < rc && i < max_dest; i++) { dest[i] = rsp[offset + i]; }",
+    "confidence": 0.1
+  }
+]
+```

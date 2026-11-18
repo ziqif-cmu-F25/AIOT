@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "source-agentic",
+  "property": "memory-safety",
+  "hypothesis": "In skip_chunk(), the guard `len < i + 1` allows reading buf[i+1] when len == i + 1 and buf[i] == '\\r'. The correct guard is `len < i + 2`. This causes a one-byte out-of-bounds read past the logical buffer.",
+  "evidence_source": "skip_chunk line 17: guard `len < i + 1` only guarantees len >= i + 1, but reads buf[i+1]. When len == i+1 and buf[i] == '\\r', reads buf[len]. Also identified mg_http_status atoi overread as secondary finding.",
+  "input_artifact": "not_available (source review with tool access; no concrete input)",
+  "expected_behavior": "One-byte OOB read of buf[i+1] when chunk-size line ends with CR at the last buffered byte.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "C1 agentic condition (C1-orig), 3 turns. Correctly identified CVE-2026-52056 off-by-one in skip_chunk() as rank-1 finding via tool-mediated exploration.",
+  "vulnerability_class": "oob-read",
+  "location": {
+    "file": "src/http.c",
+    "function": "skip_chunk",
+    "line": 17
+  },
+  "confidence": 0.85,
+  "model": "anthropic/claude-haiku-5.5",
+  "prompt_id": "mongoose-c1-rerun@v1",
+  "run_index": 1
+}

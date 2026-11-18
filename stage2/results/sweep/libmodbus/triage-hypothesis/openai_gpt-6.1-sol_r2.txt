@@ -1,0 +1,15 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "<provided excerpt>",
+      "function": "MODBUS_FC_WRITE_AND_READ_REGISTERS case",
+      "line": 980
+    },
+    "bug_class": "oob-write",
+    "hypothesis": "The duplicated mapping_address < 0 check at line 964 leaves mapping_address_write unchecked for negativity, allowing a request with a write address below start_registers to write before mb_mapping->tab_registers at line 980.",
+    "vulnerable_line": "mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];",
+    "trigger_condition": "For a mapping with start_registers=100 and nb_registers=10, send a request with read address=100, nb=1, address_write=99, nb_write=1, nb_write_bytes=2, and two payload bytes. The read checks pass, mapping_address_write + nb_write equals 0 and passes the write upper-bound check, and the loop writes the supplied value to tab_registers[-1].",
+    "confidence": 0.99
+  }
+]

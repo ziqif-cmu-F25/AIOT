@@ -1,0 +1,9 @@
+```json
+{
+  "hypothesis": "In skip_chunk(), the CRLF check after the hex chunk-size uses an off-by-one bound (`len < i + 1` instead of `len < i + 2`), so when the received data ends exactly after the hex digits plus a single '\\r', the code reads buf[i + 1] == buf[len], one byte past the valid received data (and past the allocation if c->recv.buf is exactly full).",
+  "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // Error",
+  "bug_class": "oob-read",
+  "trigger_condition": "A request with Transfer-Encoding: chunked whose buffered body so far (at the current offset o) is 1-8 hex digits followed by exactly one '\\r' and nothing else, with total remaining length >= 3. Example: \"abc\\r\" gives len=4 and i=3. The check `4 < 4` is false and buf[3]=='\\r', so buf[4] is read at index len. An attacker gets this state by sending the chunk-size line and '\\r' and then pausing before the '\\n', or by placing it at the end of a recv buffer that is exactly full. A subsequent chunk at offset o in the caller's loop works the same way, since len - o is passed.",
+  "confidence": 0.85
+}
+```

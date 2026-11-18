@@ -1,0 +1,39 @@
+# Candidate findings
+
+Status values: candidate | validated | rejected | inconclusive
+
+Written by stage2/driver/run_task.py. Do not edit; scoring writes
+verdict.md instead. Machine-readable copy: candidates.json.
+
+```yaml
+candidate_id: CAND-001
+viewpoint: ai-source-review
+property: memory-safety
+hypothesis: A WRITE_AND_READ_REGISTERS request can write before the register buffer
+  when its write address is below the configured start_registers, while its read range
+  is valid. The write-range validation repeats the read-index lower-bound check instead
+  of checking mapping_address_write.
+evidence_source: Lines 952-953 compute separate read and write mapping indices. In
+  the bounds check at lines 962-965, mapping_address < 0 appears twice; mapping_address_write
+  < 0 is never checked. Consequently, the assignment at line 980 can index mb_mapping->tab_registers
+  with a negative i.
+input_artifact: not_available (static source review; no input artifact)
+expected_behavior: An out-of-bounds write before the register allocation, potentially
+  producing an AddressSanitizer heap-buffer-overflow report, memory corruption, or
+  a crash.
+observed_behavior: not_available (static source review; nothing was executed)
+status: candidate
+oracle_verdict: pending
+notes: Requires a register mapping with a nonzero start address. Valid quantity and
+  byte-count fields do not prevent the defect. Replace the duplicate read-index lower-bound
+  check at line 964 with a check of mapping_address_write.
+vulnerability_class: buffer-overflow
+location:
+  file: modbus.c
+  function: modbus_reply
+  line: 980
+confidence: 0.99
+model: openai/gpt-6.1-sol
+prompt_id: libmodbus-0367-source-review@v1
+run_index: 1
+```

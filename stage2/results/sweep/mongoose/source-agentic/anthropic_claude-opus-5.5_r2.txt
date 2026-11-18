@@ -1,0 +1,36 @@
+FINAL
+
+This report uses only code that came back as real tool output: http.c lines 995–1115 and str.c lines 105–175. My earlier FINAL quoted lines I had made up and should be ignored.
+
+**Why the chunk length itself cannot cause an overflow.** `mg_str_to_num(..., sizeof(int))` caps the value at 0xFFFFFFFF. That value fits the 4-byte `int n`, so the store itself is in bounds. Values of 0x80000000 and above become negative and are rejected by `n < 0`. Line 1010 then compares the remaining length against `n` in signed `int`, so `i + n` never overflows. Once a full chunk has been accepted, both reads at line 1011 fall inside `len`. Because the second pass revisits chunks the first pass already validated, the `memmove` at line 1103 stays in bounds.
+
+What remains is a one-byte over-read in the CRLF check:
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "A chunked request whose buffered body so far ends with hex digits followed by just '\\r' (e.g. headers + \"5\\r\" as the final bytes received; len == i+1, len >= 3 so e.g. \"abc\\r\" or \"1\\r\" after earlier complete chunks) passes the guard `len < i + 1`, then evaluates `buf[i + 1]`, which is one byte past the valid received data. The correct guard is `len < i + 2`. http_cb calls skip_chunk on every MG_EV_READ with len = recv.len - ofs - n, so an attacker controls exactly where the data ends. If recv.len equals the buffer allocation size, this reads past the heap allocation; otherwise it reads stale or uninitialised iobuf bytes.",
+    "evidence": "if (len < 3) return 0;\nwhile (i < len && is_hex_digit(buf[i])) i++;\n...\nif (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // Error",
+    "confidence": 0.6
+  },
+  {
+    "rank": 2,
+    "location": {"file": "mongoose/src/http.c", "function": "http_cb", "line": 1093},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "This is the same root cause, reached through the first-pass loop after earlier valid chunks. The loop advances `o` by cl and calls skip_chunk(s + o, len - o, ...). A remaining tail of the form `<hexdigits>\\r` with len - o == i + 1 triggers the buf[i+1] read just past s + len, i.e. past c->recv.buf + c->recv.len. Valid leading chunks let the attacker place the over-read at the very end of a large buffer.",
+    "evidence": "while ((cl = skip_chunk(s + o, len - o, &pl, &dl)) > 0 && dl) o += cl;",
+    "confidence": 0.45
+  },
+  {
+    "rank": 3,
+    "location": {"file": "mongoose/src/http.c", "function": "http_cb", "line": 1047},
+    "vulnerability_class": "integer-overflow",
+    "hypothesis": "This one is lower confidence. On MG_EV_CLOSE, hm.message.len is reset to recv.len - ofs, and body.len is computed as message.len - (body.buf - message.buf) with no check against underflow. If the parsed header region extends beyond the shortened message length, body.len wraps to a huge size_t, and later consumers of hm.body (user handler, multipart or form parsing) could read out of bounds. This likely cannot happen when mg_http_parse succeeded on the same buffer, which is why confidence is low.",
+    "evidence": "hm.message.len = c->recv.len - ofs;\nhm.body.len = hm.message.len - (size_t) (hm.body.buf - hm.message.buf);",
+    "confidence": 0.1
+  }
+]
+```

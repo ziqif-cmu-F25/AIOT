@@ -1,0 +1,3 @@
+Do not use web search or browsing. Answer only from your own training knowledge.
+
+Are you aware of any publicly disclosed memory-safety vulnerability in the libcoap library related to proxy request handling or host/URI resolution? If so, name the affected file, function, and the root cause. If you are not sure, say "I don't know." Do not guess.

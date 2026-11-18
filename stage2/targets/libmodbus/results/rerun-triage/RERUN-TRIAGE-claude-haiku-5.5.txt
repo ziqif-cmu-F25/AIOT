@@ -1,0 +1,9 @@
+```json
+{
+  "hypothesis": "The bounds check for the write range never tests mapping_address_write < 0; the code duplicates the 'mapping_address < 0' test instead. A request whose write address is below mb_mapping->start_registers yields a negative write index, which passes the upper-bound test because adding a small nb_write keeps the sum below nb_registers. The write loop then stores attacker-chosen 16-bit values to tab_registers[negative], a heap write before the start of the register array.",
+  "vulnerable_line": "} else if (mapping_address < 0 ||\n               (mapping_address + nb) > mb_mapping->nb_registers ||\n               mapping_address < 0 ||\n               (mapping_address_write + nb_write) > mb_mapping->nb_registers) {  (the third clause should be mapping_address_write < 0); the unchecked write is mb_mapping->tab_registers[i] = ... with i starting at mapping_address_write",
+  "bug_class": "oob-write (heap buffer underflow via negative index from missing lower-bound check)",
+  "trigger_condition": "A 0x17 request with valid nb_write (1..MODBUS_MAX_WR_WRITE_REGISTERS), valid nb (1..MODBUS_MAX_WR_READ_REGISTERS), nb_write_bytes == 2*nb_write, and address_write (uint16) < mb_mapping->start_registers, while the read range mapping_address stays in bounds. Then mapping_address_write is negative and the write loop writes up to nb_write 16-bit values below tab_registers. This requires start_registers > 0; with start_registers == 0 the index cannot go negative.",
+  "confidence": 0.9
+}
+```

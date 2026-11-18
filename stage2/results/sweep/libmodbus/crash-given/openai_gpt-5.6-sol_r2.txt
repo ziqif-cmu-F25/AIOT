@@ -1,0 +1,13 @@
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 964
+    },
+    "explanation": "In the MODBUS_FC_WRITE_AND_READ_REGISTERS address validation, the lower-bound check for the write mapping is missing. Line 964 mistakenly checks `mapping_address < 0` a second time instead of checking `mapping_address_write < 0`. A crafted write address below `mb_mapping->start_registers` therefore makes `mapping_address_write` negative while still passing validation, provided its upper-bound expression also passes. The loop beginning at line 978 then uses that negative value as `i`, and line 980 writes to `mb_mapping->tab_registers[i]`, before the allocated register array.",
+    "fix": "Replace line 964 with `mapping_address_write < 0 ||`. The complete condition should be: `else if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address_write < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers)`.",
+    "confidence": 1.0
+  }
+]

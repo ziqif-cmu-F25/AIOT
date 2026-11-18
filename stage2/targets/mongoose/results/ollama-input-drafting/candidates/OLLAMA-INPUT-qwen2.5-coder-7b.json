@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "input-drafting",
+  "property": "memory-safety",
+  "hypothesis": "```json\n{\n  \"raw_request\": \"GET / HTTP/1.1\\r\\nHost: example.com\\r\\nTransfer-Encoding: chunked\\r\\n\\r\\n1\\r\\n\\r\\n\",\n  \"hex_body\": \"01 0d\",\n  \"explanation\": \"The chunked body consists of a single chunk with a length of 1 byte ('1'), followed by the chunk data ('\\\\r'), and then the chunk trailer ('\\\\n'). The buffer in skip_chunk() will have '1\\\\r' at position i, with no '\\\\n' following it, causing the off-by-one read.\",\n  \"delivery_notes\": \"The request must be sent in one TCP segment. The HTTP header",
+  "evidence_source": "Identified off-by-one in skip_chunk: buf[i+1] accessed when i == len.",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "input-drafting condition (Ollama). Correctly identified target CVE.",
+  "vulnerability_class": "oob-read",
+  "location": {
+    "file": "src/http.c",
+    "function": "skip_chunk",
+    "line": 12
+  },
+  "confidence": 0.9,
+  "model": "ollama/qwen2.5-coder:7b",
+  "prompt_id": "mongoose-ollama-input@v1",
+  "run_index": 1
+}

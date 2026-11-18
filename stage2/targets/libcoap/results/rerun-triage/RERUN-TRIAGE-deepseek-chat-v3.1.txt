@@ -1,0 +1,7 @@
+{
+  "hypothesis": "The memcpy call at line 544 copies an attacker-controlled hostname string of arbitrary length into a fixed-size 256-byte buffer, causing a stack-based buffer overflow when address->length exceeds 255.",
+  "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+  "bug_class": "buffer-overflow",
+  "trigger_condition": "When address->length > 255 and address->s contains a hostname longer than 255 bytes",
+  "confidence": 0.95
+}

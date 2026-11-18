@@ -1,0 +1,11 @@
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1006},
+    "bug_class": "oob-read",
+    "hypothesis": "The CRLF length check uses len < i+1 instead of len < i+2, so when the byte after the hex size is a final '\\r' (i == len-1) short-circuit still evaluates buf[i+1] and reads one byte past the buffer.",
+    "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "trigger_condition": "Chunked-body prefix of length >= 3 consisting of 1..sizeof(int)*2 hex digits followed by a last-byte '\\r' (e.g. buf='AA\\r', len=3), so i==len-1, buf[i]=='\\r', and buf[i+1] is out of bounds.",
+    "confidence": 0.95
+  }
+]

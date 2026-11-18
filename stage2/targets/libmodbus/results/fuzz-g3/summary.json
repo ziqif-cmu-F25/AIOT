@@ -1,0 +1,76 @@
+{
+ "naive": {
+  "trials": [
+   {
+    "rng": 1,
+    "crash": true,
+    "iters_to_crash": 180,
+    "elapsed_s": 31.15
+   },
+   {
+    "rng": 2,
+    "crash": true,
+    "iters_to_crash": 149,
+    "elapsed_s": 29.97
+   },
+   {
+    "rng": 3,
+    "crash": true,
+    "iters_to_crash": 226,
+    "elapsed_s": 45.74
+   },
+   {
+    "rng": 4,
+    "crash": true,
+    "iters_to_crash": 250,
+    "elapsed_s": 56.38
+   },
+   {
+    "rng": 5,
+    "crash": true,
+    "iters_to_crash": 959,
+    "elapsed_s": 205.76
+   }
+  ],
+  "crash_rate": "5/5",
+  "median_iters_to_crash": 226,
+  "median_time_s": 45.7
+ },
+ "ai": {
+  "trials": [
+   {
+    "rng": 1,
+    "crash": true,
+    "iters_to_crash": 47,
+    "elapsed_s": 16.89
+   },
+   {
+    "rng": 2,
+    "crash": true,
+    "iters_to_crash": 17,
+    "elapsed_s": 6.05
+   },
+   {
+    "rng": 3,
+    "crash": true,
+    "iters_to_crash": 38,
+    "elapsed_s": 13.8
+   },
+   {
+    "rng": 4,
+    "crash": true,
+    "iters_to_crash": 105,
+    "elapsed_s": 40.21
+   },
+   {
+    "rng": 5,
+    "crash": true,
+    "iters_to_crash": 7,
+    "elapsed_s": 2.23
+   }
+  ],
+  "crash_rate": "5/5",
+  "median_iters_to_crash": 38,
+  "median_time_s": 13.8
+ }
+}

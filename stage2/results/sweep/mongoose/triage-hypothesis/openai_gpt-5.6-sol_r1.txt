@@ -1,0 +1,15 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "unknown",
+      "function": "skip_chunk",
+      "line": 1006
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "The incomplete bounds check permits buf[i + 1] to read one byte past the supplied buffer when the buffer ends with a carriage return after a nonempty hexadecimal chunk length.",
+    "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "trigger_condition": "A buffer of at least 3 bytes containing exactly len-1 hexadecimal digits followed by '\\r' (for example, buf=\"12\\r\", len=3), so i=len-1 and evaluating buf[i+1] accesses buf[len].",
+    "confidence": 0.99
+  }
+]

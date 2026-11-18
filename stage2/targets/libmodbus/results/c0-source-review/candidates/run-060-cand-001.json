@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "A write-and-read-registers request can write before the holding-register allocation when its write address precedes the configured mapping start. The bounds check tests mapping_address twice and never rejects a negative mapping_address_write.",
+  "evidence_source": "Lines 952-953 calculate separate read and write mapping offsets. Lines 962-965 check mapping_address < 0 twice, while checking only the upper bound of the write range. Lines 978-981 subsequently index tab_registers using mapping_address_write.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "An out-of-bounds write before tab_registers, potentially producing an AddressSanitizer heap-buffer-overflow report, heap corruption, or a crash.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "Requires a mapping with a nonzero start_registers and otherwise valid request quantities and payload length. The defect does not depend on a truncated frame or on bypassing the receive-side maximum-length check. Replace the repeated read-offset check with mapping_address_write < 0.",
+  "vulnerability_class": "buffer-overflow",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 964
+  },
+  "confidence": 0.99,
+  "model": "openai/gpt-6.1-sol",
+  "prompt_id": "libmodbus-0367-source-review@v1",
+  "run_index": 2
+}

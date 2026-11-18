@@ -1,0 +1,54 @@
+====================================================================
+ libcoap 实验 — PowerShell 执行器命令
+ 在仓库根目录运行：C:\Users\12199\Desktop\AIOT-Stage1-Claude\libcoap
+ （已在 detached HEAD @ 7cf7465 / v4.3.5，正确）
+====================================================================
+
+--------------------------------------------------------------------
+ 一次性：粘这两个函数到 PowerShell，存着本次会话用
+ 注意：函数名用 rl / gr。不要用 rd / gp —— 它们是 PowerShell 内置别名
+ （rd = Remove-Item 删除！gp = Get-ItemProperty），别名优先级高于函数，会出错或误删。
+--------------------------------------------------------------------
+function rl($f,$a,$b){ $n=0; $o=(gc $f | %{ $n++; if($n -ge $a -and $n -le $b){ "{0,6}`t{1}" -f $n,$_ } }) -join "`n"; if([string]::IsNullOrEmpty($o)){$o="(no matches)"}; Set-Clipboard -Value $o; "copied $f $a-$b" }
+function gr($p,$f){ $p=$p.Replace('\|','|'); if($f){$items=gi $f}else{$items=gci src,include -Recurse -Include *.c,*.h}; $o=($items | Select-String -Pattern $p | Select -First 50 | %{ "{0}:{1}:{2}" -f $_.Path,$_.LineNumber,$_.Line }) -join "`n"; if([string]::IsNullOrEmpty($o)){$o="(no matches)"}; Set-Clipboard -Value $o; "copied grep '$p'" }
+
+# 升级点：gr 自动把 \| 换成 | ，可选第二参数限定文件，结果为空也不报错。
+
+用法：
+  模型发 READ src/coap_address.c 450 650  ->  rl src\coap_address.c 450 650
+  模型发 GREP COAP_OPTION_PROXY_URI        ->  gr COAP_OPTION_PROXY_URI
+  跑完剪贴板就是结果，回到对话 Ctrl+V，前面加一句:
+    Here is the output of your request:
+
+--------------------------------------------------------------------
+ 当前这三轮，直接复制对应一行运行
+--------------------------------------------------------------------
+
+# 5.6 — C1  (GREP COAP_OPTION_PROXY_URI)
+gr COAP_OPTION_PROXY_URI
+
+# 6.1 — C2  (READ src/coap_address.c 450 650)
+rl src\coap_address.c 450 650
+
+# 5.6 — C2  (READ src/coap_address.c 450 560)
+rl src\coap_address.c 450 560
+
+--------------------------------------------------------------------
+ 不用函数的完整单行版本（等价，随便用哪种）
+--------------------------------------------------------------------
+
+# 5.6 — C1
+(Get-ChildItem src,include -Recurse -Include *.c,*.h | Select-String -Pattern 'COAP_OPTION_PROXY_URI' | Select -First 50 | %{ "{0}:{1}:{2}" -f $_.Path,$_.LineNumber,$_.Line }) -join "`n" | Set-Clipboard
+
+# 6.1 — C2
+$n=0; (Get-Content src\coap_address.c | %{ $n++; if($n -ge 450 -and $n -le 650){ "{0,6}`t{1}" -f $n,$_ } }) -join "`n" | Set-Clipboard
+
+# 5.6 — C2
+$n=0; (Get-Content src\coap_address.c | %{ $n++; if($n -ge 450 -and $n -le 560){ "{0,6}`t{1}" -f $n,$_ } }) -join "`n" | Set-Clipboard
+
+====================================================================
+ 规则：只回输出，不加提示，不提文件/函数名。
+ 文件找不到或超过 300 行就回：
+   Your request could not be executed. Please make a different request.
+ 每轮记下模型的 HYPOTHESIS 和第几轮读到真实现（C1 评分用）。
+====================================================================

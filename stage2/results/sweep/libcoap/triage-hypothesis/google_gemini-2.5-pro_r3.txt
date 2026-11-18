@@ -1,0 +1,43 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "...",
+      "function": "coap_resolve_address_info",
+      "line": 538
+    },
+    "bug_class": "buffer-overflow",
+    "hypothesis": "A stack buffer overflow occurs if the input `address->length` is 256 or greater, as `memcpy` writes past the end of the 256-byte `addrstr` buffer.",
+    "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "The function is called with an `address` parameter where `address->length >= 256`.",
+    "confidence": 1.0
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "...",
+      "function": "coap_resolve_address_info",
+      "line": 556
+    },
+    "bug_class": "other",
+    "hypothesis": "A NULL pointer dereference occurs when accessing `info->addr.addr` because the `info` pointer is not initialized before its first use within the `ainfo` loop.",
+    "vulnerable_line": "if (ainfo->ai_addrlen > (socklen_t)sizeof(info->addr.addr))",
+    "trigger_condition": "Any call where `getaddrinfo` on line 547 succeeds and returns at least one result, causing the loop on line 554 to execute.",
+    "confidence": 1.0
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "...",
+      "function": "coap_resolve_address_info",
+      "line": 547
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "An out-of-bounds read occurs within the `getaddrinfo` function because `addrstr` is not null-terminated when the input `address->length` is exactly 256.",
+    "vulnerable_line": "error = getaddrinfo(addrstr, NULL, &hints, &res);",
+    "trigger_condition": "The function is called with an `address` parameter where `address->length == 256`.",
+    "confidence": 0.9
+  }
+]
+```

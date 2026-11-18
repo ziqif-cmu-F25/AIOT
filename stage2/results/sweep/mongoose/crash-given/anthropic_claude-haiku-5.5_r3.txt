@@ -1,0 +1,25 @@
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+    "explanation": "The 3-byte input \"ab\\r\" passes the `len < 3` guard on line 1002. Line 1003 consumes the hex digits 'a' and 'b', so i = 2. Line 1006 is `if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n')`. The bounds guard `len < i + 1` is evaluated as `3 < 3`, which is false, so the check does not reject the input. buf[2] == '\\r' is true, so the expression evaluates buf[i + 1] = buf[3]. Index 3 is one byte past the 3-byte malloc region [0..2], and the 1-byte READ at 0x...13 matches that exactly. The guard must cover index i+1, so it needs i+2 bytes, not i+1. The `||` short-circuit only protects the read when the guard itself is true, so the wrong constant lets the read through. The ASan libc frames are unsymbolized and do not map to source lines, so attribution to this line rests on the byte arithmetic: for this input, the only read at index 3 is buf[i+1] at line 1006.",
+    "fix": "if (len < i + 2 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "confidence": 0.93
+  },
+  {
+    "rank": 2,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1002},
+    "explanation": "The minimum-length guard `if (len < 3) return 0;` is the only early check on the buffer length, and it is not tied to the chunk-line grammar that follows. A correct minimum would be the smallest well-formed prefix, '<hex>\\r\\n' (at least 3 bytes), with the \\r\\n check made length-exact on line 1006. With the guard as written, the function reaches the unchecked comparisons on line 1006 with len exactly equal to i + 1. Making this guard depend on the actual parsed prefix (for example, rejecting when len < i + 2 after the digit scan) closes the gap as a defense in depth. This is a secondary hardening suggestion, not the primary defect.",
+    "fix": "Keep the early guard, but also re-check the bound after the digit scan: `if (len < i + 2) return 0;` (partial data) before reading buf[i] and buf[i+1].",
+    "confidence": 0.35
+  },
+  {
+    "rank": 3,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1011},
+    "explanation": "The trailer check `buf[i + n + 2] != '\\r' || buf[i + n + 3] != '\\n'` reads up to index i+n+3. Line 1010 (`if (n > len - i - 4) return 0;`) is supposed to guarantee len >= i+n+4 before this read, so the read is safe for valid inputs. It is only a candidate if the line 1010 comparison is wrong under signed arithmetic (for example, when len - i - 4 is negative and n is converted unexpectedly). For the reported input, execution stops at line 1006 before reaching this line, so this is unlikely to be the faulting site.",
+    "fix": "Make the bound explicit before the trailer read: `if (len < i + n + 4) return 0;` and check the trailer only after that.",
+    "confidence": 0.05
+  }
+]
+```

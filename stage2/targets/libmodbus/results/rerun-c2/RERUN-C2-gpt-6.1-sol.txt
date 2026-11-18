@@ -1,0 +1,6 @@
+{
+  "root_cause_line": "mapping_address < 0 ||",
+  "explanation": "The second occurrence of this condition in the address-validation branch incorrectly checks the read offset again instead of checking mapping_address_write. If address_write is below mb_mapping->start_registers, mapping_address_write is negative. The upper-bound check, (mapping_address_write + nb_write) > mb_mapping->nb_registers, does not reject that negative starting offset. With an otherwise valid read range and valid counts, execution reaches the write loop, where i starts negative and mb_mapping->tab_registers[i] writes before the allocated register array, causing the reported crash.",
+  "fix": "Replace the second occurrence of mapping_address < 0 with mapping_address_write < 0. The corrected condition is: else if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address_write < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers). This validates both the lower and upper bounds of the read and write ranges before accessing the mapping.",
+  "confidence": 1.0
+}

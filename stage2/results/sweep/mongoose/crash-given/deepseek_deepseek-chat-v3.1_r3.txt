@@ -1,0 +1,23 @@
+{
+  "rank": 1,
+  "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1007},
+  "explanation": "The function skip_chunk processes chunked transfer encoding. It reads a chunk length from the hexadecimal string. The check at line 1007 uses mg_str_to_num to convert the hex string to an integer. However, the function does not validate that the chunk length 'n' is non-negative after conversion. The input '61 62 0d' (ASCII 'ab\\r') is a malformed chunk: it starts with 'ab' which is not a valid hex digit sequence (since 'b' is a hex digit, but the sequence is incomplete). This causes mg_str_to_num to fail and return false, but the code does not handle this failure correctly and proceeds with an uninitialized or negative 'n'. Later, when calculating the chunk end, it accesses memory out of bounds because the chunk length is invalid.",
+  "fix": "Change line 1007 to check the return value of mg_str_to_num and return -1 immediately if conversion fails: if (!mg_str_to_num(mg_str_n(buf, (size_t) i), 16, &n, sizeof(int))) return -1;",
+  "confidence": 0.95
+}
+
+{
+  "rank": 2,
+  "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1003},
+  "explanation": "The loop at line 1003 reads hex digits to determine the chunk length. It breaks when it encounters a non-hex digit. However, the input 'ab\\r' has 'a' and 'b' as hex digits, so i becomes 2. Then it checks for '\\r\\n' at positions i and i+1. But the input has only '\\r' at position 2 (and no '\\n' at position 3), so the condition fails. The function should return -1 at this point, but the code does not handle this correctly. The subsequent call to mg_str_to_num might be called with an invalid string (if there are no hex digits at all, i==0, which is handled, but if there are some hex digits followed by an invalid sequence, it is not).",
+  "fix": "After the hex digit loop, ensure that the next two characters are exactly '\\r\\n'. If not, return -1. Also, ensure that the hex string is not empty.",
+  "confidence": 0.70
+}
+
+{
+  "rank": 3,
+  "root_cause": {"file": "mongoose/src/http.c", "function": "http_cb", "line": 1096},
+  "explanation": "In the http_cb function, when processing chunked data, skip_chunk is called. If skip_chunk returns -1 (indicating an error), the code calls mg_error(c, 'Invalid chunk') but does not break out of the loop. This might lead to further processing of invalid data. However, the primary issue is that skip_chunk itself does not properly validate the input and returns a negative value for the chunk length, leading to an out-of-bounds access when calculating the chunk end.",
+  "fix": "When skip_chunk returns -1, break the loop and reset the connection. But the main fix should be in skip_chunk.",
+  "confidence": 0.50
+}

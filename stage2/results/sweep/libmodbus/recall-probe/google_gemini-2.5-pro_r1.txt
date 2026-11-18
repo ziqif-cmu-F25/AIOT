@@ -1,0 +1,20 @@
+```json
+{
+  "training_cutoff": "2023-04",
+  "known_cves": [
+    {
+      "cve": "CVE-2022-28404",
+      "file_function": "modbus.c / modbus_reply()",
+      "bug_class": "Heap-based buffer overflow",
+      "recall_confidence": 0.9
+    },
+    {
+      "cve": "CVE-2022-32553",
+      "file_function": "modbus-data.c / modbus_set_bits_from_bytes()",
+      "bug_class": "Out-of-bounds write",
+      "recall_confidence": 0.85
+    }
+  ],
+  "notes": "Answering from memory as instructed. The specified version and year (v3.1.6, 2022) are within my training data."
+}
+```

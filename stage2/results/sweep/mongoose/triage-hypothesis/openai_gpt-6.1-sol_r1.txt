@@ -1,0 +1,15 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "mongoose.c",
+      "function": "skip_chunk",
+      "line": 1006
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "The length check permits i == len - 1, so a chunk-size prefix ending in a lone carriage return causes buf[i + 1] to read one byte past the supplied buffer.",
+    "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "trigger_condition": "Supply a three-byte buffer containing \"1a\\r\" with len == 3: hexadecimal scanning leaves i == 2, len < i + 1 is false, buf[i] is '\\r', and buf[i + 1] reads buf[3], out of bounds if the allocation ends at len.",
+    "confidence": 0.99
+  }
+]

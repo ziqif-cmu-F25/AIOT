@@ -1,0 +1,9 @@
+```json
+{
+  "hypothesis": "In skip_chunk(), the bounds check guards buf[i] with `len < i + 1` but then reads buf[i + 1] without ensuring `len >= i + 2`, so when the chunk-size line ends exactly at the end of the received data (`\"<hex>\\r\"` with no following byte), the `buf[i + 1]` comparison reads one byte past the valid receive buffer.",
+  "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+  "bug_class": "oob-read",
+  "trigger_condition": "A chunked body whose remaining buffered data (len - o) is exactly i+1 bytes long, where i >= 2 hex digits followed by '\\r' as the final byte in c->recv.buf (e.g. the tail of the received data is \"ab\\r\"), so that buf[i+1] is evaluated at index len, one past the end of the valid data, reading from the heap/receive buffer beyond c->recv.len. The check should be `len < i + 2`.",
+  "confidence": 0.8
+}
+```

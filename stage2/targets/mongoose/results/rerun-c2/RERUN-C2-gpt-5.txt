@@ -1,0 +1,6 @@
+{
+  "root_cause_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // Error",
+  "explanation": "The guard only checks for len < i + 1, which allows len == i + 1. In that case there is room for buf[i] but not for buf[i + 1]. With input \"ab\\r\" (len=3), i becomes 2 after parsing the hex digits; len < i + 1 is false (3 < 3), so evaluation proceeds to buf[i + 1], which reads buf[3] out of bounds.",
+  "fix": "if (len < i + 2 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // Error",
+  "confidence": 0.99
+}

@@ -1,0 +1,68 @@
+name: libmodbus-stage2
+
+# One instrumented target. The stock unit-test-server binds 127.0.0.1:1502, so
+# the client is run inside this container via `docker compose exec` (same
+# pattern as Stage 1's analyst containers) rather than over a host port.
+services:
+  target:
+    image: libmodbus-stage2-target:v3.1.10
+    build:
+      context: .
+      dockerfile: docker/target.Dockerfile
+      args:
+        UBUNTU_DIGEST: sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+        LIBMODBUS_COMMIT: 2cbafa3113e276c3697d297f68e88d112b53174d
+        LIBMODBUS_TAG: v3.1.10
+    init: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 256
+    restart: "no"
+    user: "1000:1000"
+    hostname: target
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    volumes:
+      - ./results:/workspace/results
+    networks:
+      - modbus_net
+
+  # Second target for the fuzzing-assist case: libmodbus v3.1.6, which carries
+  # the TCP-reachable CVE-2022-0367 heap overflow (fn-0x17). Profiled so it does
+  # not start by default. Use: docker compose --profile fuzz run --rm target-0367
+  target-0367:
+    profiles: ["fuzz"]
+    image: libmodbus-stage2-target:v3.1.6
+    build:
+      context: .
+      dockerfile: docker/target.Dockerfile
+      args:
+        UBUNTU_DIGEST: sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+        LIBMODBUS_COMMIT: f9fe3b0a5343f7fbb3f5c74196bd0fce88df39d5
+        LIBMODBUS_TAG: v3.1.6
+    init: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 256
+    restart: "no"
+    user: "1000:1000"
+    hostname: target-0367
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    volumes:
+      - ./results:/workspace/results
+    networks:
+      - modbus_net
+
+networks:
+  modbus_net:
+    internal: true
+    driver: bridge

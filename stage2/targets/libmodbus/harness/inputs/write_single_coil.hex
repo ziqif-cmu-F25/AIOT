@@ -1,0 +1,6 @@
+# Benign seed: Write Single Coil (function 0x05), value ON (0xFF00).
+# A valid, well-formed Modbus/TCP request. This is the function family the
+# known bug lives in, but this frame is correctly sized and does not trigger it.
+# MBAP header: txn=0001 proto=0000 length=0006 unit=FF
+# PDU: fn=05 addr=0x0130 (unit-test coil base) value=0xFF00 (ON)
+00 01 00 00 00 06 FF 05 01 30 FF 00

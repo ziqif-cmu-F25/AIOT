@@ -1,0 +1,7 @@
+{
+  "hypothesis": "Missing lower-bound check for the write mapping index allows a negative start index, leading to an out-of-bounds write to tab_registers before the buffer.",
+  "vulnerable_line": "else if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers)",
+  "bug_class": "oob-write (heap buffer underflow)",
+  "trigger_condition": "Attacker sets a valid read range (mapping_address >= 0 and mapping_address + nb <= nb_registers), but chooses address_write < mb_mapping->start_registers so mapping_address_write < 0, with nb_write >= 1 and nb_write_bytes == nb_write*2 and (mapping_address_write + nb_write) <= nb_registers; the write loop then indexes mb_mapping->tab_registers[i] starting at i = mapping_address_write (negative), writing before the array.",
+  "confidence": 0.98
+}

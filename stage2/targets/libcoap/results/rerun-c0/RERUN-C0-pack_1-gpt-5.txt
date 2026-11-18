@@ -1,0 +1,27 @@
+CANDIDATES (ranked, most likely first, max 5):
+1. file: src/coap_pdu.c / function: coap_pdu_parse_header / approx line: 820
+   bug class: Out-of-bounds read (token-length extension bytes)
+   reasoning (quote the specific code line(s) involved):
+   - e_token_length = hdr[0] & 0x0f;
+   - else if (e_token_length == COAP_TOKEN_EXT_1B_TKL) { pdu->e_token_length = pdu->token[0] + COAP_TOKEN_EXT_1B_BIAS + 1; ... }
+   - else if (e_token_length == COAP_TOKEN_EXT_2B_TKL) { pdu->e_token_length = ((uint16_t)pdu->token[0] << 8) + pdu->token[1] + COAP_TOKEN_EXT_2B_BIAS + 2; ... }
+   - if (pdu->e_token_length > pdu->alloc_size || e_token_length == 15) { ... return 0; }
+   how untrusted input reaches it (trace the data flow):
+   - A network packet is passed to coap_pdu_parse(), which sets pdu->used_size based on the datagram/stream length and then calls coap_pdu_parse_header(). For UDP/DTLS, if the incoming header has TKL nibble 13 or 14 (extended token length), coap_pdu_parse_header() unconditionally reads pdu->token[0]/[1] to compute the extended length before checking pdu->alloc_size.
+   triggering input characteristics:
+   - UDP/DTLS PDU of 4 bytes (header only) with the first byte having TKL=13 or 14 (extended token length), i.e. version=1, any type, TKL=13/14; no token bytes follow. This leads to an out-of-bounds read of pdu->token[0]/[1] because pdu->alloc_size == 0.
+   - Similarly affects TCP/WS family because the same code path is used to parse token length after the header for those protocols.
+
+2. file: src/coap_pdu.c / function: coap_pdu_parse_size / approx line: 600
+   bug class: Out-of-bounds read (token-length extension bytes when computing message size on reliable transports)
+   reasoning (quote the specific code line(s) involved):
+   - if (token_start) {
+       if (tkl == COAP_TOKEN_EXT_1B_TKL) size += token_start[0] + COAP_TOKEN_EXT_1B_BIAS + 1;
+       else if (tkl == COAP_TOKEN_EXT_2B_TKL) size += ((uint16_t)token_start[0] << 8) + token_start[1] + COAP_TOKEN_EXT_2B_BIAS + 2;
+     }
+   how untrusted input reaches it (trace the data flow):
+   - For TCP/TLS/WS/WSS, coap_io logic (not shown) typically calls coap_pdu_parse_size() on a partially received frame to determine full PDU size. Here, after deducing the header size, the function accesses token_start[0]/[1] based solely on the TKL nibble without first validating that the provided buffer length extends beyond the header into the token extension bytes.
+   triggering input characteristics:
+   - A minimal reliable-transport CoAP frame containing only the header bytes with TKL set to an extended form (13 or 14). For example, a 2-byte TCP0 header with TKL=13 or 14. Because length equals header size, reading token_start[0]/[1] goes past the provided buffer.
+
+3. file: src/coap_uri.c / function: coap_uri_into_optlist (and coap_path_into_optlist, coap_query_into_optlist)

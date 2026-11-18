@@ -1,0 +1,38 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libcoap/src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 538
+    },
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "A request forwarded through a stripping proxy can supply a Proxy-Uri whose hostname exceeds 256 bytes. The URI parser imposes no hostname-length limit, and the proxy passes this network-controlled hostname to coap_resolve_address_info(), which copies its full length into a 256-byte static buffer. This causes a global-buffer overflow. A hostname of exactly 256 nonzero bytes also leaves no terminating NUL for getaddrinfo(), permitting an out-of-bounds read.",
+    "evidence": "coap_address.c:498: static char addrstr[256];\ncoap_address.c:536-538: memset(addrstr, 0, sizeof(addrstr)); if (address && address->length) memcpy(addrstr, address->s, address->length);\ncoap_address.c:547: error = getaddrinfo(addrstr, NULL, &hints, &res);\ncoap_proxy.c:251-253: coap_split_proxy_uri(coap_opt_value(proxy_uri), coap_opt_length(proxy_uri), &server_use->uri)\ncoap_proxy.c:420: info_list = coap_resolve_address_info(&server_use->uri.host, ...);\ncoap_uri.c:192-202: The hostname scan continues until ':', '/', '?', or the input end, then COAP_SET_STR(&uri->host, q - p, p) stores the entire hostname.\ncoap_pdu.c:1255-1257: Proxy-Uri option lengths up to 1034 bytes are accepted.",
+    "confidence": 1.0
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "libcoap/src/coap_pdu.c",
+      "function": "coap_pdu_parse_size",
+      "line": 1042
+    },
+    "vulnerability_class": "oob-read",
+    "hypothesis": "A truncated TCP/TLS message containing a complete base header but no extended-token-length bytes causes reads beyond the supplied input. For example, a two-byte buffer beginning with 0x0d selects the shortest TCP header and the one-byte extended token length. The header-size assertion succeeds, token_start becomes data + 2, and token_start[0] is read beyond the buffer. A first byte of 0x0e similarly reaches a two-byte read without checking that either extension byte exists.",
+    "evidence": "coap_pdu.c:1010: assert(coap_pdu_parse_header_size(proto, data) <= length);\ncoap_pdu.c:1019-1021: if (len < 13) { size = len; token_start = &data[2]; }\ncoap_pdu.c:1041-1045: else if (tkl == COAP_TOKEN_EXT_1B_TKL) { size += token_start[0] + COAP_TOKEN_EXT_1B_BIAS + 1; } else if (tkl == COAP_TOKEN_EXT_2B_TKL) { size += ((uint16_t)token_start[0] << 8) + token_start[1] + COAP_TOKEN_EXT_2B_BIAS + 2; }\nThere is no remaining-input-length check before these dereferences.",
+    "confidence": 0.99
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "libcoap/src/coap_proxy.c",
+      "function": "coap_proxy_get_session",
+      "line": 309
+    },
+    "vulnerability_class": "use-after-free",
+    "hypothesis": "For a stripping proxy, a Proxy-Uri or Proxy-Scheme/Uri-Host request creates a persistent proxy mapping whose URI contains borrowed pointers into the incoming request PDU. The mapping stores only a shallow structure copy, not an owned hostname copy. Once that request PDU is freed, a subsequent request causes the existing-mapping hostname comparison to read the dangling hostname pointer. Duplicating the request later does not repair the mapping because the stored URI pointers still reference the original request.",
+    "evidence": "coap_proxy.c:117-120: opt = coap_check_option(request, COAP_OPTION_URI_HOST, &opt_iter); ... uri->host.length = coap_opt_length(opt); uri->host.s = coap_opt_value(opt);\ncoap_proxy.c:251-253: coap_split_proxy_uri(coap_opt_value(proxy_uri), coap_opt_length(proxy_uri), &server_use->uri)\ncoap_uri.c:202: COAP_SET_STR(&uri->host, q - p, p);\ncoap_proxy.c:309: proxy_list[i].uri = server_use->uri;\ncoap_proxy.c:283-284: for (i = 0; i < proxy_list_count; i++) { if (coap_string_equal(&proxy_list[i].uri.host, &server_use->uri.host) ...\ncoap_proxy.c:584-585: The saved request is created separately with coap_pdu_duplicate_lkd(request, session, r_token.length, r_token.s, NULL).\ncoap_pdu.c:184-187: coap_delete_pdu() frees the PDU token buffer and PDU.",
+    "confidence": 0.97
+  }
+]

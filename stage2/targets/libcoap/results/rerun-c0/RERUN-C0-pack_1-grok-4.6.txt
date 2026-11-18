@@ -1,0 +1,74 @@
+CANDIDATES (ranked, most likely first, max 5):
+1. file: src/coap_address.c / function: coap_resolve_address_info / approx line: memcpy into addrstr[256]
+   bug class: stack buffer overflow (and missing NUL-termination)
+   reasoning (quote the specific code line(s) involved):
+     `static char addrstr[256];`
+     `memset(addrstr, 0, sizeof(addrstr));`
+     `if (address && address->length)`
+     `  memcpy(addrstr, address->s, address->length);`
+     There is no check that `address->length < sizeof(addrstr)`. If `length == 256`, `addrstr` is also not NUL-terminated before `getaddrinfo(addrstr, ...)`.
+   how untrusted input reaches it (trace the data flow):
+     Crafted CoAP request with a Proxy-Uri option
+     → `coap_pdu_parse` / `coap_pdu_parse_opt` accepts Proxy-Uri up to 1034 bytes
+     → `coap_proxy_forward_request_lkd` → `coap_proxy_get_ongoing_session` → `coap_proxy_get_session`
+     → for `COAP_PROXY_*_STRIP`, `coap_split_proxy_uri(coap_opt_value(proxy_uri), coap_opt_length(proxy_uri), &server_use->uri)`
+     → `server_use->uri.host` is a substring of that option (no 255-byte cap, unlike Uri-Host)
+     → `coap_resolve_address_info(&server_use->uri.host, ...)`.
+   triggering input characteristics:
+     Proxy-Uri whose host part is ≥256 bytes, e.g. `coap://` + ≥256 bytes of hostname with no `:`, `/`, or `?` (legal: Proxy-Uri max 1034). Overflow is ~771 bytes with a max-length URI. Requires `COAP_PROXY_SUPPORT` and a STRIP proxy config. Uri-Host alone cannot hit this (capped at 255).
+
+2. file: src/coap_uri.c / function: check_segment / approx line: `if (length < 2 || !(isxdigit(s[1]) && isxdigit(s[2])))`
+   bug class: off-by-one OOB read + size_t underflow (unbounded read)
+   reasoning (quote the specific code line(s) involved):
+     `if (*s == '%') {`
+     `  if (length < 2 || !(isxdigit(s[1]) && isxdigit(s[2])))`
+     `    return -1;`
+     `  s += 2;`
+     `  length -= 2;`
+     `}`
+     `++s; ++n; --length;`
+     Percent-encoding is 3 bytes (`%XX`). The test must be `length < 3`. With `length == 2` it reads `s[2]` (1 byte OOB). Then `length -= 2` yields 0 and `--length` underflows to `SIZE_MAX`, so `while (length)` walks off the buffer. `decode_segment()` has the same `length -= 2` pattern after `while (length--)`.
+   how untrusted input reaches it (trace the data flow):
+     `check_segment` is called from `make_decoded_option` ← `write_option` ← `coap_split_path` / `coap_split_query`. Those APIs take URI path/query bytes. A Proxy-Uri / URI string from a CoAP message is the natural input (apps and URI-to-option conversion). The in-tree proxy forwarding path uses `coap_path_into_optlist`/`coap_replace_percents` instead (that decoder is bounds-safe).
+   triggering input characteristics:
+     A path or query segment that ends with `%` plus one hex digit (length-2 remainder), e.g. path `.../%A` or query `...%A` (and `s[2]` happens to look like a hex digit so the function does not return -1).
+
+3. file: src/coap_proxy.c / function: coap_proxy_get_session / approx line: `proxy_list[i].uri = server_use->uri;`
+   bug class: use-after-free (stale pointers into the request PDU)
+   reasoning (quote the specific code line(s) involved):
+     `if (coap_split_proxy_uri(coap_opt_value(proxy_uri), coap_opt_length(proxy_uri), &server_use->uri) < 0)`
+     … later …
+     `proxy_list[i].uri = server_use->uri;`
+     `coap_uri_t` holds `host.s` / `path.s` / `query.s` by pointer, not by copy. Those pointers alias the Proxy-Uri (or Uri-Host) option bytes inside the incoming PDU. The PDU is not retained; only a duplicate of the request is saved on `req_list`. On a later request the code does `coap_string_equal(&proxy_list[i].uri.host, &server_use->uri.host)`.
+   how untrusted input reaches it (trace the data flow):
+     First proxy request with Proxy-Uri/Proxy-Scheme fills `proxy_list[i].uri` with pointers into that request’s option storage. After the handler returns, libcoap frees/reuses the receive PDU. A second request walks `proxy_list` and reads the freed host bytes.
+   triggering input characteristics:
+     Two proxy requests (STRIP mode) that cause session lookup by host/port/scheme. First request’s PDU must be released before the second lookup (normal receive path).
+
+4. file: src/coap_proxy.c / function: coap_proxy_forward_request_lkd / approx line: `coap_add_data_large_request_lkd(..., total, data, ..., body_data)`
+   bug class: use-after-free / OOB read of request payload
+   reasoning (quote the specific code line(s) involved):
+     `body_data = coap_new_binary(total);`
+     `memcpy(body_data->s, data, size);`
+     `if (!coap_add_data_large_request_lkd(proxy_entry->ongoing, pdu, total, data,`
+     `                                     coap_proxy_release_body_data, body_data))`
+     Comment says a copy is required because the request PDU may disappear, but the pointer passed in is still `data` (PDU memory), not `body_data->s`. The matching response path does `data = body_data->s` correctly. Release callback frees `body_data`, not the pointer that was sent. If `size != total` (assert only), `total` bytes are read from a `size`-byte buffer.
+   how untrusted input reaches it (trace the data flow):
+     Incoming CoAP request with a payload (possibly block-wise) handled by the proxy forwarder. `coap_get_data_large` returns pointers into the request PDU; those are handed to large-body TX which may send asynchronously after the PDU is gone.
+   triggering input characteristics:
+     Proxy-forwarded request with a body, especially large/block-wise bodies so transmit is deferred until after the inbound PDU is released.
+
+5. file: src/coap_uri.c / function: coap_path_into_optlist / coap_uri_into_optlist / approx line: `coap_replace_percents(optlist);` (no NULL check)
+   bug class: NULL pointer dereference
+   reasoning (quote the specific code line(s) involved):
+     `optlist = coap_new_optlist(optnum, s - p, p);`
+     `coap_replace_percents(optlist);`
+     and
+     `optlist = coap_new_optlist(COAP_OPTION_URI_HOST, uri->host.length, uri->host.s);`
+     `coap_replace_percents(optlist);`
+     `coap_replace_upper_lower(optlist);`
+     `coap_replace_percents` does `for (i = 0; i < optlist->length; i++)` with no NULL guard. `coap_new_optlist` returns NULL on allocation failure.
+   how untrusted input reaches it (trace the data flow):
+     Same proxy STRIP path: Proxy-Uri → `coap_split_proxy_uri` → `coap_uri_into_optlist` → `coap_path_into_optlist` / Uri-Host optlist. Attacker-controlled host/path sizes drive the `sizeof(coap_optlist_t)+length` allocation.
+   triggering input characteristics:
+     Proxy-Uri with host/path segments while the process cannot satisfy `coap_new_optlist` (memory pressure, or many segments). Weaker than (1)–(4) because a 1034-byte URI normally allocates easily; it becomes remotely interesting when combined with other proxy allocations (`req_list` realloc, PDU duplicates).

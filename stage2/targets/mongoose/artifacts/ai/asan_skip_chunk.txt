@@ -1,0 +1,17 @@
+=================================================================
+==1==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x502000000013 at pc 0xaaaaab730bac bp 0xfffff25f2d70 sp 0xfffff25f2d68
+READ of size 1 at 0x502000000013 thread T0
+    #0 0xaaaaab730ba8  (/oracle/http_chunk_oracle+0x110ba8)
+    #1 0xffffaaf584c0  (/lib/aarch64-linux-gnu/libc.so.6+0x284c0)
+    #2 0xffffaaf58594  (/lib/aarch64-linux-gnu/libc.so.6+0x28594)
+    #3 0xaaaaab6541ac  (/oracle/http_chunk_oracle+0x341ac)
+
+0x502000000013 is located 0 bytes after 3-byte region [0x502000000010,0x502000000013)
+allocated by thread T0 here:
+    #0 0xaaaaab6f2dc4  (/oracle/http_chunk_oracle+0xd2dc4)
+    #1 0xaaaaab730698  (/oracle/http_chunk_oracle+0x110698)
+
+SUMMARY: AddressSanitizer: heap-buffer-overflow (/oracle/http_chunk_oracle+0x110ba8)
+=================================================================
+Triggering input: 3 bytes — hex "61 62 0d" (ASCII "ab\r")
+Buffer: malloc(3), exact size, no slack.

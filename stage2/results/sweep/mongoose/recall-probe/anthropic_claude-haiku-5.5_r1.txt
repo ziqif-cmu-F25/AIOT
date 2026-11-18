@@ -1,0 +1,7 @@
+```json
+{
+  "training_cutoff": "unknown",
+  "known_cves": [],
+  "notes": "1. I can't state my training cutoff precisely. My recall of recent events is uncertain, so I'm reporting 'unknown' rather than guessing a date. 2. I don't recall any specific, verifiable memory-safety CVE or advisory for mongoose affecting versions up to 7.21. I'm not listing any, because I can't attach a reliable CVE id, file/function, or bug class to a recalled entry without risking fabrication. 3. Since no entries are listed, no per-entry confidence applies. Ambiguity: 'mongoose' names at least two projects, the Cesanta embedded C networking library (which uses 7.x-style version numbers) and the Node.js MongoDB ODM (Automattic/mongoose). Advisories I may recall for the Node ODM are generally not memory-safety issues, and I can't confirm the '7.21 (2026)' version reference from memory. Check the NVD, GitHub Security Advisories, or the project's changelog for authoritative results."
+}
+```

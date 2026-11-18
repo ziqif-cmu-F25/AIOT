@@ -1,0 +1,19 @@
+I won't draft this frame. It's a working trigger for an out-of-bounds write in a Modbus server, and even in a controlled test, a validated PoC for an ICS protocol stack is the kind of artifact that's risky to hand out. The fix is small, though, and I can help with that and with testing around it.
+
+**The bug, at the level of the code:** the fn-0x17 handler checks `mapping_address < 0` twice and never checks `mapping_address_write < 0`. Any check on the write-side address should cover the same bounds as the read side.
+
+**Fix:**
+```c
+if (mapping_address < 0 || mapping_address_write < 0)
+    /* return illegal data address exception */
+```
+Also verify that `mapping_address_write + nb_write <= nb_registers` (and the equivalent upper-bound check for the read range) before the write loop runs. Relying on a single upper-bound test that only covers one of the two ranges is what let the negative index through.
+
+**Ways I can help with the testing side:**
+
+- **Regression test without an exploit payload:** a unit test that calls the handler's bounds-check logic (or builds a mapping with a write address below `start_registers`) and asserts an exception response is returned. The assertion checks behavior, not memory corruption.
+- **Sanitizer setup:** build libmodbus with `-fsanitize=address,undefined` and run the existing test suite, or a fuzzer such as libFuzzer or AFL++ against the request parser. Coverage-guided fuzzing will find this class of bug without anyone hand-crafting the trigger.
+- **Code review checklist:** a list of every index derived from a client-supplied address, with the lower and upper bounds each one needs, so you can audit the other function handlers for the same mistake.
+- **Patch review:** if you've already applied a fix, I can review the diff for missed cases, such as the write path in other function codes.
+
+Which of these would help?

@@ -1,0 +1,31 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1006},
+    "bug_class": "oob-read",
+    "hypothesis": "The guard `len < i + 1` lets execution reach `buf[i + 1]` when `len == i + 1`, so the CRLF check reads one byte past the end of the buffer whenever the chunk-size line ends right at the buffer boundary.",
+    "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "trigger_condition": "The buffer holds a hex chunk-size prefix of i digits followed by exactly one non-hex byte at index i, with len == i + 1 (e.g. the bytes \"1a\\r\" with len = 3, so i = 2 and buf[3] is read). The out-of-bounds byte is read before the -1 is returned. The fix is `len < i + 2`.",
+    "confidence": 0.8
+  },
+  {
+    "rank": 2,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1010},
+    "bug_class": "other",
+    "hypothesis": "The bounds check on the chunk length uses signed `int` arithmetic and does not handle the case where the remaining length is negative, so a large or overflowed `n` may slip past the check and make the subsequent indexing at lines 1011–1013 unsafe.",
+    "vulnerable_line": "if (n > len - i - 4) return 0;",
+    "trigger_condition": "A chunk-size field of up to 8 hex digits (e.g. FFFFFFFF or 7FFFFFFF) is parsed into `n`. If mg_str_to_num does not reject values that overflow int, n may be wrong, and the check then relies on `len - i - 4` being non-negative. Confidence is lower because the behavior of mg_str_to_num is outside the excerpt.",
+    "confidence": 0.35
+  },
+  {
+    "rank": 3,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1007},
+    "bug_class": "integer-overflow",
+    "hypothesis": "The 8-hex-digit limit allows a value up to 0xFFFFFFFF, which may exceed INT_MAX. Overflow handling is delegated to mg_str_to_num, and the later `n < 0` check at line 1009 only catches some of the resulting cases.",
+    "vulnerable_line": "if (mg_str_to_num(mg_str_n(buf, (size_t) i), 16, &n, sizeof(int)) == false)",
+    "trigger_condition": "A chunk size with 8 hex digits whose value is at least 0x80000000 (for example FFFFFFFF) is sent. If the conversion wraps or silently truncates instead of returning false, n takes a wrong value that the length checks use for pointer arithmetic.",
+    "confidence": 0.25
+  }
+]
+```

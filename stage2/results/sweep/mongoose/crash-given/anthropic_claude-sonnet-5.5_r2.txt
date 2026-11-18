@@ -1,0 +1,25 @@
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+    "explanation": "skip_chunk() is called with buf = \"ab\\r\" and len = 3, and the buffer is exactly 3 bytes from malloc(3). The `len < 3` guard on line 1002 passes. The hex-digit loop stops at i = 2 because buf[2] = '\\r'. Line 1006 is meant to ensure that both buf[i] and buf[i+1] are readable, but it checks `len < i + 1` (3 < 3, which is false) instead of `len < i + 2`. The `buf[i] != '\\r'` test is false because buf[2] is '\\r', so evaluation continues to `buf[i + 1]`, which is buf[3]. That is a 1-byte read at offset 3 of a 3-byte allocation, matching ASan's \"0 bytes after 3-byte region\". The check is off by one: it covers only buf[i], not the buf[i+1] that is also dereferenced. The chunk-size line is truncated mid-CRLF, which is normal for partially received data, so a peer can trigger this just by sending a short chunk header.",
+    "fix": "Change the bound to `len < i + 2`, so buf[i+1] is only read when i + 1 < len. For example: `if (len < i + 2) return 0;  /* need more data */ if (buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;`. Returning 0 for a truncated CRLF is also better than -1, because the caller then buffers more data instead of raising \"Invalid chunk\".",
+    "confidence": 0.93
+  },
+  {
+    "rank": 2,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1002},
+    "explanation": "The early guard `len < 3` is too weak to be the only length precondition. It allows the function to continue with a buffer whose chunk-size line is not yet complete, and the later index arithmetic (buf[i], buf[i+1], buf[i+n+2], buf[i+n+3]) relies on checks that are individually off by one. This is a contributing weakness, not the direct fault. The actual unchecked access is the one on line 1006.",
+    "fix": "Make every access follow an explicit bound check against len (for example, require len >= i + 2 before touching buf[i+1]). A fixed minimum length does not make the later accesses safe.",
+    "confidence": 0.05
+  },
+  {
+    "rank": 3,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1011},
+    "explanation": "This line reads buf[i+n+2] and buf[i+n+3]. The preceding check `n > len - i - 4` on line 1010 guarantees i+n+3 < len, so this access is currently safe. It is listed only because it is the other place with chunk-length-based indexing. It does not explain the 3-byte report.",
+    "fix": "No change needed. Keep the line 1010 bound as it is.",
+    "confidence": 0.02
+  }
+]
+```

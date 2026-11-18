@@ -1,0 +1,24 @@
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+    "explanation": "The input is 'a','b','\\r' with len = 3 and a malloc(3) buffer. At line 1002, `len < 3` is false, so parsing continues. The hex-digit loop stops at i = 2 (the '\\r'). Line 1006 then checks `len < i + 1`, which is `3 < 3` and false, so the check passes. The same line goes on to evaluate `buf[i] != '\\r'` (index 2, in bounds, equal to '\\r'). Because that comparison is false, the `||` chain continues to `buf[i + 1] != '\\n'`, which reads buf[3]. That is one byte past the 3-byte allocation, matching the ASan report (READ of size 1, 0 bytes after the 3-byte region). The guard is off by one: the code dereferences buf[i] and buf[i+1], so it needs at least i + 2 bytes. The check only guarantees i + 1.",
+    "fix": "Change the check to `if (len < i + 2 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;`. Better still, return 0 (need more data) when `len < i + 2`, because a truncated chunk header is incomplete rather than invalid. The bounds test must come before either buffer dereference.",
+    "confidence": 0.93
+  },
+  {
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1002},
+    "rank": 2,
+    "explanation": "The early guard `len < 3` is too weak to protect the header parsing that follows. It lets through buffers of exactly 3 bytes, such as 'ab\\r'. A minimal chunk header needs at least 1 hex digit plus CRLF, and the later reads depend on the number of hex digits. A fixed minimum length cannot cover that, so the real bounds check has to happen after i is known (line 1006). This is a contributing weakness, not the direct fault.",
+    "fix": "Keep the early guard only as a fast path. Add the bounds check `len < i + 2` after the hex-digit scan and before any access to buf[i] or buf[i + 1].",
+    "confidence": 0.12
+  },
+  {
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1010},
+    "explanation": "This line decides whether the chunk is fully buffered, using `n > len - i - 4`. The computation is only valid if line 1006 has already guaranteed len >= i + 2. With the broken check at 1006, the arithmetic and the later reads of buf[i + n + 2] and buf[i + n + 3] rest on an unvalidated length. This line did not cause this particular crash, since the read happens earlier at line 1006.",
+    "fix": "Fix line 1006 first. Optionally harden this line with `if (len < i + 4 || n > len - i - 4) return 0;`.",
+    "confidence": 0.05
+  }
+]
+```

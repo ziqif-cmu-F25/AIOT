@@ -1,0 +1,29 @@
+HYPOTHESIS: WebSocket handshake parsing contains an unchecked header-buffer terminator write and a remotely triggerable NULL dereference.
+FINAL
+
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libcoap/src/coap_ws.c",
+      "function": "coap_ws_rd_http_header",
+      "line": 511
+    },
+    "vulnerability_class": "oob-write",
+    "hypothesis": "With WebSocket support enabled, a remote peer can send a 160-byte HTTP header line without a newline. Once http_ofs exceeds 145, the read length becomes sizeof(http_hdr) - http_ofs, allowing the remaining buffer space to be filled completely. The subsequent terminator write targets http_hdr[160], one byte beyond the 160-byte array. No completed handshake is required. This is an intra-object array overflow; depending on structure layout, the overwritten byte may be padding rather than another field, so consequential heap corruption is not established.",
+    "evidence": "coap_ws_internal.h:54-56: uint32_t http_ofs; uint8_t http_hdr[160]; size_t data_ofs;\ncoap_ws.c:500-504: rem = ws->http_ofs > (sizeof(ws->http_hdr) - 1 - COAP_MAX_FS) ? sizeof(ws->http_hdr) - ws->http_ofs : COAP_MAX_FS; bytes = session->sock.lfunc[COAP_LAYER_WS].l_read(session, &ws->http_hdr[ws->http_ofs], rem);\ncoap_ws.c:510-511: ws->http_ofs += (uint32_t)bytes; ws->http_hdr[ws->http_ofs] = '\\000';\ncoap_ws_internal.h:32: #define COAP_MAX_FS (2 + 8 + 4)",
+    "confidence": 0.99
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "libcoap/src/coap_ws.c",
+      "function": "coap_ws_rd_http_header_client",
+      "line": 422
+    },
+    "vulnerability_class": "other",
+    "hypothesis": "A malicious WebSocket server can respond to a libcoap client with the first response line \"HTTP/1.1\\r\\n\", without a status code or separating whitespace. The header splitter returns NULL. Because the protocol string comparison succeeds, short-circuit evaluation proceeds to atoi(value), passing NULL and causing an invalid read, ordinarily terminating the client. This is a NULL-pointer dereference, not a demonstrated code-execution primitive.",
+    "evidence": "coap_ws.c:283-289: char *cp = strchr((char *)session->ws->http_hdr, ' '); if (!cp) cp = strchr((char *)session->ws->http_hdr, '\\t'); if (!cp) return NULL;\ncoap_ws.c:418-422: if (!ws->seen_first) { value = coap_ws_split_rd_header(session); if (strcmp((char *)ws->http_hdr, \"HTTP/1.1\") != 0 || atoi(value) != 101) {\ncoap_ws.c:518-521 removes the received newline and preceding carriage return before dispatch; lines 530-531 dispatch client responses to coap_ws_rd_http_header_client(session).",
+    "confidence": 0.99
+  }
+]

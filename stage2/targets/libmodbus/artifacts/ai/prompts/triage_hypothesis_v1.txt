@@ -1,0 +1,27 @@
+You are performing a security triage of libmodbus, a C implementation of the
+Modbus industrial protocol (request/response framing over TCP and serial).
+Untrusted input arrives as Modbus requests from a network peer.
+
+Below is the handler for Modbus function code 0x17 (Write/Read Multiple
+Registers) extracted from the server-side reply function modbus_reply().
+The request bytes (req) are attacker-controlled. The server maintains a
+register mapping (mb_mapping) with a configurable start address
+(start_registers) and count (nb_registers).
+
+The handler computes separate read and write mapping indices from the
+request, validates them, and then performs register writes and reads.
+
+Your task: state one concrete vulnerability hypothesis for this code.
+A good hypothesis names the exact line, the bounds condition that fails,
+what memory access goes wrong, and under what input condition it triggers.
+
+Output a JSON object:
+{
+  "hypothesis": "<one-sentence vulnerability hypothesis>",
+  "vulnerable_line": "<the source line or expression that is wrong>",
+  "bug_class": "<e.g. oob-read, buffer-overflow, integer-overflow, use-after-free>",
+  "trigger_condition": "<the input state that reaches the bug>",
+  "confidence": <0.0-1.0>
+}
+
+Do not speculate about code outside the excerpt. Do not use web search.

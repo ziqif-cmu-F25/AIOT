@@ -1,0 +1,101 @@
+run_id: run-047
+viewpoint: ai-source-review
+task_id: libmodbus-0367-source-review
+prompt_id: libmodbus-0367-source-review@v1
+mode: source-review
+property: memory-safety
+status: candidate
+candidate_count: 3
+run_index: 1
+repeats: 3
+group_id: group-001
+target_repository: stephane/libmodbus
+target_commit: f9fe3b0a5343f7fbb3f5c74196bd0fce88df39d5
+start_utc: '2026-11-04T08:06:59Z'
+end_utc: '2026-11-04T08:12:41Z'
+elapsed_s: 341.5
+model_requested: google/gemini-2.5-pro
+model_source: cli --model
+model_resolved:
+- google/gemini-2.5-pro
+- google/gemini-2.5-pro
+provider:
+- Google AI Studio
+- Google AI Studio
+response_ids:
+- gen-1793779624-a85jQF33X7PtKZNU5RDC
+- gen-1793779838-s8Uwj59hdNGTu3upFaSF
+sampling:
+  temperature: 0.0
+  max_tokens: 20000
+attempts: 2
+usage:
+- completion_tokens: 19855
+  prompt_tokens: 29130
+  total_tokens: 48985
+  completion_tokens_details:
+    accepted_prediction_tokens: null
+    audio_tokens: 0
+    reasoning_tokens: 19296
+    rejected_prediction_tokens: null
+    text_tokens: null
+    image_tokens: 0
+  prompt_tokens_details:
+    audio_tokens: 0
+    cache_write_tokens: 0
+    cached_tokens: 27976
+    image_tokens: null
+    text_tokens: null
+    video_tokens: 0
+  cost: 0.2034895
+  is_byok: false
+  cost_details:
+    upstream_inference_cost: 0.2034895
+    upstream_inference_prompt_cost: 0.0049395
+    upstream_inference_completions_cost: 0.19855
+- completion_tokens: 17303
+  prompt_tokens: 29822
+  total_tokens: 47125
+  completion_tokens_details:
+    accepted_prediction_tokens: null
+    audio_tokens: 0
+    reasoning_tokens: 16157
+    rejected_prediction_tokens: null
+    text_tokens: null
+    image_tokens: 0
+  prompt_tokens_details:
+    audio_tokens: 0
+    cache_write_tokens: 0
+    cached_tokens: 28644
+    image_tokens: null
+    text_tokens: null
+    video_tokens: 0
+  cost: 0.178083
+  is_byok: false
+  cost_details:
+    upstream_inference_cost: 0.178083
+    upstream_inference_prompt_cost: 0.005053
+    upstream_inference_completions_cost: 0.17303
+usage_total:
+  prompt_tokens: 58952
+  completion_tokens: 37158
+  total_tokens: 96110
+  reasoning_tokens: 35453
+  cost_usd: 0.3815725
+error: null
+settings_source: C:\Users\alber\Documents\GitHub\AIOT\.env
+task_file: stage2/tasks/libmodbus-0367-source-review.yaml
+driver_commit: 84ab4b9438cf05d697cdbbb3991db690e3f0271c+dirty-stage2
+context:
+  source_root: vendor
+  files:
+  - path: modbus.c
+    sha256: a7c662ac8ce05043c92d92c742f3d97711a14bcdfa89ac6938b50fdf3a991835
+    line_range:
+    - 1
+    - 1911
+    total_lines: 1911
+withheld_notice: 'Withheld from the model: CVE identifier (CVE-2022-0367), CWE, advisory
+  text, fix commit, fixed release, which function or line is relevant, and any runtime
+  configuration. The model sees only modbus.c at the pinned commit.'
+investigator: ''

@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "Option delta accumulation in coap_pdu_parse_opt can wrap uint16_t, bypassing option number validation.",
+  "evidence_source": "oi->number += option.delta; can cause uint16_t wraparound if delta values sum to > 65535, bypassing option number validation.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Integer wraparound in option number accumulation bypasses option ordering validation.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "rejected",
+  "oracle_verdict": "wrong_bug",
+  "notes": "Model stated line: ~1100. Model's rank-1 candidate does NOT match the target CVE-2025-34468 (coap_address.c:538 memcpy overflow). The model identified a different potential issue. Location reflects the model's own claim. oracle_verdict=wrong_bug means the target CVE was not the top-ranked finding.",
+  "vulnerability_class": "integer-overflow",
+  "location": {
+    "file": "src/coap_pdu.c",
+    "function": "coap_pdu_parse_opt",
+    "line": 1100
+  },
+  "confidence": 0.5,
+  "model": "deepseek/deepseek-chat-v3.1",
+  "prompt_id": "libcoap-c0-rerun@v1",
+  "run_index": 1
+}

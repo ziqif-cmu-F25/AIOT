@@ -1,0 +1,9 @@
+```json
+{
+  "hypothesis": "The bounds check `len < i + 1` is off by one: it should be `len < i + 2`. When the available data is exactly the hex digits plus a trailing '\\r' (len == i+1), the check passes and `buf[i + 1]` is read one byte past the end of the valid data.",
+  "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+  "bug_class": "oob-read",
+  "trigger_condition": "A chunked body fragment (len >= 3) that ends exactly after the chunk-size hex digits and a '\\r', with no '\\n', for example \"000\\r\" or \"1a\\r\" at the end of c->recv.len. Then i == len-1, buf[i] == '\\r' satisfies the second operand, and buf[i+1] (== buf[len]) is read out of bounds. The caller derives len from c->recv.len, so this byte lies beyond the received data. It can be stale or uninitialised memory, or past the allocation if the receive buffer is exactly full. An attacker can trigger this by splitting a request across TCP segments right after the '\\r'.",
+  "confidence": 0.8
+}
+```

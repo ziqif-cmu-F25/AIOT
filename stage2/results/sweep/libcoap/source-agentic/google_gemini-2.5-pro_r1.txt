@@ -1,0 +1,25 @@
+FINAL
+{
+  "rank": 1,
+  "location": {"file": "libcoap/src/coap_pdu.c", "function": "coap_pdu_parse_opt", "line": 1375},
+  "vulnerability_class": "integer-overflow",
+  "hypothesis": "A specially crafted CoAP packet containing an option with a large delta value can cause an integer overflow in the option number calculation. The current option number is stored in `pdu->max_opt` (a uint16_t) and is updated by adding the delta of the next option. A large delta can cause `pdu->max_opt` to wrap around (e.g., from 65530 + 15 to 9). This causes the library to misinterpret the option's type, leading it to validate the option's length against the wrong criteria (in `coap_pdu_parse_opt_base`). An application processing this seemingly valid PDU may then use the wrong option type and length, potentially leading to a buffer overflow or other memory corruption when it tries to access the option's value.",
+  "evidence": "The vulnerability lies in the option parsing loop within `coap_pdu_parse_opt`. While I cannot see the exact line, the logic must parse the option delta and add it to a running total, which is stored in `pdu->max_opt`. The code in `coap_pdu_parse_opt_base` (lines 1179-1283) shows that `pdu->max_opt` is then used to select the validation rule for the option length. An integer overflow would cause the wrong validation rule to be applied. For example, if an option number wraps to `COAP_OPTION_URI_PATH` (11), `coap_pdu_parse_opt_base` will check if its length is <= 255. The application, however, might be expecting a different, high-numbered option with a much smaller maximum length, and may copy the 255 bytes into a smaller buffer.",
+  "confidence": 0.85
+},
+{
+  "rank": 2,
+  "location": {"file": "libcoap/src/coap_pdu.c", "function": "coap_pdu_parse_opt", "line": 1340},
+  "vulnerability_class": "oob-read",
+  "hypothesis": "When parsing CoAP options, if an option header at the very end of the PDU's data indicates that an extended delta or length field follows (i.e., the delta or length nibble is 13 or 14), the parser will attempt to read one or two bytes beyond the end of the PDU data buffer. This occurs because the check for sufficient remaining data is likely performed after attempting to read the extended value, or not at all. This leads to an out-of-bounds read, which can cause a crash (Denial of Service) or leak information.",
+  "evidence": "The CoAP option format (RFC 7252, Section 3.1) requires parsing of variable-length extended delta and length fields. A robust parser must check if there is enough data remaining in the buffer *before* reading these multi-byte fields. For example, if the last byte of a PDU is `0xD0`, this indicates a delta of 13 and a length of 0, and that a 1-byte extended delta follows. The parser would then attempt to read the next byte, which is out of bounds. This logic is located in the main loop of `coap_pdu_parse_opt`.",
+  "confidence": 0.75
+},
+{
+  "rank": 3,
+  "location": {"file": "libcoap/src/coap_net.c", "function": "coap_read_session", "line": 2185},
+  "vulnerability_class": "buffer-overflow",
+  "hypothesis": "In the CoAP-over-TCP PDU reassembly logic, incoming data is used to reconstruct a full PDU. The PDU header is first assembled in a temporary fixed-size buffer, `session->read_header`. The size of the header (`hdr_size`) is determined by parsing initial bytes from the network stream. An attacker can craft a TCP stream that specifies a large header size, causing the `memcpy` at line 2185 to write past the end of the `session->read_header` buffer, leading to a buffer overflow.",
+  "evidence": "The code at `libcoap/src/coap_net.c:2185` is `memcpy(session->read_header + session->partial_read, p, n);`. The number of bytes to copy, `n`, is derived from `hdr_size`, which is parsed from the packet data itself via `coap_pdu_parse_header_size`. If an attacker can influence `hdr_size` to be a large value, and there is no bounds check to ensure that `session->partial_read + n` is within the allocated size of `session->read_header`, a buffer overflow will occur. This is a classic vulnerability pattern in parsers that handle chunked data.",
+  "confidence": 0.6
+}

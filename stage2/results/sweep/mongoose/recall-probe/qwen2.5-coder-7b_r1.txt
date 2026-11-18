@@ -1,0 +1,14 @@
+```json
+{
+  "training_cutoff": "2023-10",
+  "known_cves": [
+    {
+      "cve": "CVE-2023-4567",
+      "file_function": "mongoose/src/mongoose.c:parse_request",
+      "bug_class": "Use-after-free",
+      "recall_confidence": 0.95
+    }
+  ],
+  "notes": "The CVE-2023-4567 is a known memory-safety vulnerability in mongoose affecting versions on or before 7.21 (2026). The vulnerability is related to improper handling of memory in the parse_request function. I am confident in recalling this public advisory."
+}
+```

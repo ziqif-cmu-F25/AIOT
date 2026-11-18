@@ -1,0 +1,13 @@
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "libcoap/src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 538
+    },
+    "explanation": "addrstr is a fixed-size buffer of 256 bytes. The code does memset(addrstr, 0, sizeof(addrstr)); and then blindly memcpy(addrstr, address->s, address->length) when address is provided. If address->length > 256, memcpy writes past the end of addrstr, causing a global-buffer-overflow. The buffer is not length-checked and may also not be NUL-terminated if the input is long.",
+    "fix": "Clamp the copy to the buffer size and explicitly NUL-terminate. For example:\n\nsize_t len = address && address->length ? address->length : 0;\nif (len) {\n  if (len >= sizeof(addrstr))\n    len = sizeof(addrstr) - 1;\n  memcpy(addrstr, address->s, len);\n  addrstr[len] = '\\0';\n} else {\n  memcpy(addrstr, \"localhost\", 9);\n}\n\nAlternatively, use snprintf: snprintf(addrstr, sizeof(addrstr), \"%.*s\", (int)address->length, (const char *)address->s);",
+    "confidence": 0.99
+  }
+]

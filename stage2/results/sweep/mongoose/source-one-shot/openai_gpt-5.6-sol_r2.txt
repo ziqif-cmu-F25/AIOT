@@ -1,0 +1,14 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "mongoose/src/http.c",
+      "function": "skip_chunk",
+      "line": 1006
+    },
+    "vulnerability_class": "oob-read",
+    "hypothesis": "A chunked HTTP body whose currently buffered chunk-size line ends with a CR but lacks the following LF can cause a one-byte read past the receive buffer. For example, if the available chunk data is exactly \"00\\r\" (len == 3), the hex scan leaves i == 2. The bounds check incorrectly requires only i + 1 bytes, then reads buf[i + 1], which is buf[3], one byte beyond the supplied range. This is reachable through normal network fragmentation while processing Transfer-Encoding: chunked.",
+    "evidence": "while (i < len && is_hex_digit(buf[i])) i++;\n...\nif (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;\n\nThe check must ensure i + 1 is a valid index, i.e. require at least i + 2 bytes. With len == i + 1, `len < i + 1` is false and `buf[i + 1]` is out of bounds. `http_cb` passes network-controlled buffered data directly via `skip_chunk(s + o, len - o, &pl, &dl)` at line 1093.",
+    "confidence": 0.99
+  }
+]

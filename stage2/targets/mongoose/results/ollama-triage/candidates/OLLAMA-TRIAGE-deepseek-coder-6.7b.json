@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "triage-hypothesis",
+  "property": "memory-safety",
+  "hypothesis": "Claimed skip_chunk() can overflow buffer if input length > size of integer. Points at correct line 12 but wrong reasoning (integer overflow, not off-by-one bounds check).",
+  "evidence_source": "Pointed at line 12 (len < i + 1 guard) but attributed the bug to integer overflow rather than the off-by-one (should be i + 2).",
+  "input_artifact": "not_available (triage-hypothesis condition; code excerpt provided)",
+  "expected_behavior": "Model should identify the specific vulnerability root cause in the provided code excerpt.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "rejected",
+  "oracle_verdict": "wrong_bug",
+  "notes": "Ollama local model. Right line, wrong reasoning. The actual bug is `len < i + 1` should be `len < i + 2` (OOB read of buf[i+1]).",
+  "vulnerability_class": "other",
+  "location": {
+    "file": "src/http.c",
+    "function": "skip_chunk",
+    "line": 12
+  },
+  "confidence": 0.3,
+  "model": "ollama/deepseek-coder:6.7b",
+  "prompt_id": "mongoose-triage@v1",
+  "run_index": 1
+}

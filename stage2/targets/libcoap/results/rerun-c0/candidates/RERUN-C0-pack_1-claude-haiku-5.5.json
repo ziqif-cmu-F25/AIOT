@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "not_available (no usable response from provider)",
+  "evidence_source": "not_available (no usable response from provider)",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "not_available (no usable response from provider)",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "inconclusive",
+  "oracle_verdict": "no_response",
+  "notes": "anthropic/claude-haiku-5.5: content_filtered (OpenRouter returned 16000 tokens, empty text; retried, same result). This is a provider-side issue (content filter stripping the security-analysis response via OpenRouter), not a model capability failure. The model may have generated a valid analysis that was then removed by the provider's safety layer.",
+  "vulnerability_class": "other",
+  "location": {
+    "file": "unknown",
+    "function": "unknown",
+    "line": 1
+  },
+  "confidence": 0.0,
+  "model": "anthropic/claude-haiku-5.5",
+  "prompt_id": "libcoap-c0-rerun@v1",
+  "run_index": 1
+}

@@ -1,0 +1,13 @@
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "mongoose/src/http.c",
+      "function": "skip_chunk",
+      "line": 1006
+    },
+    "explanation": "The bounds check permits reading two bytes when only one byte remains. For the 3-byte input \"ab\\r\", the hexadecimal scan stops with i == 2 and len == 3. The condition `len < i + 1` is `3 < 3`, which is false, so evaluation continues to `buf[i + 1]`, i.e. `buf[3]`. Valid indices are 0 through 2, so this is the reported one-byte read exactly past the allocation.",
+    "fix": "Require both CRLF bytes to be present before examining them. For streaming semantics, use: `if (len < i + 2) return 0; if (buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;`. At minimum, the incorrect bound `len < i + 1` must be changed to `len < i + 2` (equivalently, `i + 1 >= len`).",
+    "confidence": 0.99
+  }
+]

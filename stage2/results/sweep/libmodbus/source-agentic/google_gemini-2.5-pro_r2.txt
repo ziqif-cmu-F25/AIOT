@@ -1,0 +1,25 @@
+FINAL
+{
+  "rank": 1,
+  "location": {
+    "file": "libmodbus/src/modbus.c",
+    "function": "_modbus_receive_msg",
+    "line": 405
+  },
+  "vulnerability_class": "buffer-overflow",
+  "hypothesis": "A heap-based buffer overflow can occur because the receiving function `_modbus_receive_msg` reads a data length from the network packet and uses it to receive more data, without knowing the actual size of the buffer provided by the caller. The public API `modbus_receive(ctx, req)` does not take a size argument for the `req` buffer, forcing the library to rely on a convention that the buffer is at least `MODBUS_TCP_MAX_ADU_LENGTH` bytes. If a user provides a smaller buffer, an attacker can send a crafted message (e.g., `WRITE_MULTIPLE_COILS`) with a large data length in the payload. The check at line 451 only validates this length against the protocol maximum (`max_adu_length`), not the actual buffer size. If the calculated total message size is less than or equal to `max_adu_length` but greater than the user's buffer, the `recv` call at line 405 will write past the end of the buffer.",
+  "evidence": "The vulnerable receive call:\n```c\n// libmodbus/src/modbus.c:405\nrc = ctx->backend->recv(ctx, msg + msg_length, length_to_read);\n```\nThe length is calculated from untrusted input:\n```c\n// libmodbus/src/modbus.c:449\nlength_to_read = compute_data_length_after_meta(\n    ctx, msg, msg_type);\n\n// libmodbus/src/modbus.c:302\nlength = msg[ctx->backend->header_length + 5];\n```\nThe check is insufficient as it does not know the true buffer size:\n```c\n// libmodbus/src/modbus.c:451\nif ((msg_length + length_to_read) > (int)ctx->backend->max_adu_length) {\n    errno = EMBBADDATA;\n    _error_print(ctx, \"too many data\");\n    return -1;\n}\n```\nThe public API lacks a size parameter:\n```c\n// libmodbus/src/modbus.h:232\nMODBUS_API int modbus_receive(modbus_t *ctx, uint8_t *req);\n```",
+  "confidence": 0.9
+},
+{
+  "rank": 2,
+  "location": {
+    "file": "libmodbus/src/modbus.c",
+    "function": "compute_data_length_after_meta",
+    "line": 302
+  },
+  "vulnerability_class": "oob-read",
+  "hypothesis": "An out-of-bounds read can occur in `compute_data_length_after_meta`. This function is called from `_modbus_receive_msg` after a partial message has been received. The function reads a length value from the message buffer `msg` at a fixed offset, for example `msg[ctx->backend->header_length + 5]`. This assumes that a sufficient number of bytes (the message 'meta' section) have already been received. If a crafted message can cause this function to be called when fewer bytes have been received than the function expects, it will read past the end of the initialized portion of the `msg` buffer. This could happen if the `compute_meta_length_after_function` returns a value smaller than the offset accessed in `compute_data_length_after_meta` for a given function code, or if the fall-through logic in the `_modbus_receive_msg` switch statement is triggered inappropriately.",
+  "evidence": "The out-of-bounds read:\n```c\n// libmodbus/src/modbus.c:292\nstatic int compute_data_length_after_meta(modbus_t *ctx, uint8_t *msg,\n                                          msg_type_t msg_type)\n{\n    int function = msg[ctx->backend->header_length];\n    int length;\n\n    if (msg_type == MSG_INDICATION) {\n        switch (function) {\n        case MODBUS_FC_WRITE_MULTIPLE_COILS:\n        case MODBUS_FC_WRITE_MULTIPLE_REGISTERS:\n            length = msg[ctx->backend->header_length + 5]; // Potential OOB read\n            break;\n// ...\n```\nThe call site in `_modbus_receive_msg` which reads a 'meta' length first:\n```c\n// libmodbus/src/modbus.c:441\nlength_to_read = compute_meta_length_after_function(...);\n// ... (reads 'length_to_read' bytes)\n\n// libmodbus/src/modbus.c:449\nlength_to_read = compute_data_length_after_meta(...);\n```\nA mismatch between the bytes read and the offset accessed would cause the bug.",
+  "confidence": 0.6
+}

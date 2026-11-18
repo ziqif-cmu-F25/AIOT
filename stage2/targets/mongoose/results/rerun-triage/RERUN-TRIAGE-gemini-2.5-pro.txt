@@ -1,0 +1,9 @@
+```json
+{
+  "hypothesis": "A crafted chunked-transfer header that is truncated after the '\\r' of the initial CRLF causes a one-byte out-of-bounds read.",
+  "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+  "bug_class": "oob-read",
+  "trigger_condition": "The input buffer `buf` has length `len`, contains `i` hex digits for the chunk size followed by a '\\r', and `len == i + 1`. For example, a buffer containing `\"f\\r\"` with `len = 2` will trigger the bug, as `i` will be 1, the check `len < i + 1` (2 < 2) is false, `buf[i]` ('\\r') is checked successfully, and the code proceeds to read `buf[i + 1]` (i.e., `buf[2]`), which is one byte beyond the buffer's end.",
+  "confidence": 1.0
+}
+```

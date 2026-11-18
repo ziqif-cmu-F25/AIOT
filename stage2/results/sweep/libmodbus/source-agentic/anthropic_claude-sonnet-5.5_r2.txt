@@ -1,0 +1,22 @@
+FINAL
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply (case MODBUS_FC_WRITE_AND_READ_REGISTERS)", "line": 962},
+    "vulnerability_class": "oob-write",
+    "hypothesis": "The address check for FC 0x17 tests `mapping_address < 0` twice (lines 962 and 964) and never tests `mapping_address_write < 0`. If the server mapping has start_registers > 0, a request with write address address_write < start_registers, and a valid read address, makes mapping_address_write negative. The write loop then stores attacker-controlled 16-bit values at tab_registers[negative index], up to 100 registers (200 bytes) before the start of the heap buffer. The upper-bound check still passes because it only compares mapping_address_write + nb_write to nb_registers. This gives an out-of-bounds heap write of attacker-chosen data. The same negative range is never read back, since the read side is validated.",
+    "evidence": "int mapping_address_write = address_write - mb_mapping->start_registers; ... } else if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers) { ... } else { ... for (i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; i++, j += 2) { mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1]; }",
+    "confidence": 0.85
+  },
+  {
+    "rank": 2,
+    "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply (case MODBUS_FC_MASK_WRITE_REGISTER)", "line": 937},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "The handler reads req[offset+3..offset+6] without its own length check. It depends entirely on upstream integrity and length checks to guarantee those bytes exist. If those checks are incomplete for a short request, the handler reads past the received data. I did not verify the upstream checks, so this is speculative.",
+    "evidence": "uint16_t and = (req[offset + 3] << 8) + req[offset + 4]; uint16_t or = (req[offset + 5] << 8) + req[offset + 6];",
+    "confidence": 0.1
+  }
+]
+```

@@ -1,0 +1,12 @@
+{
+  "meta": {"prompt_id": "mongoose-chunked-review@v1", "model": "cursor-composer", "run_index": 1, "role": "fixed-prompt-repeat", "cost_usd": null},
+  "candidates": [
+    {
+      "hypothesis": "Off-by-one in skip_chunk CRLF check when len equals i+1 after hex digits.",
+      "vulnerability_class": "out-of-bounds-read",
+      "location": {"file": "mongoose/http_chunk_excerpt.c", "function": "skip_chunk", "line": 17},
+      "confidence": 0.9,
+      "notes": "Trigger sketch: chunk body 'cd\\r'"
+    }
+  ]
+}

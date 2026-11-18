@@ -1,0 +1,29 @@
+[
+  {
+    "rank": 1,
+    "location": {"file": "modbus.c", "function": "modbus_reply", "line": 964},
+    "bug_class": "oob-write",
+    "hypothesis": "The else-if bounds check copy-pastes mapping_address < 0 instead of testing mapping_address_write < 0, so a write start below start_registers is accepted and the loop stores into tab_registers at a negative index.",
+    "vulnerable_line": "mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];",
+    "trigger_condition": "FC 23 request with a valid read mapping (mapping_address >= 0 && mapping_address+nb <= nb_registers), legal nb/nb_write/byte-count, but address_write < start_registers so mapping_address_write < 0 while mapping_address_write+nb_write <= nb_registers (e.g. mapping_address_write=-1, nb_write=1).",
+    "confidence": 0.93
+  },
+  {
+    "rank": 2,
+    "location": {"file": "modbus.c", "function": "modbus_reply", "line": 965},
+    "bug_class": "oob-write",
+    "hypothesis": "The write-side upper-bound test only checks mapping_address_write+nb_write and never mapping_address_write < 0, so a negative write index that still sums to <= nb_registers bypasses the exception path and underflows tab_registers.",
+    "vulnerable_line": "(mapping_address_write + nb_write) > mb_mapping->nb_registers",
+    "trigger_condition": "Same FC 23 packet as above: write range starts before tab_registers[0] but the signed end index is not greater than nb_registers, so the for-loop at lines 978-982 executes with i < 0.",
+    "confidence": 0.86
+  },
+  {
+    "rank": 3,
+    "location": {"file": "modbus.c", "function": "modbus_reply", "line": 981},
+    "bug_class": "oob-read",
+    "hypothesis": "The write loop reads req[offset+j]/req[offset+j+1] for j starting at 10 using only the attacker-supplied byte count, so if this case is reached without a prior length check of offset+10+nb_write*2 against the real request size it over-reads req.",
+    "vulnerable_line": "(req[offset + j] << 8) + req[offset + j + 1]",
+    "trigger_condition": "FC 23 PDU whose nb_write/nb_write_bytes fields pass the equality check at line 957 but the actual received length is shorter than offset+10+2*nb_write.",
+    "confidence": 0.42
+  }
+]

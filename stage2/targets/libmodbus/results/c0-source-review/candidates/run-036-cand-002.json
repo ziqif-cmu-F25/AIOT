@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-002",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "modbus_reply reads the address field from the request buffer even when the received request is shorter than the address bytes. For function codes whose meta length is 0 (for example READ_EXCEPTION_STATUS, REPORT_SLAVE_ID, or any unknown function code above 0x17), the receive path only reads the function byte, but modbus_reply still reads req[offset+1] and req[offset+2].",
+  "evidence_source": "Line 724: `address = (req[offset + 1] << 8) + req[offset + 2];` is computed unconditionally before the switch. In _modbus_receive_msg, compute_meta_length_after_function returns 0 for these function codes (line 269), so only header+1 bytes are received, and the bytes at offset+1 and offset+2 are never written.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Reads of uninitialized or stale bytes beyond msg_length in the caller's request buffer. Usually no crash because the buffer is larger, but it is an out-of-bounds read of unreceived data that can influence the address computation and the error message, and it is undefined by the length the library actually validated.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "Impact is mostly an information/uninitialized-read issue and depends on the caller's buffer size. The address is only used by branches that would ignore it for these function codes, but the read itself happens regardless.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 724
+  },
+  "confidence": 0.4,
+  "model": "anthropic/claude-haiku-5.5",
+  "prompt_id": "libmodbus-0367-source-review@v1",
+  "run_index": 2
+}

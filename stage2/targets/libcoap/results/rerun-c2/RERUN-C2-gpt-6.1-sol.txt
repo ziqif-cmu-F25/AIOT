@@ -1,0 +1,6 @@
+{
+  "root_cause_line": "memcpy(addrstr, address->s, address->length);",
+  "explanation": "The copy uses the externally controlled hostname length without checking the capacity of static char addrstr[256]. A 300-byte hostname writes 44 bytes past the buffer. Because getaddrinfo() requires a NUL-terminated string, the maximum permitted copy length is 255 bytes; a 256-byte copy would also overwrite all zeros established by memset(), leaving no terminator.",
+  "fix": "Reject hostnames that do not fit, reserving one byte for the NUL terminator: memset(addrstr, 0, sizeof(addrstr)); if (address && address->length) { if (address->length >= sizeof(addrstr)) return NULL; memcpy(addrstr, address->s, address->length); } else { memcpy(addrstr, \"localhost\", 9); } The existing memset supplies the terminator for accepted lengths. Reject rather than silently truncate an oversized hostname.",
+  "confidence": 1.0
+}

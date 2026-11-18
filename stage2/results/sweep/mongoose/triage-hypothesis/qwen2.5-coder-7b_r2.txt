@@ -1,0 +1,43 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "...",
+      "function": "skip_chunk",
+      "line": 1012
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "The function reads past the end of the buffer when `n` is large.",
+    "vulnerable_line": "buf[i + n + 2] != '\\r' || buf[i + n + 3] != '\\n'",
+    "trigger_condition": "A large value of `n` such that `i + n + 3` exceeds the buffer length.",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "...",
+      "function": "skip_chunk",
+      "line": 1008
+    },
+    "bug_class": "integer-overflow",
+    "hypothesis": "The function may overflow when converting the chunk length from hexadecimal to integer.",
+    "vulnerable_line": "mg_str_to_num(mg_str_n(buf, (size_t) i), 16, &n, sizeof(int)) == false",
+    "trigger_condition": "A hexadecimal string that represents a number larger than the maximum value that can be stored in an `int`.",
+    "confidence": 0.8
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "...",
+      "function": "skip_chunk",
+      "line": 1010
+    },
+    "bug_class": "buffer-overflow",
+    "hypothesis": "The function may write past the end of the buffer when `n` is large.",
+    "vulnerable_line": "*dl = n",
+    "trigger_condition": "A large value of `n` such that `i + 2 + n + 2` exceeds the buffer length.",
+    "confidence": 0.7
+  }
+]
+```

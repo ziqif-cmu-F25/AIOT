@@ -1,0 +1,21 @@
+run_id: run-004
+task_id: libmodbus-modbus-reply
+prompt_id: libmodbus-modbus-reply@v1
+model_requested: anthropic/claude-haiku-5.5
+model_resolved:
+- anthropic/claude-haiku-5.5
+scored_utc: '2026-11-04T02:33:30Z'
+run_verdict: rejected
+reason: no candidates reported (expected finding missed)
+expected:
+  file: src/modbus.c
+  function: modbus_reply
+  lines:
+  - 906
+  - 937
+  line_tolerance: 2
+  vulnerability_class: buffer-overflow
+ground_truth_file: stage2/scoring/ground_truth/libmodbus-modbus-reply.yaml
+ground_truth_sha256: 18de5990cfca847b55f19ce688fa8e7485840a48c478302546434dc0f86a6a24
+references: []
+candidates: []

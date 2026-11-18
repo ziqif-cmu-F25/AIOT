@@ -1,0 +1,7 @@
+{
+  "hypothesis": "An attacker-controlled Proxy-Uri hostname longer than 256 bytes causes memcpy() to write past the end of the static addrstr buffer because address->length is not checked against sizeof(addrstr).",
+  "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+  "bug_class": "buffer-overflow",
+  "trigger_condition": "address is non-NULL, address->length is greater than 256, and address->s contains at least address->length attacker-controlled bytes.",
+  "confidence": 0.99
+}

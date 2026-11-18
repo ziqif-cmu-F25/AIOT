@@ -1,0 +1,22 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "src/modbus.c", "function": "modbus_reply (write_and_read_registers case)", "line": 980},
+    "bug_class": "oob-write",
+    "hypothesis": "The bounds check at lines 962-965 tests `mapping_address < 0` twice and never tests `mapping_address_write < 0`, so a write start address below `mb_mapping->start_registers` yields a negative `mapping_address_write`; the upper-bound test `(mapping_address_write + nb_write) > nb_registers` still passes, and the write loop then stores through `tab_registers[i]` with a negative index, writing before the start of the heap-allocated register array.",
+    "vulnerable_line": "if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers)  /* line 964 should test mapping_address_write < 0 */; the unchecked store is line 980: mb_mapping->tab_registers[i] = ... with i starting at mapping_address_write",
+    "trigger_condition": "A FC 0x17 (Write and Read Registers) request with address_write (bytes 5-6) smaller than mb_mapping->start_registers, e.g. start_registers = 0x1000 and address_write = 0x0000, with nb_write in [1,MAX], nb in [1,MAX], nb_write_bytes == 2*nb_write, and mapping_address_write + nb_write <= nb_registers so the upper check passes. The loop then writes up to 2*nb_write bytes' worth of uint16 values at negative offsets.",
+    "confidence": 0.85
+  },
+  {
+    "rank": 2,
+    "location": {"file": "src/modbus.c", "function": "modbus_reply (write_and_read_registers case)", "line": 951},
+    "bug_class": "oob-read",
+    "hypothesis": "The excerpt reads request bytes at fixed offsets up to req[offset+9] and then req[offset+j+1] (j up to 10 + 2*(nb_write-1)+1) using only the value of nb_write_bytes taken from the packet, without verifying in this excerpt that the received frame length covers offset+9+nb_write_bytes; a short frame whose byte-count field is consistent with nb_write would make the copy loop read past the end of the request buffer.",
+    "vulnerable_line": "int nb_write_bytes = req[offset + 9]; ... (req[offset + j] << 8) + req[offset + j + 1] at line 981",
+    "trigger_condition": "A truncated Write-and-Read request whose header fields (nb_write, nb_write_bytes = 2*nb_write) pass the checks at lines 955-957 but whose actual length is smaller than offset + 10 + nb_write_bytes; this depends on whether the caller validates the message length before this switch, which is outside the excerpt.",
+    "confidence": 0.3
+  }
+]
+```

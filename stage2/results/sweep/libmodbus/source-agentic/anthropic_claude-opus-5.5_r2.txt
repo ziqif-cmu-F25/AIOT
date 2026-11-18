@@ -1,0 +1,32 @@
+The strongest finding is in `modbus_reply`, under `MODBUS_FC_WRITE_AND_READ_REGISTERS`. The bounds check tests the read address twice and never checks the write address for being negative. A network client can therefore make the server write registers before the start of `tab_registers`. I stopped after this read; the other two candidates are weaker, and I found no other bug in the code read so far.
+
+**FINAL**
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 980},
+    "vulnerability_class": "oob-write",
+    "hypothesis": "In the MODBUS_FC_WRITE_AND_READ_REGISTERS (0x17) handler, the address check is meant to reject a negative write offset but tests `mapping_address < 0` twice. `mapping_address_write < 0` is never checked. A server whose mapping has start_registers > 0 receives a request with address_write < start_registers. Then mapping_address_write = address_write - start_registers is negative (e.g. -start_registers). It still passes `(mapping_address_write + nb_write) > nb_registers` because the sum is small. The write loop then stores up to 121 attacker-controlled 16-bit values at tab_registers[negative index]. This is a heap buffer underflow (OOB write) before the tab_registers allocation, with attacker-controlled data, reachable from one unauthenticated TCP/RTU request.",
+    "evidence": "int mapping_address_write = address_write - mb_mapping->start_registers;\n...\n} else if (mapping_address < 0 ||\n           (mapping_address + nb) > mb_mapping->nb_registers ||\n           mapping_address < 0 ||\n           (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\n...\nfor (i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; i++, j += 2) {\n    mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];",
+    "confidence": 0.85
+  },
+  {
+    "rank": 2,
+    "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 966},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "This is the same faulty check. Even when start_registers == 0, the check has no lower bound, so the write loop's bounds rely entirely on address_write being uint16_t. Any mapping with start_registers > 0 lets the shifted base go negative. The data written can then corrupt heap metadata or adjacent allocations, such as the mb_mapping struct or other tables. A later read of that corrupted memory leaks it in the response.",
+    "evidence": "uint16_t address_write = (req[offset + 5] << 8) + req[offset + 6]; ... mapping_address_write unchecked for < 0",
+    "confidence": 0.3
+  },
+  {
+    "rank": 3,
+    "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 862},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "In WRITE_MULTIPLE_COILS, the code requires nb_bits*8 >= nb but never checks the byte count against the bytes actually received. modbus_set_bits_from_bytes reads ceil(nb/8) bytes from &req[offset+6]. If the receive path trusts the byte count, the reads stay in bounds. If it does not, they could read past the received data, but the read stays inside the fixed-size req buffer. This is lower confidence.",
+    "evidence": "if (nb < 1 || MODBUS_MAX_WRITE_BITS < nb || nb_bits * 8 < nb) ... modbus_set_bits_from_bytes(mb_mapping->tab_bits, mapping_address, nb, &req[offset + 6]);",
+    "confidence": 0.1
+  }
+]
+```

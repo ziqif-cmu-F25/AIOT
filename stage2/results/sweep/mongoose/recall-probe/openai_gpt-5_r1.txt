@@ -1,0 +1,5 @@
+{
+  "training_cutoff": "2024-10",
+  "known_cves": [],
+  "notes": "From memory, I’m not aware of any publicly disclosed memory-safety CVE/advisory for Cesanta’s Mongoose (C web server library) up to my cutoff. I may be conflating with other projects named Mongoose (e.g., Node.js ODM or MongooseIM). If such issues exist, I don’t recall specific CVE IDs, affected functions/files, or bug classes with enough confidence to report."
+}

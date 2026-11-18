@@ -1,0 +1,14 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 980
+    },
+    "vulnerability_class": "oob-write",
+    "hypothesis": "A network client can send a Write and Read Registers request (function 0x17) whose read address is valid but whose write address is below mb_mapping->start_registers. The bounds check mistakenly tests mapping_address < 0 twice and never tests mapping_address_write < 0. Consequently, a negative write index passes validation and attacker-supplied register values are written before the allocated tab_registers array. For example, with start_registers=100 and nb_registers=10, read address=100, read quantity=1, write address=99, write quantity=1, and write byte count=2 pass all checks and write to tab_registers[-1].",
+    "evidence": "Lines 952–953: int mapping_address = address - mb_mapping->start_registers;\nint mapping_address_write = address_write - mb_mapping->start_registers;\n\nLines 962–965: } else if (mapping_address < 0 ||\n           (mapping_address + nb) > mb_mapping->nb_registers ||\n           mapping_address < 0 ||\n           (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\n\nLines 978–981: for (i = mapping_address_write, j = 10;\n     i < mapping_address_write + nb_write; i++, j += 2) {\n    mb_mapping->tab_registers[i] =\n        (req[offset + j] << 8) + req[offset + j + 1];",
+    "confidence": 1.0
+  }
+]

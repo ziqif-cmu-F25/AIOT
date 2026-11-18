@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-002",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "In modbus_reply_exception, if called with a too-short request buffer (req_length <= header_length), the access to req[offset] will read out of bounds, allowing an attacker to crash the server by sending a truncated frame that is forwarded to this API.",
+  "evidence_source": "modbus_reply_exception computes offset = ctx->backend->header_length; then immediately does function = req[offset]; without checking that req_length > offset.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Out-of-bounds read and potential crash or sanitizer detection when indexing req[offset] on a truncated buffer.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "This mirrors the missing minimal-length validation in modbus_reply and likewise assumes that upstream code provides a complete frame; the API itself does not enforce it.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply_exception",
+    "line": 1024
+  },
+  "confidence": 0.55,
+  "model": "openai/gpt-5",
+  "prompt_id": "libmodbus-0367-source-review@v1",
+  "run_index": 1
+}

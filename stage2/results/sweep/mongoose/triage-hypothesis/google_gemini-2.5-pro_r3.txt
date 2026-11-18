@@ -1,0 +1,43 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "...",
+      "function": "skip_chunk",
+      "line": 1011
+    },
+    "bug_class": "integer-overflow",
+    "hypothesis": "A large chunk size `n` parsed from the input can cause the index expression `i + n + 2` to overflow, leading to an out-of-bounds read from a negative offset in `buf`.",
+    "vulnerable_line": "if (buf[i + n + 2] != '\\r' || buf[i + n + 3] != '\\n') return -1;",
+    "trigger_condition": "An HTTP request with a chunk size close to the maximum value of a signed integer (e.g., \"7FFFFFFF\\r\\n...\"), where the total received buffer length `len` is large enough to prevent an early return at line 1010.",
+    "confidence": 1.0
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "...",
+      "function": "skip_chunk",
+      "line": 1006
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "An insufficient length check `len < i + 1` allows a one-byte out-of-bounds read at `buf[i + 1]` when checking for the CRLF sequence.",
+    "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "trigger_condition": "A buffer of length `L` containing `L-1` hex digits followed by a `\\r`, such that `i` becomes `L-1` and the check `len < i + 1` is false, leading to an access of `buf[L]`.",
+    "confidence": 1.0
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "...",
+      "function": "skip_chunk",
+      "line": 1013
+    },
+    "bug_class": "integer-overflow",
+    "hypothesis": "A large chunk size `n` parsed from the input can cause the return value expression `i + 2 + n + 2` to overflow, causing the function to return an incorrect chunk length to the caller.",
+    "vulnerable_line": "return i + 2 + n + 2;",
+    "trigger_condition": "An HTTP request with a chunk size close to the maximum value of a signed integer (e.g., \"7FFFFFFF\\r\\n...\").",
+    "confidence": 1.0
+  }
+]
+```

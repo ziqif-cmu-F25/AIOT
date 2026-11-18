@@ -1,0 +1,11 @@
+Based on the information provided, here is a concrete Modbus TCP request frame that exercises the vulnerability:
+
+```json
+{
+  "hex_bytes": "01 03 00 20 00 01 00 01 00 00 00 00 00 00 00",
+  "explanation": "The first byte is the Modbus function code for 'read holding registers'. The next two bytes are the starting address (0x20, 32 in decimal). The next two bytes are the quantity of registers to read (0x0001, 1 in decimal). The remaining bytes are the data to be written (0x0000, 0 in decimal).",
+  "expected_effect": "The sanitizer should report a buffer overflow error, as the write address is negative and the upper-bound test passes, causing the write loop to store through tab_registers[i] with negative i."
+}
+```
+
+This request frame exercises the vulnerability by attempting to read from a negative index in the tab_registers array. The sanitizer should report a buffer overflow error as a result.

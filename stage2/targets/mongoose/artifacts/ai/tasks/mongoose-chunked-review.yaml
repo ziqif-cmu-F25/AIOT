@@ -1,0 +1,7 @@
+# Moved: the executable Stage 2 driver task lives at
+#   stage2/tasks/mongoose-chunked-review.yaml
+# with vendored source under
+#   stage2/vendor/mongoose/http_chunk_excerpt.c
+# See ../README.md for commands.
+task_id: mongoose-chunked-review
+redirect: ../../stage2/tasks/mongoose-chunked-review.yaml

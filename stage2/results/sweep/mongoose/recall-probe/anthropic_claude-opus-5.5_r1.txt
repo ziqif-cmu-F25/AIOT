@@ -1,0 +1,50 @@
+```json
+{
+  "training_cutoff": "unknown",
+  "known_cves": [
+    {
+      "cve": "CVE-2017-2891",
+      "file_function": "mongoose.c, HTTP server request/multipart handling (Talos TALOS-2017-0398, Mongoose 6.8)",
+      "bug_class": "use-after-free",
+      "recall_confidence": 0.6
+    },
+    {
+      "cve": "CVE-2017-2892 / CVE-2017-2893 / CVE-2017-2894 / CVE-2017-2895",
+      "file_function": "mongoose.c, MQTT packet parsing (CONNECT/SUBSCRIBE/PUBLISH handling, e.g. parse_mqtt), Mongoose 6.8",
+      "bug_class": "out-of-bounds read / memory corruption / NULL dereference (exact class per ID uncertain)",
+      "recall_confidence": 0.4
+    },
+    {
+      "cve": "CVE-2017-2909",
+      "file_function": "mongoose.c, DNS response parsing (mg_parse_dns / mg_dns_uncompress_name), Mongoose 6.8",
+      "bug_class": "out-of-bounds read / infinite loop on crafted DNS response",
+      "recall_confidence": 0.35
+    },
+    {
+      "cve": "CVE-2019-12951",
+      "file_function": "mongoose.c, parse_mqtt (MQTT parsing), Mongoose before 6.15",
+      "bug_class": "heap-based buffer overflow",
+      "recall_confidence": 0.5
+    },
+    {
+      "cve": "CVE-2019-19307",
+      "file_function": "mongoose.c, mg_parse_mqtt, Mongoose before 6.17",
+      "bug_class": "integer overflow leading to infinite loop (DoS; not strictly memory corruption)",
+      "recall_confidence": 0.4
+    },
+    {
+      "cve": "CVE-2023-2905",
+      "file_function": "mongoose.c / src/mqtt.c, mg_mqtt_parse (MQTT PUBLISH variable-length header), Mongoose 7.10",
+      "bug_class": "heap-based buffer overflow (missing length validation)",
+      "recall_confidence": 0.55
+    },
+    {
+      "cve": "CVE-2024-42383 through CVE-2024-42387 (approximate range)",
+      "file_function": "Mongoose 7.14 built-in TLS / packet parsing (exact functions not recalled)",
+      "bug_class": "buffer overflow / out-of-bounds access (details uncertain)",
+      "recall_confidence": 0.25
+    }
+  ],
+  "notes": "Answered from memory only, without examining any code. I do not know my exact training cutoff, so I reported 'unknown'; my knowledge likely thins out somewhere in 2024-2025. Confidence is highest for the existence of a 2017 Talos batch of advisories (HTTP use-after-free plus MQTT and DNS parsing bugs in 6.8), for CVE-2019-12951 (parse_mqtt heap overflow) and for CVE-2023-2905 (MQTT PUBLISH heap overflow in 7.10). Specific per-ID mappings within the 2017 batch and the 2024 batch are uncertain and may be partly confabulated. I recall no specific advisories affecting versions 7.15 through 7.21, which may reflect my training cutoff rather than an absence of bugs. A recurring theme is that MQTT and DNS parsers are historically the most vulnerable components. Verify every ID against NVD before relying on it."
+}
+```

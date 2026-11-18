@@ -1,0 +1,14 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "mongoose/src/http.c",
+      "function": "skip_chunk",
+      "line": 1006
+    },
+    "vulnerability_class": "oob-read",
+    "hypothesis": "A partial chunk-size line ending immediately after a carriage return causes a one-byte out-of-bounds read. For example, a chunked HTTP request whose currently buffered body is \"00\\r\" gives len=3 and i=2. The check `len < i + 1` is false when len equals i+1, so evaluation proceeds to `buf[i + 1]`, which reads buf[3], one byte beyond the supplied region. The check must require at least two bytes beginning at i, e.g. `len < i + 2`.",
+    "evidence": "The parser calls `skip_chunk(s + o, len - o, ...)` on network-controlled buffered data at line 1093. In `skip_chunk`: `while (i < len && is_hex_digit(buf[i])) i++;` followed by `if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;`. When `len == i + 1` and `buf[i] == '\\r'`, `buf[i + 1]` is outside the length-bounded input.",
+    "confidence": 0.99
+  }
+]

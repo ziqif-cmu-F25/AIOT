@@ -1,0 +1,31 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "coap_address.c (libcoap, resolver)", "function": "coap_resolve_address_info", "line": 538},
+    "bug_class": "buffer-overflow",
+    "hypothesis": "The hostname length is never checked against the fixed 256-byte static buffer `addrstr`, so a `address->length` of 256 or more makes the memcpy write past the end of the static `addrstr` array in .bss, corrupting adjacent static data.",
+    "vulnerable_line": "if (address && address->length)\n    memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "A CoAP-derived host string (e.g., Uri-Host or Proxy-Uri host from an incoming request, or any caller passing an attacker-controlled coap_str_const_t) with length >= 256. The only length check in the function (line 509) is inside the AF_UNIX branch and does not run for normal hostnames.",
+    "confidence": 0.85
+  },
+  {
+    "rank": 2,
+    "location": {"file": "coap_address.c (libcoap, resolver)", "function": "coap_resolve_address_info", "line": 776},
+    "bug_class": "oob-read",
+    "hypothesis": "In the Contiki branch, memcpy copies sizeof(info->addr.addr) bytes from the local `addr_ip` (a uip_ipaddr_t, 16 bytes for IPv6 or 4 for IPv4). If the destination address field is larger than the source object, the copy over-reads the stack; the length is taken from the destination rather than the source.",
+    "vulnerable_line": "memcpy(&info->addr.addr, &addr_ip, sizeof(info->addr.addr));",
+    "trigger_condition": "Build with WITH_CONTIKI and a hostname or IP literal from the network. The address is parsed by uiplib_ip4addrconv or uiplib_ip6addrconv into a smaller local, then copied with the destination's size. Only applies if sizeof(info->addr.addr) exceeds sizeof(uip_ipaddr_t). Excerpt-only evidence, so confidence is moderate.",
+    "confidence": 0.3
+  },
+  {
+    "rank": 3,
+    "location": {"file": "coap_address.c (libcoap, resolver)", "function": "coap_resolve_address_info", "line": 556},
+    "bug_class": "other",
+    "hypothesis": "The ai_addrlen bounds check is compiled out under WITH_LWIP, so the LWIP path copies only fixed-size fields from ai_addr with no check that ai_addr actually holds the sockaddr type the family implies. A malformed or unexpected getaddrinfo-style result could make the sockaddr cast read past the returned structure.",
+    "vulnerable_line": "#if !defined(WITH_LWIP)\n    if (ainfo->ai_addrlen > (socklen_t)sizeof(info->addr.addr))",
+    "trigger_condition": "Build with WITH_LWIP and a resolver that returns an ai_addr shorter than sockaddr_in or sockaddr_in6 for the advertised ai_family. The sock4 and sock6 casts at lines 586 and 596 then read beyond ai_addr. Speculative; depends on the resolver implementation outside the excerpt.",
+    "confidence": 0.15
+  }
+]
+```

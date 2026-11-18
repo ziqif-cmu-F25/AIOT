@@ -1,0 +1,28 @@
+FINAL
+
+{
+  "rank": 1,
+  "location": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1007},
+  "vulnerability_class": "integer-overflow",
+  "hypothesis": "An attacker can send a chunked HTTP request with a chunk size like '80000000' (hex for 2147483648, which exceeds INT_MAX). mg_str_to_num parses this as an unsigned int (0x80000000) and stores it in the signed int 'n', causing integer overflow and making 'n' negative. This negative value propagates to 'dl' (chunk data length), which when cast to size_t in memmove becomes a very large value, leading to buffer overflow.",
+  "evidence": "mg_str_to_num(mg_str_n(buf, (size_t) i), 16, &n, sizeof(int)) stores unsigned int result in signed int variable 'n'. If chunk size > INT_MAX, 'n' becomes negative. Later, memmove(s + hm.body.len, s + o + pl, (size_t) dl) casts negative 'dl' to very large size_t.",
+  "confidence": 0.95
+}
+
+{
+  "rank": 2,
+  "location": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1010},
+  "vulnerability_class": "buffer-overflow",
+  "hypothesis": "When 'n' becomes negative due to integer overflow, the check 'n > len - i - 4' is bypassed (negative numbers are always less than positive len values). This allows processing of malformed chunks that could lead to out-of-bounds reads or writes.",
+  "evidence": "if (n > len - i - 4) return 0; // Chunk not yet fully buffered. Negative 'n' bypasses this check.",
+  "confidence": 0.85
+}
+
+{
+  "rank": 3,
+  "location": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1005},
+  "vulnerability_class": "other",
+  "hypothesis": "The check 'i > (int) sizeof(int) * 2' is insufficient to prevent large chunk sizes. An attacker can send exactly 8 hex digits (like '7FFFFFFF') which passes this check but still causes integer overflow when parsed.",
+  "evidence": "if (i > (int) sizeof(int) * 2) return -1; // Chunk length is too big. This allows exactly 8 hex digits (sizeof(int)*2=8 on 32-bit systems), which can still overflow.",
+  "confidence": 0.75
+}

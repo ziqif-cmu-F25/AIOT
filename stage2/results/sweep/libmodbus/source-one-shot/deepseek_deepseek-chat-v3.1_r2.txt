@@ -1,0 +1,51 @@
+Looking at the provided code, I found a potential memory-safety vulnerability in the `modbus_reply` function. Specifically, there is an out-of-bounds write issue when handling the `MODBUS_FC_WRITE_AND_READ_REGISTERS` function code.
+
+Here is the ranked list of candidates:
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 947
+    },
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "When processing a MODBUS_FC_WRITE_AND_READ_REGISTERS request, the code writes to registers without properly validating the mapping_address_write index. An attacker can send a request with a large address_write value that causes an out-of-bounds write in the mb_mapping->tab_registers array.",
+    "evidence": "The code at lines 947-990 handles MODBUS_FC_WRITE_AND_READ_REGISTERS. The mapping_address_write is computed as address_write - mb_mapping->start_registers (line 953). However, the check at lines 962-965 only verifies that mapping_address_write is non-negative and that mapping_address_write + nb_write <= mb_mapping->nb_registers. But if address_write is very large, mapping_address_write might be a large positive number that exceeds the bounds of the tab_registers array.",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 840
+    },
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "In MODBUS_FC_WRITE_MULTIPLE_COILS, the code writes to bits without proper bounds checking. An attacker can send a request with a large address value that causes an out-of-bounds write in the mb_mapping->tab_bits array.",
+    "evidence": "The mapping_address is computed as address - mb_mapping->start_bits (line 843). The check at lines 853-854 only verifies that mapping_address is non-negative and that mapping_address + nb <= mb_mapping->nb_bits. However, if address is very large, mapping_address might be a large positive number that exceeds the bounds of the tab_bits array.",
+    "confidence": 0.8
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 872
+    },
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "In MODBUS_FC_WRITE_MULTIPLE_REGISTERS, the code writes to registers without proper bounds checking. An attacker can send a request with a large address value that causes an out-of-bounds write in the mb_mapping->tab_registers array.",
+    "evidence": "The mapping_address is computed as address - mb_mapping->start_registers (line 875). The check at lines 882-883 only verifies that mapping_address is non-negative and that mapping_address + nb <= mb_mapping->nb_registers. However, if address is very large, mapping_address might be a large positive number that exceeds the bounds of the tab_registers array.",
+    "confidence": 0.8
+  }
+]
+```
+
+### Explanation:
+The primary issue is in the `MODBUS_FC_WRITE_AND_READ_REGISTERS` handling. The code computes `mapping_address_write = address_write - mb_mapping->start_registers` and then checks if it is non-negative and if `mapping_address_write + nb_write` is within bounds. However, if `address_write` is very large (e.g., larger than `mb_mapping->start_registers + mb_mapping->nb_registers`), then `mapping_address_write` becomes a large positive number that exceeds the size of the `tab_registers` array. This leads to an out-of-bounds write when the code writes to `mb_mapping->tab_registers[i]` at lines 980-982.
+
+Similarly, the same pattern exists in other write operations (like `MODBUS_FC_WRITE_MULTIPLE_COILS` and `MODBUS_FC_WRITE_MULTIPLE_REGISTERS`), where the computed index might be out-of-bounds if the address is too large.
+
+These vulnerabilities can be exploited by an attacker sending a malicious Modbus request with specially crafted addresses, causing a buffer overflow in the server's memory. This could lead to arbitrary code execution or a denial-of-service.

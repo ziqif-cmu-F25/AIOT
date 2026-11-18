@@ -1,0 +1,7 @@
+{
+  "raw_request": "POST / HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\nTransfer-Encoding: chunked\\r\\n\\r\\n3\\r\\nabc\\r\\n0\\r\\n\\r\\n",
+  "hex_body": "330d0a6162630d0a300d0a0d0a",
+  "explanation": "This request uses chunked transfer encoding with a single data chunk of size 3 (\"abc\"), followed by the required CRLF, then the terminating zero-size chunk. To trigger the off-by-one in skip_chunk(), deliver the body so that the first buffered view of the chunk-data terminator has only the trailing CR and not the LF. Specifically, after the server has read the size line (\"3\\r\\n\") and the 3 data bytes (\"abc\"), the next byte is a CR (0x0d). At that moment, skip_chunk() looks for CRLF and, due to the incorrect guard `len < i + 1`, it reads `buf[i+1]` when `len == i + 1` and `buf[i] == '\\r'`, causing a one-byte OOB read.",
+  "delivery_notes": "Split the request across TCP segments (or separate write() calls). Segment 1 must end exactly at the CR that terminates the chunk-data: send \"POST ...\\r\\n\\r\\n3\\r\\nabc\\r\" in the first segment, then after a short delay send \"\\n0\\r\\n\\r\\n\" in the second. Use TCP_NODELAY or equivalent to prevent coalescing. The OOB read occurs when skip_chunk() is invoked with a buffer that ends in that lone CR (no LF yet). If both segments are coalesced, the bug will not trigger.",
+  "confidence": 0.82
+}

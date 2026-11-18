@@ -1,0 +1,5 @@
+{
+  "training_cutoff": "2024-10",
+  "known_cves": [],
+  "notes": "From memory, I do not recall any specific publicly disclosed memory-safety CVE IDs for libcoap affecting versions up to 4.3.x. My confidence in the absence of such CVEs is low; I may simply not recall them. Recommend checking NVD and libcoap release notes to verify."
+}

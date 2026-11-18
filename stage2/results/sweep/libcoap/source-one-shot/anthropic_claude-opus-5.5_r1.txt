@@ -1,0 +1,30 @@
+**Primary finding:** a static buffer overflow in `coap_resolve_address_info`. A remote client sends a `Proxy-Uri` option whose host part is longer than 255 bytes. That length is copied, unchecked, into the 256-byte `addrstr` buffer.
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "libcoap/src/coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "A remote client sends a request to a strip-type proxy (REVERSE_STRIP, FORWARD_STRIP or DIRECT_STRIP) carrying a Proxy-Uri option. coap_pdu_parse_opt_base allows Proxy-Uri lengths up to 1034. The Proxy-Uri is e.g. 'coap://' followed by about 1000 host characters. coap_split_proxy_uri sets uri.host.length to about 1000. coap_proxy_get_ongoing_session then passes &server_use->uri.host to coap_resolve_address_info. There, memcpy copies address->length bytes into 'static char addrstr[256]' with no bound. This overflows the static .bss buffer by up to about 770 bytes of attacker-controlled data, corrupting adjacent globals. It also leaves addrstr unterminated before getaddrinfo reads it. The AF_UNIX path checks length against COAP_UNIX_PATH_MAX, but the IP/hostname path has no equivalent check.",
+    "evidence": "static char addrstr[256]; ... memset(addrstr, 0, sizeof(addrstr));\n  if (address && address->length)\n    memcpy(addrstr, address->s, address->length);",
+    "confidence": 0.85
+  },
+  {
+    "rank": 2,
+    "location": {"file": "libcoap/src/coap_uri.c", "function": "check_segment", "line": 446},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "The check 'length < 2' should be 'length < 3'. A path or query segment ending in '%X' (length 2) passes the check, so isxdigit(s[2]) reads one byte past the segment. The later length -= 2 / --length underflows the size_t, so the loop keeps reading past the buffer. decode_segment has the same over-read.",
+    "evidence": "if (*s == '%') { if (length < 2 || !(isxdigit(s[1]) && isxdigit(s[2]))) return -1; s += 2; length -= 2; } ... --length;",
+    "confidence": 0.3
+  },
+  {
+    "rank": 3,
+    "location": {"file": "libcoap/src/coap_proxy.c", "function": "coap_proxy_forward_response_lkd", "line": 857},
+    "vulnerability_class": "use-after-free",
+    "hypothesis": "This path is reached via goto remove_match after an allocation failure. It uses proxy_entry and proxy_req, which point into context->proxy_list and req_list. If those arrays were reallocated or removed by a session-release path triggered during coap_send_lkd, the code would operate on stale pointers. This needs a specific reentrancy sequence to trigger.",
+    "evidence": "coap_send_lkd(incoming, pdu);\nremove_match: ... coap_delete_pdu(proxy_entry->req_list[j].pdu); ... memmove(&proxy_entry->req_list[j], ...)",
+    "confidence": 0.1
+  }
+]
+```

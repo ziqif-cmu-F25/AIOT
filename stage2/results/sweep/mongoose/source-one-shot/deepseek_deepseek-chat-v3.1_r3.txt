@@ -1,0 +1,53 @@
+Looking at the provided code for the mongoose HTTP server library, I've identified a memory-safety vulnerability related to chunked transfer encoding. The issue occurs when processing chunked data in the `http_cb` function.
+
+Here are the top 3 candidates:
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "mongoose/src/http.c",
+      "function": "http_cb",
+      "line": 1103
+    },
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "When processing chunked transfer encoding, the code moves chunk data without proper bounds checking. If a malicious client sends a chunk with a large declared length but small actual data, the memmove operation can write beyond the receive buffer boundaries.",
+    "evidence": "memmove(s + hm.body.len, s + o + pl, (size_t) dl);",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "mongoose/src/http.c",
+      "function": "skip_chunk",
+      "line": 1007
+    },
+    "vulnerability_class": "integer-overflow",
+    "hypothesis": "The chunk length parsing function skip_chunk uses an int to store the chunk length, which can overflow if a very large chunk length is provided, leading to negative values that bypass length checks.",
+    "evidence": "if (mg_str_to_num(mg_str_n(buf, (size_t) i), 16, &n, sizeof(int)) == false) return -1;",
+    "confidence": 0.7
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "mongoose/src/http.c",
+      "function": "mg_http_parse",
+      "line": 324
+    },
+    "vulnerability_class": "integer-overflow",
+    "hypothesis": "The Content-Length header parsing uses size_t which can wrap around if an extremely large value is provided, causing the body length calculation to overflow.",
+    "evidence": "if (mg_to_size_t(*cl, &hm->body.len) == false) return -1; hm->message.len = (size_t) req_len + hm->body.len;",
+    "confidence": 0.6
+  }
+]
+```
+
+The primary vulnerability is in the chunked transfer encoding processing. The `memmove` operation at line 1103 moves `dl` bytes from position `s + o + pl` to `s + hm.body.len` without verifying that the destination has sufficient space. This can lead to a buffer overflow if the chunk data exceeds the available buffer space.
+
+The issue is particularly dangerous because:
+1. The chunk length (`dl`) is parsed from untrusted network data
+2. The destination pointer (`s + hm.body.len`) advances with each chunk processed
+3. No bounds checking is performed to ensure the destination remains within the receive buffer
+
+This could allow an attacker to overwrite adjacent memory and potentially execute arbitrary code.

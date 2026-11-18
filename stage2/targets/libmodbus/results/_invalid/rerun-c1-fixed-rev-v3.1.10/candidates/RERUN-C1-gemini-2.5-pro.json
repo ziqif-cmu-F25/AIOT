@@ -1,0 +1,22 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "source-agentic",
+  "property": "memory-safety",
+  "hypothesis": " HYPOTHESIS: The main request dispatch function in `src/modbus.c` contains a switch statement that routes requests to different handlers, and one of these handlers has a vulnerability related to processing the request's data payload.\nGREP \"switch (.*function)\" src/modbus.c HYPOTHESIS: The main request handling logic is in a function called `modbus_receive` in `src/modbus.c`, and this function will contain the primary dispatch logic that I can then trace into specific handlers.\nGREP \"modbus_recei",
+  "evidence_source": " HYPOTHESIS: The main request dispatch function in `src/modbus.c` contains a switch statement that routes requests to different handlers, and one of these handlers has a vulnerability related to processing the request's data payload.\nGREP \"switch (.*function)\" src/modbus.c HYPOTHESIS: The main reque",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "C1 agentic condition (C1-orig), 15 turns. Status: turn_limit_reached. Did not clearly identify target CVE.",
+  "vulnerability_class": "unknown",
+  "location": {
+    "file": "src/modbus.c",
+    "function": "modbus_reply"
+  },
+  "confidence": 0.5,
+  "model": "google/gemini-2.5-pro",
+  "prompt_id": "libmodbus-C1-orig@v1",
+  "run_index": 1
+}

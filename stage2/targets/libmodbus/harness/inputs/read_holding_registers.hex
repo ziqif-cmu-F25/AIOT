@@ -1,0 +1,5 @@
+# Benign seed: Read Holding Registers (function 0x03), 1 register.
+# A valid, well-formed Modbus/TCP request used as a liveness/smoke probe.
+# MBAP header: txn=0001 proto=0000 length=0006 unit=FF
+# PDU: fn=03 addr=0x016B (unit-test map base) count=0x0001
+00 01 00 00 00 06 FF 03 01 6B 00 01

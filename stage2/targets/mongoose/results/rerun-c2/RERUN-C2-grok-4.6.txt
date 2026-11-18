@@ -1,0 +1,6 @@
+{
+  "root_cause_line": "if (len < i + 1 || buf[i] != '\r' || buf[i + 1] != '\\n') return -1;  // Error",
+  "explanation": "After the hex-digit scan, i is the index of the first non-hex byte. The guard uses len < i + 1, which only proves buf[i] is in range. The same expression then reads buf[i + 1]. For the 3-byte input \"ab\\r\", i becomes 2 so len < i + 1 is 3 < 3 (false), buf[2] == '\\r' succeeds, and buf[3] is a 1-byte read past the exact-sized heap buffer (ASan address 0x...013, one past the 3-byte region [0x...010, 0x...013)). The check must require two remaining bytes (CRLF), i.e. i + 2.",
+  "fix": "if (len < i + 2 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // Error",
+  "confidence": 0.95
+}

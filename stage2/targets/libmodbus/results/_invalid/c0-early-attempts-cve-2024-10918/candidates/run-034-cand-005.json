@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-005",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "The compute_data_length_after_meta function in _modbus_receive_msg can be tricked by an attacker to read beyond the allocated message buffer by providing a malicious byte count value.",
+  "evidence_source": "In _modbus_receive_msg function (lines 350-522), compute_data_length_after_meta uses attacker-controlled data from msg[ctx->backend->header_length + 5] or msg[ctx->backend->header_length + 9] to determine length_to_read. This value is not properly validated against the maximum ADU length.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Out-of-bounds read when recv tries to read more data than available in the buffer, potentially causing memory corruption or information disclosure.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "There is a check at line 493: if ((msg_length + length_to_read) > ctx->backend->max_adu_length) but this may not catch all cases where the declared length exceeds actual buffer size.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "compute_data_length_after_meta",
+    "line": 314
+  },
+  "confidence": 0.8,
+  "model": "deepseek/deepseek-chat-v3.1",
+  "prompt_id": "libmodbus-modbus-reply-ctx@v1",
+  "run_index": 2
+}

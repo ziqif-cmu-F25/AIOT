@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-008",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "In modbus_reply, echoing request into response via memcpy(rsp, req, req_length) can overflow the fixed-size stack buffer rsp[MAX_MESSAGE_LENGTH] if req_length exceeds MAX_MESSAGE_LENGTH (e.g., due to inconsistent length handling in the backend or caller).",
+  "evidence_source": "Lines 810-812 (WRITE_SINGLE_COIL), 834-836 (WRITE_SINGLE_REGISTER), 942-944 (MASK_WRITE_REGISTER): memcpy(rsp, req, req_length); rsp_length = req_length; There is no bounds check ensuring req_length <= MAX_MESSAGE_LENGTH.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "If req_length is larger than rsp's capacity, a stack buffer overflow occurs, likely leading to a crash or exploitable memory corruption.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "Although typical backends cap ADU size, this function trusts the provided req_length. Defensive code should bound req_length to MAX_MESSAGE_LENGTH before memcpy.",
+  "vulnerability_class": "buffer-overflow",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 811
+  },
+  "confidence": 0.62,
+  "model": "openai/gpt-5",
+  "prompt_id": "libmodbus-0367-source-review@v1",
+  "run_index": 3
+}

@@ -1,0 +1,29 @@
+[
+  {
+    "rank": 1,
+    "location": {"file": "src/coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+    "bug_class": "buffer-overflow",
+    "hypothesis": "address->length is copied into the 256-byte static buffer addrstr with no upper bound. A host longer than 256 bytes overflows the static buffer. A host of exactly 256 bytes fills the buffer and leaves it without a NUL terminator, so getaddrinfo() reads past the end.",
+    "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "A non-AF_UNIX host name (for example from a coap:// URI host or a Proxy-Uri/Uri-Host option) with length >= 256. The unix-domain length check at line 509 only applies to unix-domain hosts, so other hosts reach the memcpy unchecked. A host of 256 bytes or more writes past addrstr, or leaves it unterminated.",
+    "confidence": 0.8
+  },
+  {
+    "rank": 2,
+    "location": {"file": "src/coap_address.c", "function": "coap_resolve_address_info", "line": 683},
+    "bug_class": "oob-read",
+    "hypothesis": "In the RIOT branch, address->s is a length-delimited coap_str_const_t that is not guaranteed to be NUL-terminated. It is passed to netutils_get_ipv6/netutils_get_ipv4 and to a %s log format, which read past the end of the buffer.",
+    "vulnerable_line": "netutils_get_ipv6(&addr_ipv6, &netif, (const char *)address->s)",
+    "trigger_condition": "RIOT build, with a host string taken from a URI or option that lacks a trailing NUL byte. The string functions read beyond address->length.",
+    "confidence": 0.3
+  },
+  {
+    "rank": 3,
+    "location": {"file": "src/coap_address.c", "function": "coap_resolve_address_info", "line": 756},
+    "bug_class": "oob-read",
+    "hypothesis": "In the Contiki branch, uiplib_ip6addrconv/uiplib_ip4addrconv and the %s log format treat the non-terminated address->s as a C string and read past its end. The code also references an undeclared variable 'family' at line 750.",
+    "vulnerable_line": "uiplib_ip6addrconv((const char *)address->s, (uip_ip6addr_t *)&addr_ip)",
+    "trigger_condition": "Contiki build, with an attacker-supplied host whose backing buffer is not NUL-terminated.",
+    "confidence": 0.2
+  }
+]

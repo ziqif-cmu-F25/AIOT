@@ -1,0 +1,29 @@
+[
+  {
+    "rank": 1,
+    "location": {"file": "unknown", "function": "coap_resolve_address_info", "line": 538},
+    "bug_class": "buffer-overflow",
+    "hypothesis": "Unbounded memcpy copies attacker-controlled address bytes into a fixed 256-byte buffer, overflowing it when address->length > 256.",
+    "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "address is non-NULL and address->length > 256 (address->s supplied from network), causing writes past addrstr[256].",
+    "confidence": 0.98
+  },
+  {
+    "rank": 2,
+    "location": {"file": "unknown", "function": "coap_resolve_address_info", "line": 683},
+    "bug_class": "oob-read",
+    "hypothesis": "Logging uses %s on a length-delimited string without guaranteeing NUL-termination, causing out-of-bounds read when printing the address on RIOT error path.",
+    "vulnerable_line": "coap_log_err(\"coap_resolve_address_info: Unable to parse '%s'\\n\", address->s);",
+    "trigger_condition": "On RIOT: address is non-NULL, address->length > 0, the buffer at address->s is not NUL-terminated, and parsing fails (family remains AF_UNSPEC), leading printf to read past address->length.",
+    "confidence": 0.8
+  },
+  {
+    "rank": 3,
+    "location": {"file": "unknown", "function": "coap_resolve_address_info", "line": 756},
+    "bug_class": "oob-read",
+    "hypothesis": "Logging uses %s on a length-delimited string without guaranteeing NUL-termination, causing out-of-bounds read when printing the address on CONTIKI error path.",
+    "vulnerable_line": "coap_log_err(\"coap_resolve_address_info: Unable to parse '%s'\\n\", address->s);",
+    "trigger_condition": "On CONTIKI: address is non-NULL, address->length > 0, the buffer at address->s is not NUL-terminated, and parsing fails (parsed_ip == 0), leading printf to read past address->length.",
+    "confidence": 0.78
+  }
+]

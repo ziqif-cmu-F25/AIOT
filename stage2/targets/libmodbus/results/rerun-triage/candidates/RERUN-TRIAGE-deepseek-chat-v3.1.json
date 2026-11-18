@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "triage-hypothesis",
+  "property": "memory-safety",
+  "hypothesis": "{\n  \"hypothesis\": \"The code uses the same variable 'mapping_address' twice in the bounds check, causing the write index validation to be skipped, leading to an out-of-bounds write if address_write is negative after subtraction.\",\n  \"vulnerable_line\": \"(mapping_address_write + nb_write) > mb_mapping->nb_registers\",\n  \"bug_class\": \"buffer-overflow\",\n  \"trigger_condition\": \"When address_write is less than mb_mapping->start_registers, making mapping_address_write negative, and nb_write is large enou",
+  "evidence_source": "Identified copy-paste bounds check: mapping_address < 0 tested twice, mapping_address_write < 0 never tested.",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "triage-hypothesis condition. Correctly identified CVE-2022-0367 copy-paste bounds check.",
+  "vulnerability_class": "oob-write",
+  "location": {
+    "file": "src/modbus.c",
+    "function": "modbus_reply",
+    "line": 963
+  },
+  "confidence": 0.9,
+  "model": "deepseek/deepseek-chat-v3.1",
+  "prompt_id": "libmodbus-triage@v1",
+  "run_index": 1
+}

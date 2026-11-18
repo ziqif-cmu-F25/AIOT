@@ -1,0 +1,28 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libcoap/src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 776
+    },
+    "bug_class": "oob-write",
+    "hypothesis": "The `memcpy` operation at line 776 may write out of bounds if `address->length` is greater than the size of `info->addr.addr`.",
+    "vulnerable_line": "memcpy(&info->addr.addr, &addr_ip, sizeof(info->addr.addr));",
+    "trigger": "If `address->length` is greater than the size of `info->addr.addr`, this `memcpy` operation will write out of bounds."
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "libcoap/src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 671
+    },
+    "bug_class": "oob-write",
+    "hypothesis": "The `memcpy` operation at line 671 may write out of bounds if `address->length` is greater than the size of `addr_ipv6` or `addr_ipv4`.",
+    "vulnerable_line": "memcpy(&addr_ipv6, &netif_get_id(netif), sizeof(addr_ipv6));",
+    "trigger": "If `address->length` is greater than the size of `addr_ipv6` or `addr_ipv4`, these `memcpy` operations will write out of bounds."
+  }
+]
+```

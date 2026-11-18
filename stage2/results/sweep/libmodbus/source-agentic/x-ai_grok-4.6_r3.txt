@@ -1,0 +1,25 @@
+FINAL
+{
+  "rank": 1,
+  "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 962},
+  "vulnerability_class": "oob-write",
+  "hypothesis": "A network attacker can send Modbus function 0x17 (Write and Read Registers) with a write starting address below mb_mapping->start_registers so that mapping_address_write is negative, while keeping the read address in-range and nb_write in 1..121. The bounds check copy-pastes mapping_address < 0 twice and never tests mapping_address_write < 0; (mapping_address_write + nb_write) > nb_registers is also false when the write index is negative. The subsequent loop then does tab_registers[i] = ... for i starting at a negative index, a heap out-of-bounds write of attacker-controlled register values.",
+  "evidence": "} else if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers) { ... } else { for (i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; i++, j += 2) { mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1]; } }",
+  "confidence": 0.95
+}
+{
+  "rank": 2,
+  "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 810},
+  "vulnerability_class": "buffer-overflow",
+  "hypothesis": "WRITE_SINGLE_COIL, WRITE_SINGLE_REGISTER, and MASK_WRITE_REGISTER copy the incoming request into stack buffer rsp[MAX_MESSAGE_LENGTH] via memcpy(rsp, req, req_length) without clamping req_length. On the documented receive+reply path req_length is bounded by max_adu_length (260), so this is safe if callers only pass _modbus_receive_msg's return value; a larger req_length (or a truncated RTU length after prepare_response_tid subtracts the CRC) would overflow rsp.",
+  "evidence": "uint8_t rsp[MAX_MESSAGE_LENGTH]; ... memcpy(rsp, req, req_length); rsp_length = req_length;  (same pattern at write-single coil/register and mask-write)",
+  "confidence": 0.35
+}
+{
+  "rank": 3,
+  "location": {"file": "libmodbus/src/modbus.c", "function": "_modbus_receive_msg", "line": 451},
+  "vulnerability_class": "oob-write",
+  "hypothesis": "Data-phase length is taken from an untrusted byte-count field (compute_data_length_after_meta) and only then compared against max_adu_length before recv into the caller buffer. The check is correct when the caller allocates MODBUS_MAX_ADU_LENGTH, but there is no defensive cap inside _modbus_receive_msg itself; a too-small caller buffer or a backend max_adu_length larger than the actual msg array would let the byte count drive an overflow. Weaker than finding 1 because the in-tree backends set max_adu_length to 256/260 matching MAX_MESSAGE_LENGTH.",
+  "evidence": "length_to_read = compute_data_length_after_meta(ctx, msg, msg_type); if ((msg_length + length_to_read) > (int)ctx->backend->max_adu_length) { errno = EMBBADDATA; return -1; } ... rc = ctx->backend->recv(ctx, msg + msg_length, length_to_read);",
+  "confidence": 0.25
+}

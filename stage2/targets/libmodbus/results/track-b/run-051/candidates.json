@@ -1,0 +1,25 @@
+[
+  {
+    "candidate_id": "CAND-001",
+    "viewpoint": "ai-source-review",
+    "property": "memory-safety",
+    "hypothesis": "In modbus_reply, function 0x17 (WRITE_AND_READ_REGISTERS) bounds-checks the read mapping with mapping_address < 0 twice and never tests mapping_address_write < 0. A request whose write address is below mb_mapping->start_registers (read range still valid) makes mapping_address_write negative and the subsequent store indexes tab_registers with a negative i.",
+    "evidence_source": "The else-if at lines 962-965 repeats mapping_address < 0 instead of mapping_address_write < 0. The write loop at lines 978-981 then does mb_mapping->tab_registers[i] = ... with i starting at mapping_address_write. Other FCs in the same function do check mapping_address < 0 before indexing.",
+    "input_artifact": "not_available (static source review; no input artifact)",
+    "expected_behavior": "With a mapping created via modbus_mapping_new_start_address and start_registers > 0, a crafted FC 23 request writes before tab_registers (ASan heap-buffer-overflow / memory corruption), then may still send a normal response.",
+    "observed_behavior": "not_available (static source review; nothing was executed)",
+    "status": "candidate",
+    "oracle_verdict": "pending",
+    "notes": "Requires a non-zero start_registers so address_write - start_registers can be negative; start 0 (modbus_mapping_new) cannot trigger it because address_write is uint16_t. Read quantity/address must pass the existing checks so execution reaches the write loop.",
+    "vulnerability_class": "buffer-overflow",
+    "location": {
+      "file": "modbus.c",
+      "function": "modbus_reply",
+      "line": 980
+    },
+    "confidence": 0.9,
+    "model": "x-ai/grok-4.6",
+    "prompt_id": "libmodbus-0367-source-review@v1",
+    "run_index": 2
+  }
+]

@@ -1,0 +1,265 @@
+Checking vendor\libmodbus\src\modbus.c ...
+vendor\libmodbus\src\modbus.c:10:0: information: Include file: <stdio.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <stdio.h>
+^
+vendor\libmodbus\src\modbus.c:11:0: information: Include file: <string.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <string.h>
+^
+vendor\libmodbus\src\modbus.c:12:0: information: Include file: <stdlib.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <stdlib.h>
+^
+vendor\libmodbus\src\modbus.c:13:0: information: Include file: <stdarg.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <stdarg.h>
+^
+vendor\libmodbus\src\modbus.c:14:0: information: Include file: <errno.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <errno.h>
+^
+vendor\libmodbus\src\modbus.c:15:0: information: Include file: <limits.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <limits.h>
+^
+vendor\libmodbus\src\modbus.c:16:0: information: Include file: <time.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <time.h>
+^
+vendor\libmodbus\src\modbus.c:18:0: information: Include file: <unistd.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <unistd.h>
+^
+vendor\libmodbus\src\modbus.c:21:0: information: Include file: <config.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <config.h>
+^
+vendor\libmodbus\src\modbus.h:16:0: information: Include file: <stdint.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <stdint.h>
+^
+vendor\libmodbus\src\modbus.h:21:0: information: Include file: "modbus-version.h" not found. [missingInclude]
+#include "modbus-version.h"
+^
+vendor\libmodbus\src\modbus-private.h:11:0: information: Include file: <stdint.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+# include <stdint.h>
+^
+vendor\libmodbus\src\modbus-private.h:12:0: information: Include file: <sys/time.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+# include <sys/time.h>
+^
+vendor\libmodbus\src\modbus-private.h:18:0: information: Include file: <sys/types.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <sys/types.h>
+^
+vendor\libmodbus\src\modbus-private.h:19:0: information: Include file: <config.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <config.h>
+^
+vendor\libmodbus\src\modbus.c:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+vendor\libmodbus\src\modbus.c:556:18: style: Condition 'function<0x80' is always true [knownConditionTrueFalse]
+        function < 0x80) {
+                 ^
+vendor\libmodbus\src\modbus.c:533:18: note: Assuming that condition 'function>=0x80' is not redundant
+    if (function >= 0x80) {
+                 ^
+vendor\libmodbus\src\modbus.c:556:18: note: Condition 'function<0x80' is always true
+        function < 0x80) {
+                 ^
+vendor\libmodbus\src\modbus.c:964:36: style: Condition 'mapping_address<0' is always false [knownConditionTrueFalse]
+                   mapping_address < 0 ||
+                                   ^
+vendor\libmodbus\src\modbus.c:962:36: note: Assuming that condition 'mapping_address<0' is not redundant
+        } else if (mapping_address < 0 ||
+                                   ^
+vendor\libmodbus\src\modbus.c:964:36: note: Condition 'mapping_address<0' is always false
+                   mapping_address < 0 ||
+                                   ^
+vendor\libmodbus\src\modbus.c:963:70: style: Same expression 'mapping_address<0' found multiple times in chain of '||' operators. [duplicateExpression]
+                   (mapping_address + nb) > mb_mapping->nb_registers ||
+                                                                     ^
+vendor\libmodbus\src\modbus.c:169:9: style: The scope of the variable 'i' can be reduced. [variableScope]
+    int i;
+        ^
+vendor\libmodbus\src\modbus.c:342:9: style: The scope of the variable 'rc' can be reduced. [variableScope]
+    int rc;
+        ^
+vendor\libmodbus\src\modbus.c:1054:16: style: The scope of the variable 'temp' can be reduced. [variableScope]
+        int i, temp, bit;
+               ^
+vendor\libmodbus\src\modbus.c:1149:13: style: The scope of the variable 'rsp' can be reduced. [variableScope]
+    uint8_t rsp[MAX_MESSAGE_LENGTH];
+            ^
+vendor\libmodbus\src\modbus.c:1454:13: style: The scope of the variable 'rsp' can be reduced. [variableScope]
+    uint8_t rsp[MAX_MESSAGE_LENGTH];
+            ^
+vendor\libmodbus\src\modbus.c:1270:41: style: inconclusive: Function 'modbus_write_bit' argument 2 names different: declaration 'coil_addr' definition 'addr'. [funcArgNamesDifferent]
+int modbus_write_bit(modbus_t *ctx, int addr, int status)
+                                        ^
+vendor\libmodbus\src\modbus.h:210:52: note: Function 'modbus_write_bit' argument 2 names different: declaration 'coil_addr' definition 'addr'.
+MODBUS_API int modbus_write_bit(modbus_t *ctx, int coil_addr, int status);
+                                                   ^
+vendor\libmodbus\src\modbus.c:1270:41: note: Function 'modbus_write_bit' argument 2 names different: declaration 'coil_addr' definition 'addr'.
+int modbus_write_bit(modbus_t *ctx, int addr, int status)
+                                        ^
+vendor\libmodbus\src\modbus.c:1282:46: style: inconclusive: Function 'modbus_write_register' argument 2 names different: declaration 'reg_addr' definition 'addr'. [funcArgNamesDifferent]
+int modbus_write_register(modbus_t *ctx, int addr, const uint16_t value)
+                                             ^
+vendor\libmodbus\src\modbus.h:211:57: note: Function 'modbus_write_register' argument 2 names different: declaration 'reg_addr' definition 'addr'.
+MODBUS_API int modbus_write_register(modbus_t *ctx, int reg_addr, const uint16_t value);
+                                                        ^
+vendor\libmodbus\src\modbus.c:1282:46: note: Function 'modbus_write_register' argument 2 names different: declaration 'reg_addr' definition 'addr'.
+int modbus_write_register(modbus_t *ctx, int addr, const uint16_t value)
+                                             ^
+vendor\libmodbus\src\modbus.c:1293:71: style: inconclusive: Function 'modbus_write_bits' argument 4 names different: declaration 'data' definition 'src'. [funcArgNamesDifferent]
+int modbus_write_bits(modbus_t *ctx, int addr, int nb, const uint8_t *src)
+                                                                      ^
+vendor\libmodbus\src\modbus.h:212:82: note: Function 'modbus_write_bits' argument 4 names different: declaration 'data' definition 'src'.
+MODBUS_API int modbus_write_bits(modbus_t *ctx, int addr, int nb, const uint8_t *data);
+                                                                                 ^
+vendor\libmodbus\src\modbus.c:1293:71: note: Function 'modbus_write_bits' argument 4 names different: declaration 'data' definition 'src'.
+int modbus_write_bits(modbus_t *ctx, int addr, int nb, const uint8_t *src)
+                                                                      ^
+vendor\libmodbus\src\modbus.c:1356:77: style: inconclusive: Function 'modbus_write_registers' argument 4 names different: declaration 'data' definition 'src'. [funcArgNamesDifferent]
+int modbus_write_registers(modbus_t *ctx, int addr, int nb, const uint16_t *src)
+                                                                            ^
+vendor\libmodbus\src\modbus.h:213:88: note: Function 'modbus_write_registers' argument 4 names different: declaration 'data' definition 'src'.
+MODBUS_API int modbus_write_registers(modbus_t *ctx, int addr, int nb, const uint16_t *data);
+                                                                                       ^
+vendor\libmodbus\src\modbus.c:1356:77: note: Function 'modbus_write_registers' argument 4 names different: declaration 'data' definition 'src'.
+int modbus_write_registers(modbus_t *ctx, int addr, int nb, const uint16_t *src)
+                                                                            ^
+vendor\libmodbus\src\modbus.c:81:29: style: Parameter 'ctx' can be declared as pointer to const [constParameterPointer]
+void _error_print(modbus_t *ctx, const char *context)
+                            ^
+vendor\libmodbus\src\modbus.c:129:82: style: Parameter 'req' can be declared as pointer to const [constParameterPointer]
+static unsigned int compute_response_length_from_request(modbus_t *ctx, uint8_t *req)
+                                                                                 ^
+vendor\libmodbus\src\modbus.c:292:67: style: Parameter 'msg' can be declared as pointer to const [constParameterPointer]
+static int compute_data_length_after_meta(modbus_t *ctx, uint8_t *msg,
+                                                                  ^
+vendor\libmodbus\src\modbus.c:642:40: style: Parameter 'tab_io_status' can be declared as pointer to const [constParameterPointer]
+static int response_io_status(uint8_t *tab_io_status,
+                                       ^
+vendor\libmodbus\src\modbus.c:1594:32: style: Parameter 'ctx' can be declared as pointer to const [constParameterPointer]
+int modbus_get_slave(modbus_t *ctx)
+                               ^
+vendor\libmodbus\src\modbus.c:1628:33: style: Parameter 'ctx' can be declared as pointer to const [constParameterPointer]
+int modbus_get_socket(modbus_t *ctx)
+                                ^
+vendor\libmodbus\src\modbus.h:18:0: information: Include file: "stdint.h" not found. [missingInclude]
+#include "stdint.h"
+^
+vendor\libmodbus\src\modbus-private.h:14:0: information: Include file: "stdint.h" not found. [missingInclude]
+# include "stdint.h"
+^
+vendor\libmodbus\src\modbus-private.h:15:0: information: Include file: <time.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+# include <time.h>
+^
+Checking vendor\libmodbus\src\modbus.c: DLLBUILD;_MSC_VER...
+Checking vendor\libmodbus\src\modbus.c: ECONNREFUSED;_WIN32;__CYGWIN__...
+Checking vendor\libmodbus\src\modbus.c: ECONNRESET;_WIN32;__CYGWIN__...
+Checking vendor\libmodbus\src\modbus.c: EINPROGRESS;_WIN32;__CYGWIN__...
+Checking vendor\libmodbus\src\modbus.c: ENOPROTOOPT;_WIN32;__CYGWIN__...
+Checking vendor\libmodbus\src\modbus.c: ETIMEDOUT;_WIN32;__CYGWIN__...
+Checking vendor\libmodbus\src\modbus.c: USG;__unix__;unix...
+Checking vendor\libmodbus\src\modbus.c: _MSC_VER...
+vendor\libmodbus\src\modbus-tcp.h:16:0: information: Include file: <winsock2.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <winsock2.h>
+^
+Checking vendor\libmodbus\src\modbus.c: _WIN32...
+Checking vendor\libmodbus\src\modbus.c: _WIN32;__CYGWIN__...
+vendor\libmodbus\src\modbus.c:210:0: style: The function 'modbus_send_raw_request' is never used. [unusedFunction]
+int modbus_send_raw_request(modbus_t *ctx, const uint8_t *raw_req, int raw_req_length)
+^
+vendor\libmodbus\src\modbus.c:483:0: style: The function 'modbus_receive' is never used. [unusedFunction]
+int modbus_receive(modbus_t *ctx, uint8_t *req)
+^
+vendor\libmodbus\src\modbus.c:501:0: style: The function 'modbus_receive_confirmation' is never used. [unusedFunction]
+int modbus_receive_confirmation(modbus_t *ctx, uint8_t *rsp)
+^
+vendor\libmodbus\src\modbus.c:705:0: style: The function 'modbus_reply' is never used. [unusedFunction]
+int modbus_reply(modbus_t *ctx, const uint8_t *req,
+^
+vendor\libmodbus\src\modbus.c:1005:0: style: The function 'modbus_reply_exception' is never used. [unusedFunction]
+int modbus_reply_exception(modbus_t *ctx, const uint8_t *req,
+^
+vendor\libmodbus\src\modbus.c:1086:0: style: The function 'modbus_read_bits' is never used. [unusedFunction]
+int modbus_read_bits(modbus_t *ctx, int addr, int nb, uint8_t *dest)
+^
+vendor\libmodbus\src\modbus.c:1115:0: style: The function 'modbus_read_input_bits' is never used. [unusedFunction]
+int modbus_read_input_bits(modbus_t *ctx, int addr, int nb, uint8_t *dest)
+^
+vendor\libmodbus\src\modbus.c:1190:0: style: The function 'modbus_read_registers' is never used. [unusedFunction]
+int modbus_read_registers(modbus_t *ctx, int addr, int nb, uint16_t *dest)
+^
+vendor\libmodbus\src\modbus.c:1215:0: style: The function 'modbus_read_input_registers' is never used. [unusedFunction]
+int modbus_read_input_registers(modbus_t *ctx, int addr, int nb,
+^
+vendor\libmodbus\src\modbus.c:1270:0: style: The function 'modbus_write_bit' is never used. [unusedFunction]
+int modbus_write_bit(modbus_t *ctx, int addr, int status)
+^
+vendor\libmodbus\src\modbus.c:1282:0: style: The function 'modbus_write_register' is never used. [unusedFunction]
+int modbus_write_register(modbus_t *ctx, int addr, const uint16_t value)
+^
+vendor\libmodbus\src\modbus.c:1293:0: style: The function 'modbus_write_bits' is never used. [unusedFunction]
+int modbus_write_bits(modbus_t *ctx, int addr, int nb, const uint8_t *src)
+^
+vendor\libmodbus\src\modbus.c:1356:0: style: The function 'modbus_write_registers' is never used. [unusedFunction]
+int modbus_write_registers(modbus_t *ctx, int addr, int nb, const uint16_t *src)
+^
+vendor\libmodbus\src\modbus.c:1404:0: style: The function 'modbus_mask_write_register' is never used. [unusedFunction]
+int modbus_mask_write_register(modbus_t *ctx, int addr, uint16_t and_mask, uint16_t or_mask)
+^
+vendor\libmodbus\src\modbus.c:1442:0: style: The function 'modbus_write_and_read_registers' is never used. [unusedFunction]
+int modbus_write_and_read_registers(modbus_t *ctx,
+^
+vendor\libmodbus\src\modbus.c:1521:0: style: The function 'modbus_report_slave_id' is never used. [unusedFunction]
+int modbus_report_slave_id(modbus_t *ctx, int max_dest, uint8_t *dest)
+^
+vendor\libmodbus\src\modbus.c:1564:0: style: The function '_modbus_init_common' is never used. [unusedFunction]
+void _modbus_init_common(modbus_t *ctx)
+^
+vendor\libmodbus\src\modbus.c:1584:0: style: The function 'modbus_set_slave' is never used. [unusedFunction]
+int modbus_set_slave(modbus_t *ctx, int slave)
+^
+vendor\libmodbus\src\modbus.c:1594:0: style: The function 'modbus_get_slave' is never used. [unusedFunction]
+int modbus_get_slave(modbus_t *ctx)
+^
+vendor\libmodbus\src\modbus.c:1604:0: style: The function 'modbus_set_error_recovery' is never used. [unusedFunction]
+int modbus_set_error_recovery(modbus_t *ctx,
+^
+vendor\libmodbus\src\modbus.c:1617:0: style: The function 'modbus_set_socket' is never used. [unusedFunction]
+int modbus_set_socket(modbus_t *ctx, int s)
+^
+vendor\libmodbus\src\modbus.c:1628:0: style: The function 'modbus_get_socket' is never used. [unusedFunction]
+int modbus_get_socket(modbus_t *ctx)
+^
+vendor\libmodbus\src\modbus.c:1639:0: style: The function 'modbus_get_response_timeout' is never used. [unusedFunction]
+int modbus_get_response_timeout(modbus_t *ctx, uint32_t *to_sec, uint32_t *to_usec)
+^
+vendor\libmodbus\src\modbus.c:1651:0: style: The function 'modbus_set_response_timeout' is never used. [unusedFunction]
+int modbus_set_response_timeout(modbus_t *ctx, uint32_t to_sec, uint32_t to_usec)
+^
+vendor\libmodbus\src\modbus.c:1665:0: style: The function 'modbus_get_byte_timeout' is never used. [unusedFunction]
+int modbus_get_byte_timeout(modbus_t *ctx, uint32_t *to_sec, uint32_t *to_usec)
+^
+vendor\libmodbus\src\modbus.c:1677:0: style: The function 'modbus_set_byte_timeout' is never used. [unusedFunction]
+int modbus_set_byte_timeout(modbus_t *ctx, uint32_t to_sec, uint32_t to_usec)
+^
+vendor\libmodbus\src\modbus.c:1691:0: style: The function 'modbus_get_indication_timeout' is never used. [unusedFunction]
+int modbus_get_indication_timeout(modbus_t *ctx, uint32_t *to_sec, uint32_t *to_usec)
+^
+vendor\libmodbus\src\modbus.c:1703:0: style: The function 'modbus_set_indication_timeout' is never used. [unusedFunction]
+int modbus_set_indication_timeout(modbus_t *ctx, uint32_t to_sec, uint32_t to_usec)
+^
+vendor\libmodbus\src\modbus.c:1716:0: style: The function 'modbus_get_header_length' is never used. [unusedFunction]
+int modbus_get_header_length(modbus_t *ctx)
+^
+vendor\libmodbus\src\modbus.c:1744:0: style: The function 'modbus_free' is never used. [unusedFunction]
+void modbus_free(modbus_t *ctx)
+^
+vendor\libmodbus\src\modbus.c:1752:0: style: The function 'modbus_set_debug' is never used. [unusedFunction]
+int modbus_set_debug(modbus_t *ctx, int flag)
+^
+vendor\libmodbus\src\modbus.c:1853:0: style: The function 'modbus_mapping_new' is never used. [unusedFunction]
+modbus_mapping_t* modbus_mapping_new(int nb_bits, int nb_input_bits,
+^
+vendor\libmodbus\src\modbus.c:1861:0: style: The function 'modbus_mapping_free' is never used. [unusedFunction]
+void modbus_mapping_free(modbus_mapping_t *mb_mapping)
+^
+vendor\libmodbus\src\modbus.c:1887:0: style: The function 'strlcpy' is never used. [unusedFunction]
+size_t strlcpy(char *dest, const char *src, size_t dest_size)
+^
+nofile:0:0: information: Active checkers: 113/712 (use --checkers-report=<filename> to see details) [checkersReport]
+

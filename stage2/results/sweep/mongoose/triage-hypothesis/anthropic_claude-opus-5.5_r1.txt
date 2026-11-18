@@ -1,0 +1,31 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1006},
+    "bug_class": "oob-read",
+    "hypothesis": "The bounds check `len < i + 1` only guarantees that buf[i] is in range, yet the code then reads buf[i + 1]; when the buffered data ends right after the '\\r' that follows the hex length (len == i + 1), this is a 1-byte heap out-of-bounds read past the received data.",
+    "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "trigger_condition": "A chunked request whose currently buffered body is exactly the hex chunk length followed by '\\r', with nothing after it. For example \"12\\r\" (len=3, i=2): the check 3 < 3 is false and buf[2] is '\\r', so buf[3] is read out of bounds. This can be arranged by sending the request in TCP segments that split between '\\r' and '\\n'.",
+    "confidence": 0.85
+  },
+  {
+    "rank": 2,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1003},
+    "bug_class": "oob-read",
+    "hypothesis": "An attacker can send a long run of hex digits; the scan loop is bounded by len, but the excess-length rejection at line 1005 only happens after the scan. Combined with the off-by-one at 1006, a buffer ending in exactly 8 hex digits plus '\\r' still reaches the buf[i+1] over-read.",
+    "vulnerable_line": "while (i < len && is_hex_digit(buf[i])) i++;",
+    "trigger_condition": "The body \"7fffffff\\r\" arrives at the end of the receive buffer (len=9, i=8).",
+    "confidence": 0.3
+  },
+  {
+    "rank": 3,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1011},
+    "bug_class": "oob-read",
+    "hypothesis": "If the length check at line 1010 were bypassed through int arithmetic (large n parsed from 8 hex digits), the reads of buf[i+n+2] and buf[i+n+3] would go out of bounds. However, n<0 is rejected and n <= len-i-4 keeps i+n+3 below len, so this is likely safe.",
+    "vulnerable_line": "if (buf[i + n + 2] != '\\r' || buf[i + n + 3] != '\\n') return -1;",
+    "trigger_condition": "A chunk length near INT_MAX such as \"7ffffffc\\r\\n\" with a small buffer.",
+    "confidence": 0.1
+  }
+]
+```

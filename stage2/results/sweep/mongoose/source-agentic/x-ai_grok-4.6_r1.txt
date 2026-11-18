@@ -1,0 +1,1 @@
+HYPOTHESIS: Chunked body stripping around line 1086 may mishandle chunk size parsing leading to OOB.READ mongoose/src/http.c 1000 300

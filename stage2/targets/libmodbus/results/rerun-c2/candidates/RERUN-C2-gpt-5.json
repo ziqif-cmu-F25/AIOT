@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "crash-given",
+  "property": "memory-safety",
+  "hypothesis": "{\n  \"root_cause_line\": \"} else if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\",\n  \"explanation\": \"The bounds check mistakenly tests 'mapping_address < 0' twice and never checks 'mapping_address_write < 0'. If the attacker supplies a write start address below 'mb_mapping->start_registers', 'mapping_address_write' becomes negative but passes this check. The subsequent write loop",
+  "evidence_source": "Identified copy-paste bounds check: mapping_address < 0 tested twice, mapping_address_write < 0 never tested.",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "crash-given condition. Correctly identified CVE-2022-0367 copy-paste bounds check.",
+  "vulnerability_class": "oob-write",
+  "location": {
+    "file": "src/modbus.c",
+    "function": "modbus_reply",
+    "line": 963
+  },
+  "confidence": 0.9,
+  "model": "openai/gpt-5",
+  "prompt_id": "libmodbus-c2@v1",
+  "run_index": 1
+}

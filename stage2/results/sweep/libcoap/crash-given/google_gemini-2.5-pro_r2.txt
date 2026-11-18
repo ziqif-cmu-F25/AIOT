@@ -1,0 +1,12 @@
+
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "libcoap/src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 538
+    },
+    "explanation": "The function `coap_resolve_address_info` copies a host address string into a 256-byte static buffer named `addrstr`. The `memcpy` on line 538 uses `address->length` as the size for the copy operation. This length is derived from a network packet (e.g., from a Proxy-Uri option) and is not validated against the size of the destination buffer. If a client sends a request with a hostname longer than 255 characters, this `memcpy` will write past the end of the `addrstr` buffer. The AddressSanitizer report confirms this, showing a `WRITE of size 300` into a 256-byte buffer, which is a classic buffer overflow.",
+    "fix": "Add a bounds check before the `memcpy` to ensure the source string length does not exceed the buffer's capacity. The check should be for '>= sizeof(addrstr)' to also prevent writing a non-null-terminated string that `getaddrinfo` would read past.\n\n```c\n  memset(addrstr, 0, sizeof(addrstr));\n  if

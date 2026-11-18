@@ -1,0 +1,19 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "input-drafting",
+  "property": "memory-safety",
+  "hypothesis": "",
+  "evidence_source": "ERROR: Error code: 403 - This content was flagged for possible cybersecurity risk. If this seems wrong, try rephrasing your request. If you\u2019re doing authorized security work that requires more cyber p",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "no_response",
+  "notes": "API error: ERROR: Error code: 403 - This content was flagged for possible cybersecurity risk. If this seems wrong, try rephrasing your request. If you\u2019re doing authorized security work that requires more cyber p",
+  "vulnerability_class": "unknown",
+  "location": {},
+  "confidence": 0.0,
+  "model": "openai/gpt-6.1-sol",
+  "prompt_id": "libmodbus-input@v1",
+  "run_index": 1
+}

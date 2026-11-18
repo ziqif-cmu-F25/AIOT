@@ -1,0 +1,21 @@
+{
+  "rank": 1,
+  "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+  "explanation": "skip_chunk is given the 3-byte buffer \"ab\\r\". After the hex loop, i==2. The guard `len < i + 1` is 3<3 (false), so it evaluates buf[i] (in bounds, '\\r') and then buf[i+1] (buf[3]), which is 0 bytes past the malloc(3) region — matching the ASan READ. The early `len < 3` check does not save this: a 2-digit size plus a lone CR is exactly 3 bytes, enough to pass that check but not enough for the required CRLF pair.",
+  "fix": "if (len < i + 2 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+  "confidence": 0.95
+}
+{
+  "rank": 2,
+  "root_cause": {"file": "mongoose/src/http.c", "function": "skiptorn", "line": 231},
+  "explanation": "Same class of missing second-byte bound: when s is the last byte of the buffer and s[0]=='\\r', `s >= end` is false and `s[1]` is read one past end. This would not be reached for the given 3-byte chunk-shaped input via mg_http_parse (get_request_len returns 0), so it is a related latent bug, not the ASan hit.",
+  "fix": "if (s >= end || (s[0] == '\\r' && (s + 1 >= end || s[1] != '\\n'))) return NULL;",
+  "confidence": 0.25
+}
+{
+  "rank": 3,
+  "root_cause": {"file": "mongoose/src/http.c", "function": "mg_http_parse_headers", "line": 245},
+  "explanation": "After `s >= end` is ruled out, s may still be end-1. If that last byte is '\\r', `s[1] == '\\n'` reads off the end. Again not reachable from input \"ab\\r\" as a full HTTP message.",
+  "fix": "if (s[0] == '\\n' || (s[0] == '\\r' && s + 1 < end && s[1] == '\\n')) break;",
+  "confidence": 0.15
+}

@@ -1,0 +1,24 @@
+[{
+  "rank": 1,
+  "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 964},
+  "vulnerability_class": "oob-write",
+  "hypothesis": "A crafted FC 0x17 (WRITE_AND_READ_REGISTERS) request with write-start address below mb_mapping->start_registers makes mapping_address_write negative. The bounds check copy-pastes mapping_address < 0 instead of mapping_address_write < 0, so the check passes whenever (mapping_address_write + nb_write) still compares <= nb_registers. The following loop then heap-writes tab_registers[negative_index], which is reachable from untrusted TCP/RTU input whenever the server mapping is shifted (modbus_mapping_new_start_address).",
+  "evidence": "else if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers) { ... } else { for (i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; i++, j += 2) { mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1]; } }  // line 964 duplicates mapping_address < 0; the exception text on 970 even uses mapping_address_write < 0, showing the intended check",
+  "confidence": 0.95
+},
+{
+  "rank": 2,
+  "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 724},
+  "vulnerability_class": "oob-read",
+  "hypothesis": "modbus_reply never validates req_length before indexing req. It always reads req[offset-1], req[offset], req[offset+1], req[offset+2] (and later function-specific offsets such as offset+9 for FC 23). A short indication (unknown function / Report Slave ID / Read Exception Status — receive only header+function[+CRC]) or a caller that sizes the buffer to the returned length will read past the valid request bytes.",
+  "evidence": "offset = ctx->backend->header_length; slave = req[offset - 1]; function = req[offset]; address = (req[offset + 1] << 8) + req[offset + 2];  // no req_length check; compute_meta_length_after_function returns 0 for those FCs so _modbus_receive_msg will not have pulled address bytes",
+  "confidence": 0.45
+},
+{
+  "rank": 3,
+  "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 810},
+  "vulnerability_class": "buffer-overflow",
+  "hypothesis": "WRITE_SINGLE_COIL / WRITE_SINGLE_REGISTER / MASK_WRITE_REGISTER echo the request with memcpy(rsp, req, req_length) into a stack buffer of MAX_MESSAGE_LENGTH (260) with no clamp. If req_length exceeds 260 (API misuse, or a backend whose max_adu_length > 260), this is a stack buffer overflow.",
+  "evidence": "uint8_t rsp[MAX_MESSAGE_LENGTH]; ... memcpy(rsp, req, req_length); rsp_length = req_length;  // same pattern at lines 810, 835, 942; no comparison against MAX_MESSAGE_LENGTH or req_length",
+  "confidence": 0.3
+}]

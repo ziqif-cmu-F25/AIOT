@@ -1,0 +1,5 @@
+{
+  "training_cutoff": "2024-10",
+  "known_cves": [],
+  "notes": "I cannot confidently recall any specific public CVE IDs or detailed advisories for libmodbus affecting versions <= v3.1.6. I prefer not to guess."
+}

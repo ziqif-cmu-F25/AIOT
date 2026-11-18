@@ -1,0 +1,91 @@
+run_id: run-033
+task_id: libmodbus-modbus-reply-ctx
+prompt_id: libmodbus-modbus-reply-ctx@v1
+model_requested: deepseek/deepseek-chat-v3.1
+model_resolved:
+- deepseek/deepseek-chat-v3.1
+scored_utc: '2026-11-04T03:35:51Z'
+run_verdict: inconclusive
+reason: right file/function/class, line outside tolerance
+expected:
+  file: src/modbus.c
+  function: modbus_reply
+  lines:
+  - 906
+  - 937
+  line_tolerance: 2
+  vulnerability_class: buffer-overflow
+ground_truth_file: stage2/scoring/ground_truth/libmodbus-modbus-reply-ctx.yaml
+ground_truth_sha256: 40ec538f60dc3fd3987288b1f432e66bf7100dde6848bff10ceeb6e10712181e
+references: []
+candidates:
+- candidate_id: CAND-001
+  reported:
+    file: src/modbus.c
+    function: compute_response_length_from_request
+    line: 139
+    vulnerability_class: out-of-bounds-read
+    confidence: 0.8
+  checks:
+    file: true
+    function: false
+    vulnerability_class: false
+    line: false
+  status: rejected
+  oracle_verdict: false_positive
+- candidate_id: CAND-002
+  reported:
+    file: src/modbus.c
+    function: compute_response_length_from_request
+    line: 145
+    vulnerability_class: integer-overflow
+    confidence: 0.7
+  checks:
+    file: true
+    function: false
+    vulnerability_class: false
+    line: false
+  status: rejected
+  oracle_verdict: false_positive
+- candidate_id: CAND-003
+  reported:
+    file: src/modbus.c
+    function: modbus_reply
+    line: 969
+    vulnerability_class: buffer-overflow
+    confidence: 0.9
+  checks:
+    file: true
+    function: true
+    vulnerability_class: true
+    line: false
+  status: inconclusive
+  oracle_verdict: location_partial_match
+- candidate_id: CAND-004
+  reported:
+    file: src/modbus.c
+    function: modbus_reply
+    line: 1006
+    vulnerability_class: buffer-overflow
+    confidence: 0.9
+  checks:
+    file: true
+    function: true
+    vulnerability_class: true
+    line: false
+  status: inconclusive
+  oracle_verdict: location_partial_match
+- candidate_id: CAND-005
+  reported:
+    file: src/modbus.c
+    function: _modbus_receive_msg
+    line: 436
+    vulnerability_class: buffer-overflow
+    confidence: 0.6
+  checks:
+    file: true
+    function: false
+    vulnerability_class: true
+    line: false
+  status: rejected
+  oracle_verdict: false_positive

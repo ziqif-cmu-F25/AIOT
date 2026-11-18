@@ -1,0 +1,20 @@
+[
+  {
+    "rank": 1,
+    "location": {"file": "modbus.c", "function": "modbus_reply", "line": 964},
+    "bug_class": "oob-write",
+    "hypothesis": "A copy-paste error repeats mapping_address < 0 instead of checking mapping_address_write < 0, so a network-supplied write address below start_registers produces a negative index and writes out of bounds into tab_registers.",
+    "vulnerable_line": "mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];",
+    "trigger_condition": "FC 23 request with a valid read range (mapping_address >= 0 && mapping_address+nb <= nb_registers) but address_write < start_registers so mapping_address_write < 0 and mapping_address_write+nb_write <= nb_registers (e.g. start_registers=10, address_write=9, nb_write=1).",
+    "confidence": 0.95
+  },
+  {
+    "rank": 2,
+    "location": {"file": "modbus.c", "function": "modbus_reply", "line": 981},
+    "bug_class": "oob-read",
+    "hypothesis": "The write loop reads req[offset+j] / req[offset+j+1] for j starting at 10 over nb_write registers using only the declared byte count, so a truncated request that still passes the nb/nb_write/nb_write_bytes checks will read past the end of req.",
+    "vulnerable_line": "(req[offset + j] << 8) + req[offset + j + 1]",
+    "trigger_condition": "WRITE_AND_READ_REGISTERS PDU whose nb_write and nb_write_bytes are consistent and in range, but the actual received length is less than offset+10+nb_write*2.",
+    "confidence": 0.4
+  }
+]

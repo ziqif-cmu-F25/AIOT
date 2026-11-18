@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "An attacker-controlled Proxy-Uri hostname longer than 256 bytes, reaching coap_resolve_address_info() via coap_proxy_get_session()/coap_split_proxy_uri(), is copied with memcpy(addrstr, address->s, address->length) into the fixed-size static buffer addrstr[256] with no length check, causing a static-buffer overflow.",
+  "evidence_source": "static char addrstr[256];\n...\nmemset(addrstr, 0, sizeof(addrstr));\nif (address && address->length)\n  memcpy(addrstr, address->s, address->length);\n...\nerror = getaddrinfo(addrstr, NULL, &hints, &res);",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Copy has no destination-size check. > 256 host bytes overwrite adjacent static storage; == 256 non-NUL bytes erase termination before getaddrinfo().",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "Model stated line: near static char addrstr[256] and subsequent memcpy (textual). Chen's C0 packs carry no line numbers, so this is the model's own textual guess. location.line (538) is the verified real line in vendor/src/coap_address.c, substituted for scoring comparability. Ranked #1 of 5 candidates.",
+  "vulnerability_class": "buffer-overflow",
+  "location": {
+    "file": "src/coap_address.c",
+    "function": "coap_resolve_address_info",
+    "line": 538
+  },
+  "confidence": 0.9,
+  "model": "openai/gpt-6.1-sol",
+  "prompt_id": "libcoap-c0-rerun@v1",
+  "run_index": 1
+}

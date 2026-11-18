@@ -1,0 +1,6 @@
+{
+  "root_cause_line": "int n = mg_http_parse(buf, c->recv.len - ofs, &hm);",
+  "explanation": "The line of code `int n = mg_http_parse(buf, c->recv.len - ofs, &hm);` is trying to parse the HTTP message from the buffer `buf` of length `c->recv.len - ofs`. The function `mg_http_parse` returns the number of bytes parsed, which is then stored in `n`. The problem is that the bounds check is wrong because it assumes that `c->recv.len - ofs` is always greater than 0. This is not true because `ofs` can be greater than `c->recv.len`, which can lead to an out-of-bounds read.",
+  "fix": "The correct fix would be to add a bounds check before calling `mg_http_parse`. The bounds check should ensure that `c->recv.len - ofs` is greater than 0. If it's not, then the function should return immediately without parsing the HTTP message.",
+  "confidence": 0.9
+}

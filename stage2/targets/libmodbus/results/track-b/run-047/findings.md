@@ -1,0 +1,115 @@
+# Candidate findings
+
+Status values: candidate | validated | rejected | inconclusive
+
+Written by stage2/driver/run_task.py. Do not edit; scoring writes
+verdict.md instead. Machine-readable copy: candidates.json.
+
+```yaml
+candidate_id: CAND-001
+viewpoint: ai-source-review
+property: memory-safety
+hypothesis: A crafted `WRITE_MULTIPLE_COILS` request with a `quantity of coils` field
+  that implies a data payload larger than the actual request length will cause an
+  out-of-bounds read.
+evidence_source: In `modbus_reply`, the handler for `MODBUS_FC_WRITE_MULTIPLE_COILS`
+  calculates the number of bytes to process based on the `nb` field from the request.
+  It then calls `modbus_set_bits_from_bytes` at line 862, passing it a pointer into
+  the request buffer, `&req[offset + 6]`. There is no check to ensure that the request
+  buffer is large enough (i.e., that `req_length` is sufficient) to contain the number
+  of bytes that `modbus_set_bits_from_bytes` will attempt to read based on `nb`.
+input_artifact: not_available (static source review; no input artifact)
+expected_behavior: The program will read past the end of the `req` buffer, potentially
+  causing a crash (segmentation fault) or leaking sensitive information from adjacent
+  memory. An address sanitizer build would report a heap-buffer-overflow or stack-buffer-overflow
+  read.
+observed_behavior: not_available (static source review; nothing was executed)
+status: candidate
+oracle_verdict: pending
+notes: The function `modbus_set_bits_from_bytes` is not defined in the provided file,
+  but its behavior can be inferred to read a number of bytes from its source argument
+  calculated from the `nb` parameter. The vulnerability is the lack of a bounds check
+  in `modbus_reply` before calling this function.
+vulnerability_class: out-of-bounds-read
+location:
+  file: modbus.c
+  function: modbus_reply
+  line: 862
+confidence: 1.0
+model: google/gemini-2.5-pro
+prompt_id: libmodbus-0367-source-review@v1
+run_index: 1
+```
+
+```yaml
+candidate_id: CAND-002
+viewpoint: ai-source-review
+property: memory-safety
+hypothesis: A crafted `WRITE_MULTIPLE_REGISTERS` request with a `quantity of registers`
+  field that implies a data payload larger than the actual request length will cause
+  an out-of-bounds read.
+evidence_source: In `modbus_reply`, the handler for `MODBUS_FC_WRITE_MULTIPLE_REGISTERS`
+  contains a loop from line 890 to 894 that reads `nb * 2` bytes from the request
+  buffer. The value `nb` is read from the request itself. While the code checks if
+  the declared `nb_bytes` field is equal to `nb * 2`, it fails to check if the actual
+  request length, `req_length`, is large enough to contain `nb * 2` bytes of data
+  starting from `req[offset + 6]`. An attacker can provide a truncated packet where
+  `req_length` is smaller than `offset + 6 + nb * 2`, causing the loop to read past
+  the end of the `req` buffer.
+input_artifact: not_available (static source review; no input artifact)
+expected_behavior: The program will read past the end of the `req` buffer, potentially
+  causing a crash (segmentation fault) or leaking sensitive information from adjacent
+  memory. An address sanitizer build would report a heap-buffer-overflow or stack-buffer-overflow
+  read.
+observed_behavior: not_available (static source review; nothing was executed)
+status: candidate
+oracle_verdict: pending
+notes: This vulnerability exists because the `modbus_reply` function trusts the PDU
+  length fields (`nb`, `nb_bytes`) without validating them against the actual received
+  packet length (`req_length`).
+vulnerability_class: out-of-bounds-read
+location:
+  file: modbus.c
+  function: modbus_reply
+  line: 893
+confidence: 1.0
+model: google/gemini-2.5-pro
+prompt_id: libmodbus-0367-source-review@v1
+run_index: 1
+```
+
+```yaml
+candidate_id: CAND-003
+viewpoint: ai-source-review
+property: memory-safety
+hypothesis: A crafted `WRITE_AND_READ_REGISTERS` request with a `quantity to write`
+  field that implies a data payload larger than the actual request length will cause
+  an out-of-bounds read.
+evidence_source: In `modbus_reply`, the handler for `MODBUS_FC_WRITE_AND_READ_REGISTERS`
+  contains a loop from line 978 to 982 that reads `nb_write * 2` bytes from the request
+  buffer. The value `nb_write` is read from the request itself. While the code checks
+  if the declared `nb_write_bytes` field is equal to `nb_write * 2`, it fails to check
+  if the actual request length, `req_length`, is large enough to contain `nb_write
+  * 2` bytes of data starting from `req[offset + 10]`. An attacker can provide a truncated
+  packet, causing the loop to read past the end of the `req` buffer.
+input_artifact: not_available (static source review; no input artifact)
+expected_behavior: The program will read past the end of the `req` buffer, potentially
+  causing a crash (segmentation fault) or leaking sensitive information from adjacent
+  memory. An address sanitizer build would report a heap-buffer-overflow or stack-buffer-overflow
+  read.
+observed_behavior: not_available (static source review; nothing was executed)
+status: candidate
+oracle_verdict: pending
+notes: 'This is another instance of the same pattern of vulnerability as in other
+  write handlers: trusting PDU length fields without validating against the overall
+  packet length.'
+vulnerability_class: out-of-bounds-read
+location:
+  file: modbus.c
+  function: modbus_reply
+  line: 981
+confidence: 1.0
+model: google/gemini-2.5-pro
+prompt_id: libmodbus-0367-source-review@v1
+run_index: 1
+```

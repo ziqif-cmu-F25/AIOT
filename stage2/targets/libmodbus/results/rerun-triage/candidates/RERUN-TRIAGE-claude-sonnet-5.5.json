@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "triage-hypothesis",
+  "property": "memory-safety",
+  "hypothesis": "{\n  \"hypothesis\": \"The bounds check tests mapping_address < 0 twice and never tests mapping_address_write < 0, so a write address below mb_mapping->start_registers gives a negative mapping_address_write that still passes the upper-bound check ((negative + nb_write) <= nb_registers). The write loop then stores attacker-controlled 16-bit values at tab_registers[negative index], a heap out-of-bounds write before the register array.\",\n  \"vulnerable_line\": \"} else if (mapping_address < 0 || (mapping_",
+  "evidence_source": "Identified copy-paste bounds check: mapping_address < 0 tested twice, mapping_address_write < 0 never tested.",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "triage-hypothesis condition. Correctly identified CVE-2022-0367 copy-paste bounds check.",
+  "vulnerability_class": "oob-write",
+  "location": {
+    "file": "src/modbus.c",
+    "function": "modbus_reply",
+    "line": 963
+  },
+  "confidence": 0.9,
+  "model": "anthropic/claude-sonnet-5.5",
+  "prompt_id": "libmodbus-triage@v1",
+  "run_index": 1
+}

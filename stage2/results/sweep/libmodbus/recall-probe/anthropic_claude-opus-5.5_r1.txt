@@ -1,0 +1,26 @@
+```json
+{
+  "training_cutoff": "unknown (I can't verify my exact cutoff from memory; my best estimate is around early 2025)",
+  "known_cves": [
+    {
+      "cve": "CVE-2022-0367",
+      "file_function": "src/modbus.c : modbus_reply() (MODBUS_FC_WRITE_AND_READ_REGISTERS handling; mapping address/start-offset validation)",
+      "bug_class": "Heap-based buffer overflow / out-of-bounds access (CWE-787/CWE-125) caused by insufficient validation of a computed mapping address, which could go negative or exceed the register mapping. Affects libmodbus 3.1.6; fixed in 3.1.7.",
+      "recall_confidence": 0.8
+    },
+    {
+      "cve": "CVE-2019-14462",
+      "file_function": "src/modbus.c : modbus_reply() (handling of a write-multiple function code; I recall MODBUS_FC_WRITE_MULTIPLE_COILS or WRITE_MULTIPLE_REGISTERS, but I'm unsure which maps to this ID)",
+      "bug_class": "Heap-based out-of-bounds read (CWE-125) caused by a missing length/byte-count consistency check. Affects versions before 3.0.7 and 3.1.x before 3.1.5.",
+      "recall_confidence": 0.65
+    },
+    {
+      "cve": "CVE-2019-14463",
+      "file_function": "src/modbus.c : modbus_reply() (the companion write-multiple function code to CVE-2019-14462; the coils/registers mapping between the two IDs is uncertain)",
+      "bug_class": "Out-of-bounds read (CWE-125) caused by a missing request-length validation. Affects versions before 3.0.7 and 3.1.x before 3.1.5.",
+      "recall_confidence": 0.6
+    }
+  ],
+  "notes": "This list comes from memory only; I analyzed no code. For CVE-2019-14462/14463, I'm fairly confident both exist as a pair of OOB-read issues in modbus_reply, fixed in 3.1.5/3.0.7. I'm not sure which ID corresponds to coils versus registers. CVE-2022-0367 is the one I most strongly associate with v3.1.6 specifically. Outside the requested range, I vaguely recall CVE-2023-26793, a heap buffer overflow reported against libmodbus 3.1.10 (possibly in a read/status path in src/modbus.c). It postdates 3.1.6, so I've excluded it, and my confidence is low (~0.4). Contamination caveat: because I have some recall of a modbus_reply heap overflow in 3.1.6 (CVE-2022-0367), any detection results on libmodbus ≤3.1.6 that target modbus_reply/WRITE_AND_READ_REGISTERS may be influenced by memorization."
+}
+```

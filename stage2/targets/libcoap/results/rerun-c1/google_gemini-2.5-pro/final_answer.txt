@@ -1,0 +1,24 @@
+HYPOTHESIS: A malformed CoAP option causes `next_option_safe` to return 0, which triggers a vulnerable error-handling path in `coap_pdu_parse_opt` that results in a large out-of-bounds read.
+FINAL
+CANDIDATES (ranked, max 5):
+1. file / function / approx line / bug class / reasoning quoting the code / data-flow from network input / triggering input characteristics
+   - **File:** `src/coap_pdu.c`
+   - **Function:** `coap_pdu_parse_opt`
+   - **Approximate Line:** 1411-1414
+   - **Bug Class:** Heap Buffer Over-read
+   - **Reasoning:**
+     When parsing a CoAP PDU, if a malformed option is encountered (e.g., one with delta=15, option byte `0xFx`), the initial parsing loop in `coap_pdu_parse_opt` detects this. `next_option_safe` (line 1349) returns 0, which causes `good` to be set to 0 (line 1356), and the loop terminates. The function then enters a special error-logging section starting at line 1370.
+
+     Inside this error-logging section, the options are re-parsed to generate a debug string.
+     1. `opt_last` is set to the current position of the malformed option: `coap_opt_t *opt_last = opt;` (line 1395).
+     2. `next_option_safe` is called again on the same malformed option and again returns 0: `size_t optsize = next_option_safe(&opt, &length, &pdu->max_opt);` (line 1396).
+     3. The condition `if (!optsize)` at line 1403 becomes true.
+     4. Inside this block, the `opt` pointer is jumped to the end of the PDU's data: `opt = pdu->token + pdu->used_size;` (line 1405).
+     5. After the `if` block, `tlen` is calculated using the old `opt_last` and the new `opt`: `tlen = opt - opt_last;` (line 1411). This results in a large positive value for `tlen`, representing most of the PDU's size.
+     6. The following loop, `while (tlen--) { ... *opt_last ...; opt_last++; }` (lines 1412-1415), proceeds to read `tlen` bytes starting from `opt_last`, causing a massive read past the end of the allocated PDU buffer. This leads to a crash (Denial of Service) and potentially information disclosure.
+
+   - **Data-flow from network input:**
+     An attacker sends a crafted CoAP message. The raw packet data is passed to `coap_pdu_parse()` (line 1446). This function allocates a `pdu` and copies the packet data into it. It then calls `coap_pdu_parse_header()` and `coap_pdu_parse_opt()` (line 1465). The content of the CoAP options within the network packet directly triggers the vulnerable logic in `coap_pdu_parse_opt`.
+
+   - **Triggering input characteristics:**
+     A CoAP message containing an invalid option. A single byte of `0xF0` in the options section of the PDU is sufficient. This byte is interpreted by `coap_opt_parse` as an option with `delta = 15`, which is reserved and causes the function to return 0, initiating the vulnerability.

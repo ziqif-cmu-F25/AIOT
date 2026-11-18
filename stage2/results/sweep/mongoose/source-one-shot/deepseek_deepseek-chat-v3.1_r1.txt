@@ -1,0 +1,38 @@
+Looking at the provided code for the mongoose HTTP server library, I've identified a memory-safety vulnerability related to chunked transfer encoding. The issue occurs when processing chunked data in the `http_cb` function.
+
+Here are the top 3 candidates:
+
+1. **Out-of-bounds write in chunked transfer encoding processing**
+   - **Location**: {"file": "mongoose/src/http.c", "function": "http_cb", "line": 1103}
+   - **Vulnerability class**: buffer-overflow
+   - **Hypothesis**: When processing chunked transfer encoding, the code moves chunk data by calling `memmove(s + hm.body.len, s + o + pl, (size_t) dl)`. If the total body length exceeds the allocated buffer size, this can cause a buffer overflow. An attacker could craft malicious chunked data that causes the calculated `hm.body.len` to exceed the buffer capacity.
+   - **Evidence**: 
+     ```c
+     memmove(s + hm.body.len, s + o + pl, (size_t) dl);
+     o += cl, hm.body.len += (size_t) dl, hm.message.len += (size_t) dl;
+     ```
+   - **Confidence**: 0.9
+
+2. **Integer overflow in chunk length parsing**
+   - **Location**: {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1007}
+   - **Vulnerability class**: integer-overflow
+   - **Hypothesis**: The function `skip_chunk` parses chunk length from hexadecimal string to integer. If an attacker provides a very large chunk length value (e.g., "FFFFFFFF"), it could cause integer overflow when stored in a signed int, leading to negative values and bypassing length checks.
+   - **Evidence**:
+     ```c
+     if (mg_str_to_num(mg_str_n(buf, (size_t) i), 16, &n, sizeof(int)) == false)
+         return -1;
+     if (n < 0) return -1;
+     ```
+   - **Confidence**: 0.7
+
+3. **Out-of-bounds read in HTTP header parsing**
+   - **Location**: {"file": "mongoose/src/http.c", "function": "mg_http_parse_headers", "line": 247}
+   - **Vulnerability class**: oob-read
+   - **Hypothesis**: The function `mg_http_parse_headers` uses `clen(s, end)` to calculate character length, but if `s` is near the end of the buffer, `clen` might read beyond the buffer boundaries when checking for multi-byte UTF-8 characters.
+   - **Evidence**:
+     ```c
+     while (s < end && s[0] != ':' && (n = clen(s, end)) > 0) s += n, k.len += n;
+     ```
+   - **Confidence**: 0.6
+
+The most critical issue is the first one (buffer overflow in chunked transfer processing) as it allows arbitrary memory corruption and is likely exploitable.

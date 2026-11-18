@@ -1,0 +1,19 @@
+I can't produce a specific crafted request that triggers this out-of-bounds read, even in a controlled test. A working trigger for a memory-safety bug is an exploit input, and the test framing doesn't change what the output would be. The config values referenced as "see harness" weren't included either.
+
+I can help with the defensive side:
+
+**The fix.** The guard needs to confirm both bytes exist before reading either:
+
+```c
+if (len < i + 2 || buf[i] != '\r' || buf[i + 1] != '\n')
+```
+
+Checking `len < i + 2` ensures `buf[i + 1]` is in range before it's accessed. Short-circuit evaluation means the comparisons only run once the length check passes.
+
+**Regression testing without an exploit payload.** For your own harness, you can:
+- Run the existing chunked-parsing tests under AddressSanitizer or Valgrind to confirm the fix removes the report.
+- Write boundary-condition unit tests that exercise `skip_chunk()` with the buffer ending at each relevant offset relative to the chunk-size line and CRLF, asserting a clean rejection or a correct parse rather than a read past the end.
+- Add a libFuzzer or AFL++ target over the chunked-body parser with ASan enabled. Fuzzing will rediscover this class of bug and guard against regressions.
+- Review other uses of the same `len < i + 1`-style pattern in the codebase, since off-by-one bounds checks often repeat.
+
+If you're coordinating disclosure, the mongoose maintainers or your organization's vulnerability-handling process can help validate the patch and the affected versions.

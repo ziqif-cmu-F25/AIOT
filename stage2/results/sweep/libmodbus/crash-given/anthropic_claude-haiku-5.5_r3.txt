@@ -1,0 +1,37 @@
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 964
+    },
+    "explanation": "The bounds check for MODBUS_FC_WRITE_AND_READ_REGISTERS tests the read-side start index twice and never tests the write-side start index. Line 962 correctly rejects `mapping_address < 0`, but line 964 repeats `mapping_address < 0` where `mapping_address_write < 0` was intended. The write index is computed on line 953 as `address_write - mb_mapping->start_registers`. `address_write` is a uint16_t in 0..65535, while `start_registers` can be larger, so the result can be negative. Such a negative value passes the upper-bound test on line 965, because `mapping_address_write + nb_write` is still below `nb_registers`. The write loop at lines 978-982 then runs with `i = mapping_address_write < 0` and stores to `mb_mapping->tab_registers[i]` at line 980. That address lies before the heap allocation, far outside the mapping, which matches the WRITE SEGV on an unmapped address at line 980. The report does not give the heap base, so I cannot confirm the exact index from the address alone. The mechanism is consistent with it, and the crash is in the write loop, not the read loop at line 985.",
+    "fix": "Replace the duplicated read check on line 964 with the missing write check:\n\n```c\n} else if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers ||\n           mapping_address_write < 0 ||\n           (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\n```\n\nEquivalently, change line 964 from `mapping_address < 0 ||` to `mapping_address_write < 0 ||`. A defensive version would also reject any address below `start_registers` before the subtraction is used as an index.",
+    "confidence": 0.85
+  },
+  {
+    "rank": 2,
+    "root_cause": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 980
+    },
+    "explanation": "This is the faulting write site. It has no local bounds check, so it depends entirely on the check at lines 962-965. Any index that reaches this loop with a negative start, or with an overflowed `mapping_address_write + nb_write`, produces an out-of-bounds store. The write-side index is derived from a uint16_t minus an unsigned start offset converted to int, so the index is only safe if the check above is correct. This is a lower-confidence candidate because the root cause is the guard above, not this line itself.",
+    "fix": "Make the write loop rely on an explicit guard in the same condition: require `mapping_address_write >= 0` and `mapping_address_write + nb_write <= mb_mapping->nb_registers` before the loop. Alternatively, assert the write range inside the loop as defensive hardening. The primary fix is the check at line 964 in candidate 1.",
+    "confidence": 0.5
+  },
+  {
+    "rank": 3,
+    "root_cause": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "_modbus_receive_msg",
+      "line": 451
+    },
+    "explanation": "The only length check on the request is `msg_length + length_to_read > max_adu_length`, which bounds the total receive size. It does not bound the individual address or count fields used later in modbus_reply. It therefore does not stop the negative-index write, since the crash happens in indexing rather than in the receive buffer. I include it only as a weak alternative. The report's WRITE fault at line 980 points to the index computation, not to receive-buffer overflow.",
+    "fix": "No change is needed here for this crash. Keeping the receive-length check is correct. The address validation belongs in modbus_reply, as described in candidate 1.",
+    "confidence": 0.1
+  }
+]
+```

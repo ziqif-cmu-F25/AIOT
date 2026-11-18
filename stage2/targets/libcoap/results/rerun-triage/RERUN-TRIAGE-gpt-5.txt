@@ -1,0 +1,7 @@
+{
+  "hypothesis": "Unbounded copy of attacker-controlled hostname into a 256-byte static buffer causes a buffer overflow when the Proxy-Uri host length exceeds 256 bytes.",
+  "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+  "bug_class": "buffer-overflow",
+  "trigger_condition": "In proxy mode, a CoAP request with a Proxy-Uri whose host component has length > 256 reaches coap_resolve_address_info() (address->length > sizeof(addrstr)).",
+  "confidence": 0.98
+}

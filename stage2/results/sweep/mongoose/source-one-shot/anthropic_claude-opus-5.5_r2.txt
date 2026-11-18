@@ -1,0 +1,30 @@
+**Top candidate:** an off-by-one bounds check in `skip_chunk` lets a crafted chunk-size line read one byte past the received data. No candidate is certain. Two lower-ranked reads past the end of a buffer follow.
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "A chunked request whose buffered body ends with hex digits followed by a single '\\r' gives i == len-1 (e.g. \"ff\\r\" with len=3). The check `len < i + 1` is false, so `buf[i + 1]` reads buf[len]. That is one byte past the received data, and can be past the heap allocation of c->recv if recv.size == recv.len. The check should be `len < i + 2`. The later reads buf[i+n+2] and buf[i+n+3] are only safe because of the `n > len - i - 4` check. This header check is the one that leaks.",
+    "evidence": "while (i < len && is_hex_digit(buf[i])) i++; ... if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "confidence": 0.45
+  },
+  {
+    "rank": 2,
+    "location": {"file": "mongoose/src/http.c", "function": "mg_http_get_header_var", "line": 941},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "A header value such as `Cookie: access_token=\"abc` opens a quote but never closes it. The scan stops with p == x (the end of s), but the returned length is p - b + q with q=1. The resulting mg_str therefore covers one byte past the header value. That byte is later copied by mg_snprintf in mg_http_creds and compared in stripquotes (s.buf[s.len-1]).",
+    "evidence": "int q = p < x && *p == '\"' ? 1 : 0; while (p < x && (q ? p == b || *p != '\"' : ...)) p++; return stripquotes(mg_str_n(b, (size_t) (p - b + q)));",
+    "confidence": 0.25
+  },
+  {
+    "rank": 3,
+    "location": {"file": "mongoose/src/http.c", "function": "skiptorn", "line": 231},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "If a header line ends exactly at `end` with a lone '\\r', the code reads s[1] at end. This is bounded in practice, because end comes from mg_http_get_request_len, which requires a terminating \\n\\n or \\r\\n\\r\\n, so the read is marginal.",
+    "evidence": "if (s >= end || (s[0] == '\\r' && s[1] != '\\n')) return NULL;",
+    "confidence": 0.1
+  }
+]
+```

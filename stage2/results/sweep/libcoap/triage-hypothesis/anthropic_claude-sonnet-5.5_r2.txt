@@ -1,0 +1,31 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+    "bug_class": "buffer-overflow",
+    "hypothesis": "address->length is copied into the 256-byte static addrstr with no upper-bound check, so a host name longer than 256 bytes overflows the static buffer. A length of exactly 256 also fills the buffer with no NUL terminator, so getaddrinfo() can read past the end.",
+    "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "A non-AF_UNIX host (a URI or Uri-Host/proxy-URI host, or a user-supplied address) with length >= 256 reaches this function. The only length check, against COAP_UNIX_PATH_MAX, is inside the unix-domain branch, so the non-unix path is unchecked.",
+    "confidence": 0.6
+  },
+  {
+    "rank": 2,
+    "location": {"file": "coap_address.c", "function": "coap_resolve_address_info", "line": 672},
+    "bug_class": "oob-read",
+    "hypothesis": "In the RIOT branch, address->s is treated as a NUL-terminated C string, but coap_str_const_t is length-delimited and not guaranteed to be terminated. netutils_get_ipv6/ipv4 and the %s log at line 683 can read past the end of the buffer.",
+    "vulnerable_line": "netutils_get_ipv6(&addr_ipv6, &netif, (const char *)address->s)",
+    "trigger_condition": "On RIOT, a host string taken from a parsed URI or option that is not NUL-terminated at address->length, for example a host followed by a port or path in the original buffer. This is an over-read, not a write.",
+    "confidence": 0.25
+  },
+  {
+    "rank": 3,
+    "location": {"file": "coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+    "bug_class": "other",
+    "hypothesis": "The function uses a shared static buffer, addrstr, so concurrent callers in different threads can corrupt each other's host string. This is a data race that can yield wrong resolution or a mixed-up, overflowing copy.",
+    "vulnerable_line": "static char addrstr[256]; ... memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "Two threads call coap_resolve_address_info concurrently with different host strings.",
+    "confidence": 0.1
+  }
+]
+```

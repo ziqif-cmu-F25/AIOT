@@ -1,0 +1,14 @@
+
+I'm now tracing the data flow in `_modbus_receive_msg` to see how message lengths are calculated and validated. The key is to see if an attacker can manipulate the message length such that it's validated, but also overflows during the processing. I'm focusing on the interaction of all the variables.
+
+
+
+I'm now tracing the data flow in `_modbus_receive_msg` to see how message lengths are calculated and validated. The key is to see if an attacker can manipulate the message length such that it's validated, but also overflows during the processing. I'm focusing on the interaction of all the variables.
+
+
+
+I'm now tracing the data flow in `_modbus_receive_msg` to see how message lengths are calculated and validated. The key is to see if an attacker can manipulate the message length such that it's validated, but also overflows during the processing. I'm focusing on the interaction of all the variables.
+
+
+
+I'm now tracing the data flow in `_modbus_receive_msg` to see how message lengths are calculated and validated. The key is to see if an attacker can manipulate the message length such that it

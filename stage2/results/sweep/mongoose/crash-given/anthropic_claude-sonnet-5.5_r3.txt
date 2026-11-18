@@ -1,0 +1,25 @@
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+    "explanation": "The bounds check before reading the CRLF that ends the chunk-size line is off by one. The input is the 3 bytes 'a','b','\\r', so skip_chunk() gets len=3. The guard 'len < 3' on line 1002 passes. The hex scan stops at i=2, because '\\r' is not a hex digit. Line 1006 then tests 'len < i + 1', which is 3 < 3 and false, so the guard does not trigger. The test buf[i] != '\\r' is false because buf[2] is '\\r'. The || chain therefore goes on to evaluate buf[i + 1], which is buf[3]. That is one byte past the 3-byte malloc'd buffer, matching the ASan report (READ of size 1, 0 bytes after the 3-byte region). Reading buf[i] and buf[i+1] requires len >= i + 2, but the check only guarantees len >= i + 1.",
+    "fix": "Change the check to `if (len < i + 2 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;`. Better still, return 0 (need more data) when len < i + 2 and the bytes seen so far are still a valid prefix, since the CRLF may simply not have arrived yet.",
+    "confidence": 0.93
+  },
+  {
+    "rank": 2,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1002},
+    "explanation": "The minimum-length guard 'len < 3' is too weak for the later fixed-offset accesses. A chunk needs at least one hex digit, CRLF, the data, and CRLF, so a 3-byte buffer can pass the guard and still be read past its end. This line is what lets the 3-byte input into the parsing path, but the actual out-of-bounds read happens at line 1006.",
+    "fix": "Make the per-access checks authoritative (len >= i + 2 before reading buf[i + 1]). Optionally raise the initial minimum to 5 bytes (e.g. '0\\r\\n\\r\\n').",
+    "confidence": 0.12
+  },
+  {
+    "rank": 3,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1010},
+    "explanation": "The 'n > len - i - 4' check protects the later reads of buf[i+n+2] and buf[i+n+3]. It is arithmetically sound here, since n <= len - i - 4 gives i + n + 3 <= len - 1. It does not account for the earlier unchecked buf[i+1] read, so it is not the cause of this crash.",
+    "fix": "No change is needed for this crash. Keep the check, and make sure len >= i + 2 is enforced before it.",
+    "confidence": 0.03
+  }
+]
+```

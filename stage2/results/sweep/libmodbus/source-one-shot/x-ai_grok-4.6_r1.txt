@@ -1,0 +1,24 @@
+[{
+  "rank": 1,
+  "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 964},
+  "vulnerability_class": "oob-write",
+  "hypothesis": "A crafted FC 23 (WRITE_AND_READ_REGISTERS) request can write uint16 values before the start of mb_mapping->tab_registers. The bounds check copy-pastes `mapping_address < 0` instead of `mapping_address_write < 0`. If the mapping is shifted (start_registers > 0) and the write address is below that start, mapping_address_write is negative; mapping_address_write + nb_write is still <= nb_registers, so the check passes. The following loop then does tab_registers[negative_index] = ... (heap underflow). Requires a valid read range so the exception path is not taken. Network-attacker-controlled via the write address / quantity fields.",
+  "evidence": "} else if (mapping_address < 0 ||\n           (mapping_address + nb) > mb_mapping->nb_registers ||\n           mapping_address < 0 ||\n           (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\n...\n            for (i = mapping_address_write, j = 10;\n                 i < mapping_address_write + nb_write; i++, j += 2) {\n                mb_mapping->tab_registers[i] =\n                    (req[offset + j] << 8) + req[offset + j + 1];\n            }",
+  "confidence": 0.95
+},
+{
+  "rank": 2,
+  "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 810},
+  "vulnerability_class": "buffer-overflow",
+  "hypothesis": "WRITE_SINGLE_COIL / WRITE_SINGLE_REGISTER / MASK_WRITE_REGISTER echo the request with memcpy(rsp, req, req_length) into a stack buffer of MAX_MESSAGE_LENGTH (260) with no check that req_length <= sizeof(rsp). A caller that passes a longer ADU (custom backend max_adu_length, or req_length not from _modbus_receive_msg) overflows rsp. Normal TCP/RTU receive paths cap at 260, so this is only reachable if req_length is not bounded that way.",
+  "evidence": "uint8_t rsp[MAX_MESSAGE_LENGTH];\n...\n                memcpy(rsp, req, req_length);\n                rsp_length = req_length;",
+  "confidence": 0.35
+},
+{
+  "rank": 3,
+  "location": {"file": "libmodbus/src/modbus.c", "function": "_modbus_receive_msg", "line": 405},
+  "vulnerability_class": "oob-write",
+  "hypothesis": "msg is filled with backend->recv(ctx, msg + msg_length, length_to_read) without a remaining-capacity argument. The only cap is (msg_length + length_to_read) > max_adu_length in _STEP_META. If recv returns rc > length_to_read, length_to_read becomes negative, the while (length_to_read != 0) loop continues, and the next recv is called with a huge size_t length, overflowing the caller ADU buffer. Depends on a recv that does not honor the requested length.",
+  "evidence": "rc = ctx->backend->recv(ctx, msg + msg_length, length_to_read);\n...\n        msg_length += rc;\n        length_to_read -= rc;\n\n        if (length_to_read == 0) {\n            switch (step) {\n            case _STEP_FUNCTION:\n                ...\n            case _STEP_META:\n                length_to_read = compute_data_length_after_meta(\n                    ctx, msg, msg_type);\n                if ((msg_length + length_to_read) > (int)ctx->backend->max_adu_length) {",
+  "confidence": 0.25
+}]

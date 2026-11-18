@@ -1,0 +1,30 @@
+**Most likely vulnerability:** a heap out-of-bounds write in `modbus_reply`, in the `MODBUS_FC_WRITE_AND_READ_REGISTERS` (function 0x17) handler. A copy-paste error means the write address is never checked for being negative, so a network client can make the server write below `tab_registers`.
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 964},
+    "vulnerability_class": "oob-write",
+    "hypothesis": "In the FC 0x17 (write-and-read registers) handler, the address check tests `mapping_address < 0` twice. It never tests `mapping_address_write < 0`. Attack: the mapping is created with start_registers > 0. A client sends a 0x17 request with address_write < start_registers, a valid read range, and nb_write between 1 and 121 (with byte count = 2*nb_write). Then mapping_address_write is negative, and (mapping_address_write + nb_write) <= nb_registers still passes. The write loop then stores attacker-controlled 16-bit values at tab_registers[negative index]. This corrupts the heap below the allocation.",
+    "evidence": "} else if (mapping_address < 0 ||\n (mapping_address + nb) > mb_mapping->nb_registers ||\n mapping_address < 0 ||\n (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\n...\nfor (i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; i++, j += 2) {\n mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 978},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "The handler does not compare the declared write byte count (nb_write_bytes) with the bytes actually received. Under some backends' framing, the loop could read the values to write from req past the received data, i.e. stale or uninitialized buffer contents. This is a weaker case, since the receive path normally reads exactly nb_write_bytes.",
+    "evidence": "int nb_write_bytes = req[offset + 9]; ... (req[offset + j] << 8) + req[offset + j + 1];",
+    "confidence": 0.15
+  },
+  {
+    "rank": 3,
+    "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 862},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "In the FC 0x0F (write multiple coils) handler, the source bytes for modbus_set_bits_from_bytes are taken from &req[offset+6]. The code relies on the byte-count field matching the bytes actually received, which is a possible read-past-received-data issue. This is low confidence because nb_bits*8 >= nb is checked and the receive path reads byte-count bytes.",
+    "evidence": "modbus_set_bits_from_bytes(mb_mapping->tab_bits, mapping_address, nb, &req[offset + 6]);",
+    "confidence": 0.1
+  }
+]
+```

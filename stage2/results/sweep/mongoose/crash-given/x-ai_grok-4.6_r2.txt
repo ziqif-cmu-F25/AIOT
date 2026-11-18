@@ -1,0 +1,21 @@
+{
+  "rank": 1,
+  "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+  "explanation": "skip_chunk() walks hex digits with `while (i < len && is_hex_digit(buf[i])) i++`, then uses the guard `len < i + 1` before reading both `buf[i]` and `buf[i + 1]` for the chunk-size CRLF. `len < i + 1` only proves `buf[i]` is in range (`i <= len-1`). Short-circuit `||` still evaluates `buf[i + 1]` when the last in-bounds byte is `\\r`. The 3-byte heap buffer \"ab\\r\" yields i=2, len=3: `3 < 3` is false, `buf[2]=='\\r'`, then a 1-byte read at `buf[3]` — exactly 0 bytes past the 3-byte allocation ASan reports.",
+  "fix": "if (len < i + 2) return 0; if (buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  /* need 2 bytes for CRLF; wait if incomplete, else reject */",
+  "confidence": 0.96
+}
+{
+  "rank": 2,
+  "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+  "explanation": "A strictly local off-by-one in the same predicate: the author wrote `len < i + 1` (enough for `buf[i]`) but the expression also indexes `buf[i + 1]`. Replacing `i + 1` with `i + 2` stops the OOB on \"ab\\r\". Keeping `return -1` still treats a TCP-split size line (\"ab\\r\" then \"\\n...\") as a hard error rather than 'need more data', which is why the split `return 0` / `return -1` form is preferred.",
+  "fix": "if (len < i + 2 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+  "confidence": 0.72
+}
+{
+  "rank": 3,
+  "root_cause": {"file": "mongoose/src/http.c", "function": "skiptorn", "line": 231},
+  "explanation": "Same missing second-byte bound: after `s >= end` fails, `s[0] == '\\r' && s[1] != '\\n'` reads `s[1]` when `s == end-1`. A 3-byte buffer ending in `\\r` would overflow identically. Not the ASan trigger here: `http_chunk_oracle` plus `mg_http_get_request_len()` returning 0 on an incomplete request means this path is not reached for input \"ab\\r\".",
+  "fix": "if (s >= end || (s[0] == '\\r' && (s + 1 >= end || s[1] != '\\n'))) return NULL;",
+  "confidence": 0.18
+}

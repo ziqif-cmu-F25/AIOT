@@ -1,0 +1,1 @@
+HYPOTHESIS: TCP PDU size parsing can OOB-read token extension bytes when the packet is only a header; also scanning OSCORE/URI/WS/block for memory-safety bugs. I will inspect constants and the TCP receive path.

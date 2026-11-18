@@ -1,0 +1,28 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "libcoap/src/coap_option.c", "function": "coap_opt_parse / coap_opt_length", "line": 89},
+    "vulnerability_class": "integer-overflow",
+    "hypothesis": "Two code paths decode the extended option length differently. coap_opt_parse stores it in a 16-bit field, so (MSB<<8)+269+LSB can wrap. For MSB 0xfe/0xff the wrapped value is small, so the parser consumes a short option. coap_opt_length computes the same value in uint32_t with no wrap, so it returns about 65 KB. A crafted option (length nibble 14, extended bytes 0xFE 0xF2 or larger) therefore gives a parsed size and a reported length that disagree. The length from coap_opt_length is passed to coap_pdu_parse_opt_base/_csm and later option consumers. Code that trusts it to size a copy or read could go out of bounds. The delta decode has the same 16-bit wrap on the 14-case, but it is only checked against COAP_MAX_OPT, so it is less dangerous.",
+    "evidence": "coap_opt_parse: `result->length = ((*opt & 0xff) << 8) + 269; ... result->length += *opt & 0xff;` with no overflow check on the length, unlike the delta's `if (result->delta < 269)`. coap_opt_length: `length = (*opt++ << 8) + 269; length += *opt++;` in uint32_t. coap_pdu_parse_opt: `const uint32_t len = optsize ? coap_opt_length((const uint8_t *)opt - optsize) : 0;`. I did not read the code that consumes this length, and I did not confirm that coap_option_t.length is 16-bit.",
+    "confidence": 0.3
+  },
+  {
+    "rank": 2,
+    "location": {"file": "libcoap/src/coap_pdu.c", "function": "coap_pdu_parse_header", "line": 1091},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "For extended token lengths (TKL 13 or 14), the header parser reads pdu->token[0] and token[1] before any check against the received data length (used_size). A datagram that ends right after the header makes these reads touch uninitialised or stale buffer bytes. The resulting e_token_length and actual_token.s/length are derived from that data. Code that uses actual_token before coap_pdu_parse_opt rejects the PDU could read past the received data, though the allocation limits the reach.",
+    "evidence": "`pdu->e_token_length = pdu->token[0] + COAP_TOKEN_EXT_1B_BIAS + 1; pdu->actual_token.s = &pdu->token[1];` The only checks are `pdu->e_token_length > pdu->alloc_size` here and `e_token_length > used_size` later in coap_pdu_parse_opt.",
+    "confidence": 0.2
+  },
+  {
+    "rank": 3,
+    "location": {"file": "libcoap/src/coap_option.c", "function": "coap_opt_size", "line": 288},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "coap_opt_size calls coap_opt_parse with length (size_t)-1, so the bounds checks are disabled. If any caller passes an option from an unvalidated or truncated PDU, the parser reads extended delta/length bytes and computes a size past the end of the buffer.",
+    "evidence": "`return coap_opt_parse(opt, (size_t)-1, &option);` with the comment 'we must assume that opt is encoded correctly'.",
+    "confidence": 0.15
+  }
+]
+```

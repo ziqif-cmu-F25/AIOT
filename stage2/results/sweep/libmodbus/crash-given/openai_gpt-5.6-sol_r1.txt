@@ -1,0 +1,13 @@
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 964
+    },
+    "explanation": "In the MODBUS_FC_WRITE_AND_READ_REGISTERS case, the bounds check tests `mapping_address < 0` twice. The second test should validate `mapping_address_write`. A crafted request can select a valid read address but a write address below `mb_mapping->start_registers`, making `mapping_address_write` negative. The upper-bound expression `(mapping_address_write + nb_write) > mb_mapping->nb_registers` can still be false for a negative index, so execution reaches line 980 and writes through `mb_mapping->tab_registers[i]` with negative `i`, before the allocated array.",
+    "fix": "Change line 964 from `mapping_address < 0 ||` to `mapping_address_write < 0 ||`. The complete condition should be: `mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address_write < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers`.",
+    "confidence": 0.999
+  }
+]

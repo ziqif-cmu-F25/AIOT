@@ -1,0 +1,13 @@
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "mongoose/src/http.c",
+      "function": "skip_chunk",
+      "line": 1006
+    },
+    "explanation": "The length check protects only buf[i], but the condition also reads buf[i + 1]. For the three-byte input \"ab\\r\", both 'a' and 'b' are hexadecimal digits, so the loop ends with i = 2 and len = 3. The check len < i + 1 evaluates to 3 < 3 (false), and buf[2] is '\\r', so evaluation proceeds to buf[3]. That is a one-byte read immediately beyond the malloc(3) allocation, exactly matching the ASan report.",
+    "fix": "Require both CRLF bytes to be buffered before reading them: if (len < i + 2 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1; For streaming-friendly handling, split this into: if (len < i + 2) return 0; if (buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "confidence": 0.99
+  }
+]

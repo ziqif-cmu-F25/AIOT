@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "In skip_chunk(), the guard `len < i + 1` allows reading buf[i+1] when len == i + 1 and buf[i] == '\\r'. The correct guard is `len < i + 2`. This causes a one-byte out-of-bounds read past the logical buffer.",
+  "evidence_source": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n')\nBound check uses len < i + 1 but unconditionally reads buf[i + 1]. With i == len - 1 and buf[i] == '\\r', reads one byte past end.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "One-byte OOB read. ASan heap-buffer-overflow or crash. Minimal body '10\\r' makes len==3, i==2.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "Model stated line: skip_chunk len < i + 1 guard. Correctly identified CVE-2026-52056 off-by-one in skip_chunk(). Ranked #1 candidate.",
+  "vulnerability_class": "oob-read",
+  "location": {
+    "file": "src/http.c",
+    "function": "skip_chunk",
+    "line": 17
+  },
+  "confidence": 0.9,
+  "model": "openai/gpt-5",
+  "prompt_id": "mongoose-c0-rerun@v1",
+  "run_index": 1
+}

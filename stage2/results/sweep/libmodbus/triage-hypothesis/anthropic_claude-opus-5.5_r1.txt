@@ -1,0 +1,22 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "src/modbus.c", "function": "modbus_reply", "line": 964},
+    "bug_class": "oob-write",
+    "hypothesis": "The bounds check tests 'mapping_address < 0' twice and never tests 'mapping_address_write < 0'. An address_write below mb_mapping->start_registers gives a negative mapping_address_write that passes validation, so the write loop at line 980 stores attacker-controlled register values at negative indices of tab_registers (heap buffer underflow).",
+    "vulnerable_line": "mapping_address < 0 ||   /* should be mapping_address_write < 0 */",
+    "trigger_condition": "The mapping is created with start_registers > 0 (e.g. modbus_mapping_new_start_address). The attacker sends a function 0x17 (Write/Read Multiple Registers) request with a valid read address and read count, nb_write in 1..121 with nb_write_bytes == 2*nb_write, and address_write < start_registers. mapping_address_write + nb_write must stay <= nb_registers.",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "location": {"file": "src/modbus.c", "function": "modbus_reply", "line": 981},
+    "bug_class": "oob-read",
+    "hypothesis": "The write loop reads nb_write*2 bytes from req starting at offset+10. The excerpt only checks that the declared byte count req[offset+9] equals nb_write*2, and does not show it being checked against the actual received request length. If the framing layer does not enforce the length, values could be read past the received data in req.",
+    "vulnerable_line": "(req[offset + j] << 8) + req[offset + j + 1];",
+    "trigger_condition": "A truncated FC 0x17 request whose byte count field claims more data than was actually supplied, assuming the receive path accepts it.",
+    "confidence": 0.2
+  }
+]
+```

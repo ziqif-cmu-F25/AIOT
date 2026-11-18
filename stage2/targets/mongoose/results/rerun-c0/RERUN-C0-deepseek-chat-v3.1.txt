@@ -1,0 +1,61 @@
+
+Looking at the provided source code, I can identify several testable memory-safety hypotheses related to HTTP chunked request parsing. Here are the JSON candidates:
+
+```json
+{
+  "candidates": [
+    {
+      "hypothesis": "Integer overflow in chunk length calculation could lead to buffer overflow during memmove operation",
+      "confidence": 0.7,
+      "triggering_conditions": "Chunk length value that causes integer overflow when added to offset pointers",
+      "expected_failure": "Heap corruption or segmentation fault during memmove operation",
+      "test_requests": [
+        {
+          "description": "Chunk with maximum integer value causing overflow",
+          "bytes_hex": "504f5354202f20485454502f312e310d0a486f73743a206c6f63616c686f73740d0a5472616e736665722d456e636f64696e673a206368756e6b65640d0a0d0a37373838373738373837383738373837380d0a41414141414141414141414141414141414141414141414141414141414141410d0a300d0a0d0a"
+        }
+      ]
+    },
+    {
+      "hypothesis": "Negative chunk length could lead to out-of-bounds memory access",
+      "confidence": 0.8,
+      "triggering_conditions": "Chunk length parsed as negative value due to integer representation issues",
+      "expected_failure": "Negative size passed to memmove causing out-of-bounds access",
+      "test_requests": [
+        {
+          "description": "Chunk with negative length representation",
+          "bytes_hex": "504f5354202f20485454502f312e310d0a486f73743a206c6f63616c686f73740d0a5472616e736665722d456e636f64696e673a206368756e6b65640d0a0d0a2d310d0a410d0a300d0a0d0a"
+        }
+      ]
+    },
+    {
+      "hypothesis": "Insufficient validation of chunk length could lead to buffer overflow",
+      "confidence": 0.6,
+      "triggering_conditions": "Chunk length larger than available buffer but smaller than total buffer size",
+      "expected_failure": "memmove operation exceeding buffer boundaries",
+      "test_requests": [
+        {
+          "description": "Chunk length larger than remaining buffer but smaller than total buffer",
+          "bytes_hex": "504f5354202f20485454502f312e310d0a486f73743a206c6f63616c686f73740d0a5472616e736665722d456e636f64696e673a206368756e6b65640d0a0d0a313030300d0a"
+        }
+      ]
+    },
+    {
+      "hypothesis": "Invalid chunk format could cause infinite loop or excessive memory consumption",
+      "confidence": 0.5,
+      "triggering_conditions": "Malformed chunk without proper termination that passes initial validation",
+      "expected_failure": "Infinite processing loop or excessive memory allocation",
+      "test_requests": [
+        {
+          "description": "Infinite chunk sequence without zero-length terminator",
+          "bytes_hex": "504f5354202f20485454502f312e310d0a486f73743a206c6f63616c686f73740d0a5472616e736665722d456e64696e673a206368756e6b65640d0a0d0a310d0a410d0a310d0a410d0a310d0a410d0a"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Note: The evidence is somewhat limited as we only have a partial view of the codebase. The `skip_chunk` function shows several validation checks, but the interaction with the buffer management (`c->recv.buf` and `c->recv.len`) could still have edge cases. The confidence levels reflect this partial visibility - some hypotheses are more speculative than others.
+
+The test requests are designed to be minimal and focus on specific chunk parsing scenarios that could trigger memory safety issues based on the visible code patterns.

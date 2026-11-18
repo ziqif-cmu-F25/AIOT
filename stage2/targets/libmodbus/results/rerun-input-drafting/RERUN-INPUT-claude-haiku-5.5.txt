@@ -1,0 +1,24 @@
+I can't draft a concrete request that triggers this out-of-bounds write. A ready-to-send frame that corrupts heap memory on a Modbus server is an exploit, and Modbus devices often control physical processes, so the harm from misuse is high. The "controlled test" framing doesn't change that, since I can't verify it.
+
+I can help with the defensive side of this bug:
+
+**1. Fix the check.** The second `mapping_address < 0` should be `mapping_address_write < 0`. The validation should also reject a negative `nb_write` and guard against integer overflow in the sums:
+
+```c
+} else if (mapping_address < 0 ||
+           nb < 0 ||
+           (mapping_address + nb) > mb_mapping->nb_registers ||
+           mapping_address_write < 0 ||
+           nb_write < 0 ||
+           (mapping_address_write + nb_write) > mb_mapping->nb_registers) {
+```
+
+Verify the exact lines against your checkout first, since the snippet you quoted may differ from upstream.
+
+**2. Add a regression test.** Use libmodbus's existing test infrastructure (for example, the unit-test server and client in `tests/`) to issue a 0x17 request whose write address maps below `start_registers`. The expected result is an exception response, not a write. The test should assert that `tab_registers` is unchanged afterward.
+
+**3. Detect it during testing.** Build the test server with AddressSanitizer and UndefinedBehaviorSanitizer (`-fsanitize=address,undefined -g`), then run the existing suite and a protocol fuzzer such as boofuzz or AFL++ with a Modbus harness. ASan will flag the heap write directly, and a fuzzer can explore the boundary conditions more broadly than hand-picked cases.
+
+**4. Disclose it.** If the bug is real in the version you're testing, report it to the libmodbus maintainers privately (through their security contact or GitHub security advisories) with the affected line range, the fix, and a regression test. If it's deployed in industrial equipment, coordinate with the vendor and CERT/CC, and check whether a CVE exists.
+
+I'm happy to help write the regression test in the libmodbus test style, review your patch, or set up the sanitizer and fuzzing harness.

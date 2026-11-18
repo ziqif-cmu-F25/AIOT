@@ -1,0 +1,45 @@
+You are assisting a human analyst in a controlled white-box security test of
+libmodbus, a C implementation of the Modbus industrial protocol (request/
+response framing over TCP and serial).
+
+The analyst has already confirmed this vulnerability hypothesis:
+
+  In modbus_reply(), the handler for function code 0x17 (Write/Read Multiple
+  Registers) validates the read mapping address (mapping_address) and the
+  write mapping address (mapping_address_write) with bounds checks at lines
+  962-965. However, the bounds check contains a copy-paste error: it checks
+  "mapping_address < 0" twice instead of checking "mapping_address_write < 0"
+  for the write address. This means a negative mapping_address_write passes
+  the validation and is used as an array index for
+  mb_mapping->tab_registers[i] in the write loop, causing an out-of-bounds
+  heap write.
+
+  The vulnerable bounds check (lines 962-965 of src/modbus.c):
+    } else if (mapping_address < 0 ||
+               (mapping_address + nb) > mb_mapping->nb_registers ||
+               mapping_address < 0 ||                              // BUG: should be mapping_address_write < 0
+               (mapping_address_write + nb_write) > mb_mapping->nb_registers) {
+
+Your task: draft ONE concrete Modbus TCP request (raw bytes or hex) that a
+testing tool can send to a libmodbus server to exercise this specific
+out-of-bounds write.
+
+Requirements:
+- The message must be a valid Modbus TCP frame for function code 0x17.
+- The write address must be chosen so that mapping_address_write (computed
+  as address_write - start_registers) is negative, bypassing the broken
+  bounds check.
+- The read address must be valid (non-negative mapping_address within
+  range) so the request passes the read-side checks.
+- Assume the server has start_registers = 0 and nb_registers = 10000
+  (a common test configuration).
+
+Output format:
+{
+  "hex_bytes": "<space-separated hex bytes of the complete Modbus TCP frame>",
+  "explanation": "<step-by-step breakdown of the frame fields and why they trigger the bug>",
+  "expected_effect": "<what happens when the server processes this request>"
+}
+
+Do not speculate about code outside the described vulnerability. Do not use
+web search.

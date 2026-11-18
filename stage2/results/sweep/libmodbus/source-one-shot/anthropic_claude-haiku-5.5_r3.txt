@@ -1,0 +1,40 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 964
+    },
+    "vulnerability_class": "oob-write",
+    "hypothesis": "In MODBUS_FC_WRITE_AND_READ_REGISTERS, the lower-bound check for the write address is missing. Line 964 re-checks `mapping_address < 0` (the read address) instead of `mapping_address_write < 0`. A request whose write address (`address_write`, a uint16 from the request) is below `mb_mapping->start_registers` gives a negative `mapping_address_write`. That value passes the upper-bound check at line 965 because a negative sum is never greater than `nb_registers`. The write loop at lines 978-982 then runs `mb_mapping->tab_registers[i]` with negative `i`, writing attacker-controlled 16-bit values before the start of the heap-allocated `tab_registers` array. This requires a mapping created with `modbus_mapping_new_start_address` where `start_registers > 0`. With the default `start_registers = 0`, the index can't go negative.",
+    "evidence": "Lines 952-953: `int mapping_address = address - mb_mapping->start_registers;` / `int mapping_address_write = address_write - mb_mapping->start_registers;`. Lines 962-965: `} else if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers) {`. Lines 978-982: `for (i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; i++, j += 2) { mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1]; }`",
+    "confidence": 0.85
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 985
+    },
+    "vulnerability_class": "oob-read",
+    "hypothesis": "The same missing check also leaves the read path of write_and_read partly unguarded. The read loop uses `mapping_address`, which is bounded on both sides at line 962 and 963, so it is safe on its own. However, the write-side check is incomplete, so the write of line 980 can go out of bounds, and the read-back loop at line 985-988 then returns whatever is at the corrupted or out-of-range index. The underlying fault is the same as rank 1 and is tracked separately only for the response path.",
+    "evidence": "Lines 985-988: `for (i = mapping_address; i < mapping_address + nb; i++) { rsp[rsp_length++] = mb_mapping->tab_registers[i] >> 8; rsp[rsp_length++] = mb_mapping->tab_registers[i] & 0xFF; }`",
+    "confidence": 0.3
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 867
+    },
+    "vulnerability_class": "oob-read",
+    "hypothesis": "For WRITE_MULTIPLE_COILS and WRITE_MULTIPLE_REGISTERS, the code copies the address and quantity back into the response with `memcpy(rsp + rsp_length, req + rsp_length, 4)`. The source offset is taken from the response length rather than the request layout, so it is correct only by coincidence of identical headers. It reads 4 bytes from `req` at an index that is not checked against `req_length`. If the request is short, this is an out-of-bounds read of the request buffer. This is a weaker candidate because `_modbus_receive_msg` normally ensures that the address and quantity fields have been received.",
+    "evidence": "Line 865-868: `rsp_length = ctx->backend->build_response_basis(&sft, rsp); /* 4 to copy the bit address (2) and the quantity of bits */ memcpy(rsp + rsp_length, req + rsp_length, 4); rsp_length += 4;`",
+    "confidence": 0.2
+  }
+]
+```

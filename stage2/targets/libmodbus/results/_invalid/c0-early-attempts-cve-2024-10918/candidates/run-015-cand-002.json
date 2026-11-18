@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-002",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "A crafted MODBUS_FC_WRITE_MULTIPLE_REGISTERS request that declares nb and nb_bytes but is truncated (i.e., does not include 2*nb data bytes) will cause modbus_reply() to read beyond the end of the req buffer inside the loop copying register values.",
+  "evidence_source": "In modbus_reply(), case MODBUS_FC_WRITE_MULTIPLE_REGISTERS:\n  int nb = (req[offset + 3] << 8) + req[offset + 4];\n  int nb_bytes = req[offset + 5];\n  ...\n  for (i = mapping_address, j = 6; i < mapping_address + nb; i++, j += 2) {\n      mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];\n  }",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "If the request buffer is shorter than offset + 6 + 2*nb, reading req[offset + j] or req[offset + j + 1] will go out of bounds, leading to a crash or sanitizer OOB read report.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "There is no check that the received request contains the declared number of data bytes before indexing. Even if nb_bytes is inconsistent, only a value-range check is performed; the actual buffer length is not validated.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 1008
+  },
+  "confidence": 0.84,
+  "model": "openai/gpt-5",
+  "prompt_id": "libmodbus-modbus-reply@v1",
+  "run_index": 3
+}

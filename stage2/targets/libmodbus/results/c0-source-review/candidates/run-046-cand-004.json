@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-004",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "In modbus_reply handling of WRITE_SINGLE_REGISTER, a truncated request without two data bytes causes an out-of-bounds read at req[offset+3] and req[offset+4].",
+  "evidence_source": "Lines 831-837: int data = (req[offset + 3] << 8) + req[offset + 4]; No validation of req_length.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Crash or sanitizer report due to reading beyond end of input buffer when WRITE_SINGLE_REGISTER is malformed.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "The code proceeds to memcpy the whole request to the response, which is a separate potential issue if req_length is oversized (see separate candidate).",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 832
+  },
+  "confidence": 0.71,
+  "model": "openai/gpt-5",
+  "prompt_id": "libmodbus-0367-source-review@v1",
+  "run_index": 3
+}

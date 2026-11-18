@@ -1,0 +1,8 @@
+```json
+{
+  "root_cause_line": "if (len < i + 1 || buf[i] != '\r' || buf[i + 1] != '\n') return -1;  // Error",
+  "explanation": "The `while` loop iterates through the hex digits, setting `i` to the index of the first non-hex character. For the input \"ab\\r\", `i` becomes 2. The subsequent `if` statement is intended to validate the CRLF (`\\r\\n`) sequence that should follow the hex digits. The length check `len < i + 1` correctly ensures that reading `buf[i]` is safe. However, because C's `||` operator evaluates expressions left-to-right, the code proceeds to access `buf[i + 1]` without first checking if that index is within bounds. With `i=2` and `len=3`, the access `buf[i + 1]` becomes `buf[3]`, which is a read one byte past the end of the 3-byte buffer, causing the crash.",
+  "fix": "if (len < i + 2 || buf[i] != '\r' || buf[i + 1] != '\n') return -1;  // Error",
+  "confidence": 1.0
+}
+```

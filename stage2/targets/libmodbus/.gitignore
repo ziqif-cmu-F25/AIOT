@@ -1,0 +1,12 @@
+# Heavy, regenerable per-run artifacts: the full target source is embedded in
+# every prompt/transcript, so these dominate size and add little review value.
+# The lightweight evidence (run.yaml, candidates.json, verdict.*, findings.md,
+# notes.md, commands.log), the per-batch groups/ summaries, and cost_log.csv
+# are kept.
+results/**/prompt.txt
+results/**/transcript.json
+results/**/raw_output.txt
+
+# Confirmation scratch (reproducible via `docker compose run`).
+results/smoke/
+results/trigger/

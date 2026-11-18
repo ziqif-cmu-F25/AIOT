@@ -1,0 +1,19 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "input-drafting",
+  "property": "memory-safety",
+  "hypothesis": "",
+  "evidence_source": "content_filtered",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "no_response",
+  "notes": "Content filtered (0 bytes returned by provider)",
+  "vulnerability_class": "unknown",
+  "location": {},
+  "confidence": 0.0,
+  "model": "anthropic/claude-sonnet-5.5",
+  "prompt_id": "libmodbus-input@v1",
+  "run_index": 1
+}

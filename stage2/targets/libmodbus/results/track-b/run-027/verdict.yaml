@@ -1,0 +1,21 @@
+run_id: run-027
+task_id: libmodbus-modbus-reply-ctx
+prompt_id: libmodbus-modbus-reply-ctx@v1
+model_requested: anthropic/claude-opus-5.5
+model_resolved:
+- anthropic/claude-opus-5.5
+scored_utc: '2026-11-04T03:35:50Z'
+run_verdict: rejected
+reason: no candidates reported (expected finding missed)
+expected:
+  file: src/modbus.c
+  function: modbus_reply
+  lines:
+  - 906
+  - 937
+  line_tolerance: 2
+  vulnerability_class: buffer-overflow
+ground_truth_file: stage2/scoring/ground_truth/libmodbus-modbus-reply-ctx.yaml
+ground_truth_sha256: 40ec538f60dc3fd3987288b1f432e66bf7100dde6848bff10ceeb6e10712181e
+references: []
+candidates: []

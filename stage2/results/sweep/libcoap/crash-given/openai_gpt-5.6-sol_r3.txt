@@ -1,0 +1,13 @@
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "libcoap/src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 537
+    },
+    "explanation": "The condition only checks that address->length is nonzero before line 538 copies that many bytes into static char addrstr[256]. A crafted proxy host of length 300 therefore makes memcpy(addrstr, address->s, 300) write 44 bytes beyond the global buffer, exactly matching ASan's 300-byte write and identification of coap_resolve_address_info.addrstr. Even a length of exactly 256 is invalid because it overwrites all zeroed bytes and leaves no NUL terminator for getaddrinfo().",
+    "fix": "Reject any nonempty address whose length is greater than or equal to sizeof(addrstr) before copying: `if (address && address->length) { if (address->length >= sizeof(addrstr)) return NULL; memcpy(addrstr, address->s, address->length); } else { memcpy(addrstr, \"localhost\", 9); }`. Alternatively, dynamically allocate address->length + 1 bytes and explicitly NUL-terminate it.",
+    "confidence": 1.0
+  }
+]

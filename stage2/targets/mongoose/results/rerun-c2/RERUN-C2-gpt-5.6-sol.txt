@@ -1,0 +1,6 @@
+{
+  "root_cause_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // Error",
+  "explanation": "The check permits len == i + 1, although reading both buf[i] and buf[i + 1] requires at least i + 2 bytes. For the 3-byte input \"ab\\r\", i becomes 2 and len is 3. The expression len < i + 1 evaluates as 3 < 3, which is false; buf[2] is a valid CR, so evaluation continues to buf[3], one byte past the allocation.",
+  "fix": "if (len < i + 2 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // Error",
+  "confidence": 1.0
+}

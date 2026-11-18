@@ -1,0 +1,6 @@
+{
+  "root_cause_line": "mapping_address < 0 ||  /* third conjunct: duplicated read check, never tests mapping_address_write */",
+  "explanation": "The 0x17 handler computes mapping_address_write = address_write - start_registers, then bounds-checks with `mapping_address < 0` twice and never tests `mapping_address_write < 0`. A crafted request can keep the read range valid while setting address_write < start_registers, so mapping_address_write is negative. `(mapping_address_write + nb_write) > nb_registers` does not reject that (the sum is still <= nb_registers). The write loop then executes tab_registers[i] = ... starting at that negative i, which is the OOB WRITE ASan reports at modbus.c:980.",
+  "fix": "Replace the duplicated conjunct so the check is: mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address_write < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers",
+  "confidence": 0.97
+}

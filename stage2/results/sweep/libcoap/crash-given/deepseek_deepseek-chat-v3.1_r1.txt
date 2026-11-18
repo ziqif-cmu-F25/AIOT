@@ -1,0 +1,63 @@
+Looking at the ASan report and the provided source code, I can identify the root cause of the global-buffer-overflow.
+
+The ASan report indicates:
+- WRITE of size 300 at address 0x7b7127637b40
+- This address is located 0 bytes after global variable 'coap_resolve_address_info.addrstr' defined in 'src/coap_address.c' (0x7b7127637a40) of size 256
+
+The issue is in the function `coap_resolve_address_info` in `src/coap_address.c`. Specifically, the problem is with the `addrstr` buffer which is defined as 256 bytes, but a write of 300 bytes occurs.
+
+Looking at the code in `coap_resolve_address_info` (lines 536-540):
+```c
+536:   memset(addrstr, 0, sizeof(addrstr));
+537:   if (address && address->length)
+538:     memcpy(addrstr, address->s, address->length);
+539:   else
+540:     memcpy(addrstr, "localhost", 9);
+```
+
+The `memcpy` on line 538 copies `address->length` bytes into `addrstr` without checking if `address->length` exceeds the size of `addrstr` (256 bytes). This is the root cause.
+
+Here are the candidates:
+
+```json
+{
+  "rank": 1,
+  "root_cause": {"file": "libcoap/src/coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+  "explanation": "The memcpy call copies address->length bytes into addrstr (size 256) without bounds checking. If address->length is greater than 256, it causes a global-buffer-overflow.",
+  "fix": "Add a check: if (address->length >= sizeof(addrstr)) { /* handle error */ } else { memcpy(...); }",
+  "confidence": 1.0
+}
+```
+
+```json
+{
+  "rank": 2,
+  "root_cause": {"file": "libcoap/src/coap_address.c", "function": "coap_resolve_address_info", "line": 540},
+  "explanation": "The else branch copies \"localhost\" (9 bytes) which is safe, but the primary issue is the unchecked copy from address->s.",
+  "fix": "Same as above - the main fix is at line 538.",
+  "confidence": 0.2
+}
+```
+
+```json
+{
+  "rank": 3,
+  "root_cause": {"file": "libcoap/src/coap_address.c", "function": "coap_resolve_address_info", "line": 536},
+  "explanation": "The memset is safe, but the subsequent memcpy operations are not bounded.",
+  "fix": "The fix should be applied to the memcpy operations, not the memset.",
+  "confidence": 0.1
+}
+```
+
+The primary fix is to add a bounds check before the memcpy in line 538. For example:
+```c
+if (address && address->length) {
+    if (address->length >= sizeof(addrstr)) {
+        coap_log_err("Address too long\n");
+        return NULL;
+    }
+    memcpy(addrstr, address->s, address->length);
+}
+```
+
+This ensures we don't copy more data than the buffer can hold.

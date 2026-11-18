@@ -1,0 +1,48 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+**Analyzing Integer Overflow**
+
+I've isolated a critical integer overflow vulnerability within `mongoose/src/http.c` that can be exploited through chunked data handling. Specifically, an overflow in the calculation of `o + pl` during the `memmove` operation (lines 1102-1107) can lead to an out-of-bounds read. By carefully crafting chunk sizes, a malicious actor can cause `o` to become sufficiently large, resulting in the overflow.
+
+
+
+
+
+**Analyzing Integer Overflow**
+
+I've isolated a critical

@@ -1,0 +1,6 @@
+{
+  "root_cause_line": "memcpy(addrstr, address->s, address->length);",
+  "explanation": "The code copies address->length bytes into the fixed-size static buffer addrstr[256] without verifying that address->length fits. A Proxy-Uri hostname of 300 bytes therefore causes memcpy() to write 44 bytes beyond the end of addrstr, producing the reported global-buffer-overflow. The preceding memset() does not provide bounds protection and also means a full 256-byte copy would leave no NUL terminator for getaddrinfo().",
+  "fix": "Reject hostnames that do not fit before copying, preserving space for a NUL terminator. For example: if (address && address->length) { if (address->length >= sizeof(addrstr)) return NULL; memcpy(addrstr, address->s, address->length); addrstr[address->length] = '\\0'; } else { memcpy(addrstr, \"localhost\", sizeof(\"localhost\")); }",
+  "confidence": 1.0
+}

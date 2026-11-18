@@ -1,0 +1,32 @@
+FINAL
+
+I did not confirm a memory-safety vulnerability. The option parser's bounds checks held in every path I read, so the candidate below is a validation issue, not a demonstrated out-of-bounds access.
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "libcoap/src/coap_pdu.c", "function": "coap_pdu_parse_opt", "line": 1350},
+    "vulnerability_class": "other",
+    "hypothesis": "`len` is computed as uint32_t from coap_opt_length(), then passed to coap_pdu_parse_opt_base()/coap_pdu_parse_opt_csm(), whose parameter is uint16_t (coap_pdu.c:1179, 1111). An option with a two-byte extended length of 65536+N is truncated to N, so per-option length checks (e.g. ETAG `len > 8`, URI_HOST `len > 255`) may accept an option whose real length is far larger. This is a validation bypass only: the option walk advances by `optsize` from coap_opt_parse(), which is bounded by the remaining buffer (coap_option.c:105), so I found no path where the truncated value causes a read or write past the PDU. Exploitability is unconfirmed.",
+    "evidence": "coap_pdu.c:1350-1351: `const uint32_t len = optsize ? coap_opt_length((const uint8_t *)opt - optsize) : 0;` and 1361: `!coap_pdu_parse_opt_base(pdu, len)` with `coap_pdu_parse_opt_base(coap_pdu_t *pdu, uint16_t len)` at 1179. coap_option.c:105-107: `if (length < result->length) { ... return 0; }`. coap_pdu.c:955-966 (next_option_safe) advances `*optp += optsize` and `*length -= optsize`.",
+    "confidence": 0.2
+  },
+  {
+    "rank": 2,
+    "location": {"file": "libcoap/src/coap_pdu.c", "function": "coap_pdu_parse_header", "line": 1100},
+    "vulnerability_class": "other",
+    "hypothesis": "The extended-token-length check compares against pdu->alloc_size rather than the number of bytes actually received. Token pointers could be set beyond the received packet during header parsing. coap_pdu_parse_opt() does re-check `e_token_length > used_size` at line 1330, which I read and which appears to close this, so I rate it low.",
+    "evidence": "coap_pdu.c:1100: `if (pdu->e_token_length > pdu->alloc_size || e_token_length == 15)`. coap_pdu.c:1330: `if (pdu->e_token_length > pdu->used_size) { ... return 0; }`.",
+    "confidence": 0.1
+  },
+  {
+    "rank": 3,
+    "location": {"file": "libcoap/src/coap_pdu.c", "function": "coap_pdu_parse_opt", "line": 1398},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "In the error-dump loop, `opt` is reset to the end of the PDU only when next_option_safe() returns 0. The `tlen = opt - opt_last` copy depends on `opt` being advanced correctly on every path. I did not find an out-of-bounds read here, but I did not fully trace the write_char() bounds.",
+    "evidence": "coap_pdu.c:1396-1415: next_option_safe() call, then `if (!optsize) { opt = pdu->token + pdu->used_size; length = 0; }`, then `tlen = opt - opt_last; while (tlen--) { ... *opt_last ... }`.",
+    "confidence": 0.1
+  }
+]
+```

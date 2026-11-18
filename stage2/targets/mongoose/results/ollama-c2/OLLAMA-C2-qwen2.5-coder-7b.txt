@@ -1,0 +1,8 @@
+```json
+{
+  "root_cause_line": "if (n > len - i - 4) return 0;",
+  "explanation": "The bounds check here is incorrect because it does not account for the fact that the chunk length (n) is already included in the length of the buffer (len). The check should be `if (n > len - i - 2) return 0;` to correctly account for the chunk length and the two trailing CRLF characters.",
+  "fix": "if (n > len - i - 2) return 0;",
+  "confidence": 1.0
+}
+```

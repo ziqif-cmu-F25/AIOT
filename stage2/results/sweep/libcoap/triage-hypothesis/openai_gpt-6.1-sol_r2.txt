@@ -1,0 +1,41 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "<not provided>",
+      "function": "coap_resolve_address_info",
+      "line": 538
+    },
+    "bug_class": "buffer-overflow",
+    "hypothesis": "The unchecked address length allows memcpy to write beyond the 256-byte static addrstr buffer when an address longer than 256 bytes reaches this branch.",
+    "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "Neither RIOT_VERSION nor WITH_CONTIKI is defined; address is non-NULL, address->length exceeds 256, address->s contains that many bytes, and the Unix-domain branch does not return first.",
+    "confidence": 1.0
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "<not provided>",
+      "function": "coap_resolve_address_info",
+      "line": 547
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "An address containing exactly 256 non-NUL bytes overwrites every zero in addrstr without overflowing the copy, so passing it to getaddrinfo as a C string permits reads beyond the buffer while searching for its terminator.",
+    "vulnerable_line": "error = getaddrinfo(addrstr, NULL, &hints, &res);",
+    "trigger_condition": "The non-RIOT, non-Contiki branch receives an address of length 256 containing no NUL bytes, and the Unix-domain branch does not return first.",
+    "confidence": 0.98
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "<not provided>",
+      "function": "coap_resolve_address_info",
+      "line": 683
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "The RIOT error log formats a length-delimited address using unbounded %s, causing a read beyond address->s if parsing fails and its backing allocation contains no NUL terminator.",
+    "vulnerable_line": "coap_log_err(\"coap_resolve_address_info: Unable to parse '%s'\\n\", address->s);",
+    "trigger_condition": "RIOT_VERSION is defined, address has nonzero length and an unterminated backing allocation, the enabled address parsers return without recognizing it so family remains AF_UNSPEC, and error logging is enabled.",
+    "confidence": 0.95
+  }
+]

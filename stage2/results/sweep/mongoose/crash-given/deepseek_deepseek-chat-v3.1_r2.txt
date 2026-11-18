@@ -1,0 +1,74 @@
+Looking at the ASan report and the provided source code, I need to identify the root cause of the heap-buffer-overflow. The ASan report indicates a read of size 1 at address 0x502000000013, which is located 0 bytes after a 3-byte region [0x502000000010,0x502000000013). The triggering input is 3 bytes: hex "61 62 0d" (ASCII "ab\r"), and the buffer is malloc(3) with exact size.
+
+The stack trace shows the read occurs at address 0xaaaaab730bac (which is in the binary). Since we don't have the exact symbol, I need to look for functions that might be reading beyond a buffer of size 3.
+
+Given the input is "ab\r", which is a partial HTTP chunk (since chunks end with "\r\n"), I suspect the issue is in the chunked transfer encoding parsing. Specifically, the function `skip_chunk` (line 1000) is used to parse chunked data.
+
+Let me examine `skip_chunk`:
+
+```c
+1000: static int skip_chunk(const char *buf, int len, int *pl, int *dl) {
+1001:   int i = 0, n = 0;
+1002:   if (len < 3) return 0;
+1003:   while (i < len && is_hex_digit(buf[i])) i++;
+1004:   if (i == 0) return -1;                     // Error, no length specified
+1005:   if (i > (int) sizeof(int) * 2) return -1;  // Chunk length is too big
+1006:   if (len < i + 1 || buf[i] != '\r' || buf[i + 1] != '\n') return -1;  // Error
+1007:   if (mg_str_to_num(mg_str_n(buf, (size_t) i), 16, &n, sizeof(int)) == false)
+1008:     return -1;                    // Decode chunk length, overflow
+1009:   if (n < 0) return -1;           // Error. TODO(): some checks now redundant
+1010:   if (n > len - i - 4) return 0;  // Chunk not yet fully buffered
+1011:   if (buf[i + n + 2] != '\r' || buf[i + n + 3] != '\n') return -1;  // Error
+1012:   *pl = i + 2, *dl = n;
+1013:   return i + 2 + n + 2;
+1014: }
+```
+
+The input "ab\r" is being parsed as a chunk. Here's what happens:
+- `i` is set to 0.
+- The while loop (line 1003) checks for hex digits. 'a' and 'b' are hex digits, so `i` becomes 2.
+- Then we check at line 1006: `len` is 3, so `i+1` is 3, which is not less than `len` (3). So the condition `len < i + 1` is false (3 < 3 is false), so we proceed.
+- Then we check `buf[i] != '\r'` and `buf[i+1] != '\n'`. `buf[2]` is '\r', which matches, but `buf[3]` is beyond the buffer (since the buffer is only 3 bytes: indices 0,1,2). So we are reading `buf[3]` which is out-of-bounds.
+
+This is the root cause: the check at line 1006 does not account for the fact that we need to access `buf[i+1]` (which requires at least `i+2` bytes in the buffer), but the condition only checks for `len < i+1`.
+
+Specifically, the condition should be `len < i + 2` because we need to access `buf[i]` and `buf[i+1]`.
+
+Now, let's look at the correct fix: change the condition to `if (len < i + 2 || buf[i] != '\r' || buf[i + 1] != '\n') return -1;`
+
+This ensures we have at least `i+2` bytes in the buffer before accessing `buf[i]` and `buf[i+1]`.
+
+Therefore, the root cause is in `skip_chunk` at line 1006.
+
+Now, I need to provide the ranked list.
+
+```json
+{
+  "rank": 1,
+  "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+  "explanation": "The condition 'len < i + 1' does not ensure there are enough bytes to read buf[i] and buf[i+1]. For input 'ab\\r' (3 bytes), i becomes 2, and we need to check buf[2] and buf[3], but the buffer only has 3 bytes (indices 0,1,2). So reading buf[3] causes a heap-buffer-overflow.",
+  "fix": "Change the condition to 'if (len < i + 2 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;'",
+  "confidence": 0.95
+}
+```
+
+I should also consider other candidates, but the evidence strongly points to this function.
+
+Another candidate might be in `mg_http_parse` (line 270) but the ASan report points to a chunk parsing issue. The input is small and matches a chunk prefix.
+
+Alternatively, the function `is_hex_digit` (line 995) is called, but it doesn't read beyond the buffer.
+
+So, I'll only list one candidate with high confidence.
+
+Final output:
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+    "explanation": "The condition 'len < i + 1' does not ensure there are enough bytes to read buf[i] and buf[i+1]. For input 'ab\\r' (3 bytes), i becomes 2, and we need to check buf[2] and buf[3], but the buffer only has 3 bytes (indices 0,1,2). So reading buf[3] causes a heap-buffer-overflow.",
+    "fix": "Change the condition to 'if (len < i + 2 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;'",
+    "confidence": 0.95
+  }
+]
+```

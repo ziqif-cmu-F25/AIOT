@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-005",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "The response_io_status function does not check the bounds of the tab_io_status array, which can lead to an out-of-bounds read if the address and nb parameters are too large.",
+  "evidence_source": "Lines 642-666: The function iterates from address to address+nb without validating that these indices are within the bounds of tab_io_status.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Out-of-bounds read from the tab_io_status array, potentially leading to information disclosure or crash.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "This function is called from modbus_reply for read coils and discrete inputs. The address and nb are validated earlier, but if the mapping_address is miscalculated, it could still be out-of-bounds.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "response_io_status",
+    "line": 652
+  },
+  "confidence": 0.6,
+  "model": "deepseek/deepseek-chat-v3.1",
+  "prompt_id": "libmodbus-0367-source-review@v1",
+  "run_index": 1
+}

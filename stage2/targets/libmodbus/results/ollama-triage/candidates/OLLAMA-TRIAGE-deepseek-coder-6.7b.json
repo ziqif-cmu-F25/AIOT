@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "triage-hypothesis",
+  "property": "memory-safety",
+  "hypothesis": "Vaguely identified OOB read in write-and-read handler, pointing at the write loop line. Missed the actual bug (duplicate bounds check).",
+  "evidence_source": "Pointed at write loop (line with mapping_address_write iteration) but attributed bug to nb_write exceeding allocated registers, not to the duplicate mapping_address check.",
+  "input_artifact": "not_available (triage-hypothesis condition; code excerpt provided)",
+  "expected_behavior": "Model should identify the specific vulnerability root cause in the provided code excerpt.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "rejected",
+  "oracle_verdict": "wrong_bug",
+  "notes": "Ollama local model. Identified the right area but wrong root cause. The real bug is at lines 962-965 where mapping_address is checked twice instead of mapping_address_write.",
+  "vulnerability_class": "other",
+  "location": {
+    "file": "src/modbus.c",
+    "function": "modbus_reply",
+    "line": 978
+  },
+  "confidence": 0.3,
+  "model": "ollama/deepseek-coder:6.7b",
+  "prompt_id": "libmodbus-triage@v1",
+  "run_index": 1
+}

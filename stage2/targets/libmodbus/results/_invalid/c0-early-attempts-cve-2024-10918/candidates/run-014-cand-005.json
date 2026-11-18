@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-005",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "For WRITE_SINGLE_REGISTER, if the request is shorter than header_length+5, reading the two-byte data at req[offset+3]/[+4] is out of bounds.",
+  "evidence_source": "case MODBUS_FC_WRITE_SINGLE_REGISTER: int data = (req[offset + 3] << 8) + req[offset + 4]; No req_length check.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Crash or sanitizer OOB-read when processing a truncated write-single-register request.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "Mirrors the issue in WRITE_SINGLE_COIL.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 933
+  },
+  "confidence": 0.85,
+  "model": "openai/gpt-5",
+  "prompt_id": "libmodbus-modbus-reply@v1",
+  "run_index": 2
+}

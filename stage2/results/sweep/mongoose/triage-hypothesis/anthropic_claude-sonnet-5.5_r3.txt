@@ -1,0 +1,22 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1006},
+    "bug_class": "oob-read",
+    "hypothesis": "The bounds check `len < i + 1` is off by one: the code goes on to read buf[i+1], which needs len >= i+2. When len == i+1, buf[i] is '\\r' and buf[i+1] is read one byte past the buffered data.",
+    "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "trigger_condition": "The receive buffer holds only hex digits followed by a single '\\r' as its last byte, for example \"1a\\r\" (len=3, i=2) or \"100\\r\". buf[i+1] is then read past len. If the buffer is exactly full or heap-allocated, this reads out of bounds, though only one byte is read and it only feeds a comparison.",
+    "confidence": 0.6
+  },
+  {
+    "rank": 2,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1010},
+    "bug_class": "integer-overflow",
+    "hypothesis": "The completeness check relies on `len - i - 4` and the signed value n. This looks safe because n >= 0 is checked and n <= len-i-4 bounds the later reads, so any failure would have to come from mg_str_to_num mis-decoding an 8-digit value, which is unlikely.",
+    "vulnerable_line": "if (n > len - i - 4) return 0;",
+    "trigger_condition": "A chunk size of up to 8 hex digits near 0x7fffffff or 0xffffffff, only if mg_str_to_num returns a wrong or non-negative value for it.",
+    "confidence": 0.1
+  }
+]
+```

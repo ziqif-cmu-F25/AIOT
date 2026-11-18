@@ -1,0 +1,22 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1006},
+    "bug_class": "oob-read",
+    "hypothesis": "The bounds check `len < i + 1` is off by one. It guarantees only that buf[i] is readable, but the same condition goes on to read buf[i+1], which is one byte past the end of the buffered data when len == i+1.",
+    "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "trigger_condition": "The buffered chunk data is exactly hex digits followed by a lone '\\r' (for example \"1a\\r\", so len == i+1, with len >= 3), because the chunk header is split across TCP reads right after the CR. buf[i] == '\\r' passes, so buf[i+1] is read at index len, past the valid data. This leaks or faults on a 1-byte over-read if the receive buffer is exactly full or at the end of an allocation. The check should be `len < i + 2`.",
+    "confidence": 0.6
+  },
+  {
+    "rank": 2,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1011},
+    "bug_class": "oob-read",
+    "hypothesis": "The line 1010 check `n > len - i - 4` is the only guard on the reads at buf[i+n+2] and buf[i+n+3]. Any error in that arithmetic or in the parsed n would turn the CRLF check into an out-of-bounds read. As written the arithmetic appears to keep the indices below len, so this is a weaker, defense-in-depth concern.",
+    "vulnerable_line": "if (buf[i + n + 2] != '\\r' || buf[i + n + 3] != '\\n') return -1;",
+    "trigger_condition": "A huge chunk size such as 7fffffff combined with a small buffered length. The signed arithmetic `len - i - 4` and `i + n + 3` must misbehave for the guard to be bypassed. Normally it returns 0 first, so this is unlikely to be reachable.",
+    "confidence": 0.1
+  }
+]
+```

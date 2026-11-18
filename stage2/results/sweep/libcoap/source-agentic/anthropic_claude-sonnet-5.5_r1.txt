@@ -1,0 +1,30 @@
+FINAL
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "libcoap/src/coap_net.c", "function": "coap_read_session (TCP/TLS stream reassembly)", "line": 2222},
+    "vulnerability_class": "other",
+    "hypothesis": "When a TCP/TLS PDU header (including the extended-length and extended-token bytes) arrives split across several reads, the code never advances partial_read. In the else branch, bytes_read has already been reduced by n, and n < len means n equalled bytes_read, so bytes_read is 0. The statement `session->partial_read += bytes_read` therefore adds 0. The next fragment is memcpy'd over the same offset, and the header is never completed from the correct byte positions. When enough bytes eventually arrive, coap_pdu_parse_size parses a header whose tail contains stale or uninitialized bytes of session->read_header. A remote peer controls the chunking. Token-length bytes (token_start[0] and token_start[1]) and size bytes can then come from stale data. This yields a desynchronized or misinterpreted `size`, and so a wrongly sized partial_pdu. It is mainly a logic or info-leak bug. It could become memory-unsafe if the size and the token-length extension later disagree, but I did not verify that path.",
+    "evidence": "size_t n = min(len, (size_t)bytes_read); memcpy(session->read_header + session->partial_read, p, n); p += n; bytes_read -= n; if (n == len) {...} else { session->partial_read += bytes_read; }",
+    "confidence": 0.3
+  },
+  {
+    "rank": 2,
+    "location": {"file": "libcoap/src/coap_pdu.c", "function": "coap_pdu_parse_header", "line": 1091},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "For extended token lengths (TKL 13 or 14), pdu->token[0] and token[1] are read before any check that the packet actually contained those bytes. In coap_pdu_parse, a UDP packet of exactly 4 bytes with TKL=13 or 14 makes the parser read the token extension bytes from stale memory in the PDU buffer, which was not filled by the packet. The later check `e_token_length > used_size` bounds the damage, so this is likely only a stale-data read inside the allocation.",
+    "evidence": "pdu->e_token_length = pdu->token[0] + COAP_TOKEN_EXT_1B_BIAS + 1; ... pdu->e_token_length = ((uint16_t)pdu->token[0] << 8) + pdu->token[1] + COAP_TOKEN_EXT_2B_BIAS + 2; (no check against used_size before these reads)",
+    "confidence": 0.15
+  },
+  {
+    "rank": 3,
+    "location": {"file": "libcoap/src/coap_pdu.c", "function": "coap_pdu_parse_size", "line": 1042},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "coap_pdu_parse_size reads token_start[0] and token_start[1] when TKL is 13 or 14. It relies on the caller having supplied hdr_size + tok_ext_bytes bytes. Its own checks cover only the length fields, not the token extension bytes (the assert checks only the header size). If the caller's accounting is wrong, as in the partial_read bug above, it reads uninitialized or stale bytes of read_header.",
+    "evidence": "size += token_start[0] + COAP_TOKEN_EXT_1B_BIAS + 1; ... size += ((uint16_t)token_start[0] << 8) + token_start[1] + COAP_TOKEN_EXT_2B_BIAS + 2;",
+    "confidence": 0.12
+  }
+]
+```

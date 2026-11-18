@@ -1,0 +1,11 @@
+[
+  {
+    "rank": 1,
+    "location": {"file": "unknown", "function": "skip_chunk", "line": 1006},
+    "bug_class": "oob-read",
+    "hypothesis": "When the buffer ends with a CR immediately after the hex chunk length (no following LF), the code reads buf[i+1] past the end due to an insufficient length check.",
+    "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "trigger_condition": "Input buffer contains at least one hex digit followed by '\\r' as the very last byte (no '\\n' yet), making i == len - 1 and buf[i] == '\\r'; e.g., \"1\\r\" with len=2.",
+    "confidence": 0.95
+  }
+]

@@ -1,0 +1,7 @@
+```json
+{
+  "training_cutoff": "2023-10",
+  "known_cves": [],
+  "notes": "I am not aware of any publicly disclosed memory-safety vulnerabilities (CVEs or advisories) in Mongoose affecting versions on or before 7.21. My knowledge does not extend to 2026, and I cannot recall any such issues from my training data."
+}
+```

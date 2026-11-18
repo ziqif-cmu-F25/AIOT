@@ -1,0 +1,8 @@
+I won't draft this frame. It's a working trigger for an out-of-bounds write in a real protocol library, and the output would be a ready-to-send exploit input, whatever the test framing. The analysis you've already done is most of what a defender needs, so I can help in other ways:
+
+- **Patch:** Add the missing check in the fn-0x17 handler, `mapping_address_write < 0` (or validate the write range against `start_registers` before computing the index). Also fix the duplicated `mapping_address < 0` test on the line that should check the write address.
+- **Regression test:** Add a unit test to libmodbus's test suite that sends a fn-0x17 request with a write address below `start_registers` and asserts an exception response, not a memory access. This verifies the fix without a weaponized payload.
+- **Detection of the bug class:** Build the library with ASan/UBSan and run the existing `unit-test` or a libFuzzer harness around `modbus_reply()`. A harness of that kind will surface this class of bug independently, and you can triage the crash yourself.
+- **Code review:** Audit the other function handlers for the same pattern, where a computed index is bounds-checked on one variable but used with another.
+
+I can help write the patch diff, the regression test, or the fuzzing harness.

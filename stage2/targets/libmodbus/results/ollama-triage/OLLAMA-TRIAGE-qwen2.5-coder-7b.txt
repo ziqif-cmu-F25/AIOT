@@ -1,0 +1,9 @@
+```json
+{
+  "hypothesis": "The code does not properly validate the `mapping_address_write` and `mapping_address` values, leading to an out-of-bounds write and read.",
+  "vulnerable_line": "mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];",
+  "bug_class": "oob-write",
+  "trigger_condition": "The input `address_write` is less than `mb_mapping->start_registers` or greater than or equal to `mb_mapping->start_registers + mb_mapping->nb_registers`, or the input `address` is less than `mb_mapping->start_registers` or greater than or equal to `mb_mapping->start_registers + mb_mapping->nb_registers`.",
+  "confidence": 0.9
+}
+```

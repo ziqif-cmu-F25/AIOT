@@ -1,0 +1,110 @@
+The provided code snippet is from a C library for handling HTTP requests and responses, likely part of a web server or client implementation. The code defines functions for connecting to an HTTP server, listening for HTTP connections, and handling HTTP requests and responses.
+
+Here's a breakdown of the key components and functionalities:
+
+1. **HTTP Request Handling**:
+   - The code processes incoming HTTP requests, including parsing headers and handling chunked transfer encoding.
+   - It checks for the presence of `Content-Length` and `Transfer-Encoding` headers to determine how to handle the request body.
+   - For chunked transfer encoding, it strips off the chunk headers and trailers and relocates the chunk data right after the headers.
+
+2. **HTTP Response Handling**:
+   - The code can generate HTTP responses based on the request headers and body.
+   - It supports HTTP/1.0 and HTTP/1.1 protocols, including handling the `Connection: close` header to close the connection after the response.
+
+3. **Connection Management**:
+   - The code manages connections using a `mg_connection` structure, which holds information about the connection, such as the buffer for received data, the current state of the connection, and the event handler function.
+   - It uses a `mg_mgr` structure to manage multiple connections and events.
+
+4. **Utility Functions**:
+   - The code includes utility functions for parsing HTTP headers, handling errors, and debugging.
+
+Here is a simplified version of the code with comments explaining each part:
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+// Define a structure to hold HTTP headers and body
+struct mg_http_message {
+    struct mg_str method;
+    struct mg_str proto;
+    struct mg_str body;
+    struct mg_str message;
+    // Other fields...
+};
+
+// Function to parse HTTP headers
+void mg_http_parse_headers(struct mg_http_message *hm, const char *buf, size_t len) {
+    // Parse headers and populate hm structure
+}
+
+// Function to handle HTTP requests
+void mg_http_handle_request(struct mg_connection *c, struct mg_http_message *hm) {
+    // Process the request and generate a response
+}
+
+// Callback function for handling HTTP events
+void http_cb(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
+    struct mg_http_message hm;
+    size_t ofs = 0;
+
+    while (1) {
+        int n = mg_read(c);  // Read data from the connection
+        if (n < 0) {
+            // Handle error
+            break;
+        }
+        if (n == 0) break;  // Request is not buffered yet
+
+        mg_http_parse_headers(&hm, (const char *) c->recv.buf + ofs, c->recv.len - ofs);
+        if (c->recv.len != old_len) {
+            // User manipulated received data. Wash our hands
+            c->pfn = NULL;
+            return;
+        }
+
+        if (ev == MG_EV_CLOSE) {
+            hm.message.len = c->recv.len - ofs;
+            hm.body.len = hm.message.len - (size_t) (hm.body.buf - hm.message.buf);
+        }
+
+        bool is_chunked = false;
+        struct mg_str *te = mg_http_get_header(&hm, "Transfer-Encoding");
+        if (te != NULL && mg_strcasecmp(*te, mg_str("chunked")) == 0) {
+            is_chunked = true;
+        }
+
+        if (is_chunked) {
+            // Handle chunked data
+        } else {
+            // Handle non-chunked data
+        }
+
+        if (c->is_accepted) c->is_resp = 1;
+        mg_http_handle_request(c, &hm);
+        if (c->is_accepted && !c->is_resp) {
+            struct mg_str *cc = mg_http_get_header(&hm, "Connection");
+            if (cc != NULL && mg_strcasecmp(*cc, mg_str("close")) == 0) {
+                c->is_draining = 1;
+                break;
+            }
+        }
+
+        if (ofs > 0) mg_iobuf_del(&c->recv, 0, ofs);
+    }
+}
+
+// Function to connect to an HTTP server
+struct mg_connection *mg_http_connect(struct mg_mgr *mgr, const char *url, mg_event_handler_t fn, void *fn_data) {
+    return mg_connect_svc(mgr, url, fn, fn_data, http_cb, NULL);
+}
+
+// Function to listen for HTTP connections
+struct mg_connection *mg_http_listen(struct mg_mgr *mgr, const char *url, mg_event_handler_t fn, void *fn_data) {
+    struct mg_connection *c = mg_listen(mgr, url, fn, fn_data);
+    if (c != NULL) c->pfn = http_cb;
+    return c;
+}
+```
+
+This code provides a basic framework for handling HTTP requests and responses, including parsing headers, managing connections, and generating responses. The actual implementation details, such as error handling and specific HTTP methods, are left out for brevity.

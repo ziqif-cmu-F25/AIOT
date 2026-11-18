@@ -1,0 +1,27 @@
+I found no confirmed memory-safety bug in the option-parsing path I reviewed, so I'm stopping here rather than spending more requests.
+
+HYPOTHESIS: The option parser or iterator might read or advance past the buffer end. I checked this and the bounds checks hold.
+
+FINAL
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "libcoap/src/coap_option.c", "function": "coap_opt_parse", "line": 65},
+    "vulnerability_class": "other",
+    "hypothesis": "The two-byte extended delta is computed as ((*opt & 0xff) << 8) + 269 and stored in result->delta. If result->delta is a 16-bit type, the maximum value 65549 wraps. The wrap-around check at line 66 (delta < 269) catches most wrapped values, so any memory impact is probably limited to option-number desynchronization in the iterator rather than an out-of-bounds access. I did not confirm the field type in coap_option_t, so this is unverified.",
+    "evidence": "result->delta = ((*opt & 0xff) << 8) + 269;\nif (result->delta < 269) {\n  coap_log_debug(\"delta too large\\n\");\n  return 0;\n}",
+    "confidence": 0.1
+  }
+]
+```
+
+What I verified in `coap_opt_parse` (lines 41–114) and `coap_option_next` (lines 152–196):
+
+- **`ADVANCE_OPT` (line 22)** returns 0 when `e < step` and only subtracts when `e >= step`, so `length` cannot underflow.
+- **Extension bytes**: each read of an extended delta or length byte (lines 65, 73, 89, 93) follows an `ADVANCE_OPT_CHECK`, which guarantees the byte is inside the buffer.
+- **Value bounds**: line 105 rejects an option whose declared length exceeds the remaining buffer. The return value at line 113 is therefore at most the bytes available.
+- **Iterator**: `coap_option_next` only advances by the parser's return value, which is bounded as above. `opt_finished` short-circuits before dereferencing `next_option` when `length == 0`.
+
+The strongest remaining lead is the delta/length width in `coap_option_t`, which I did not read. If `length` were truncated, the returned size could be smaller than the true option, leaving the iterator misaligned, but it would not extend past the buffer. Reviewing that struct and the callers of `coap_option_next` would be the next step if more budget were available.

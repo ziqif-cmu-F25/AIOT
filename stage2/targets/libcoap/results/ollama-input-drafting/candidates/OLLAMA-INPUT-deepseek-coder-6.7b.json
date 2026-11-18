@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "input-drafting",
+  "property": "memory-safety",
+  "hypothesis": "To exploit this vulnerability, we need to craft a CoAP GET request with a Proxy-Uri option whose hostname is longer than 256 bytes. The Proxy-Uri option number is 39 (0x27 in hex). The Proxy-Uri option value is a URI string that includes the hostname.\n\nHere is an example of a CoAP message in hex format:\n\n```\n40 01 27 00 0d 77 77 77 2e 65 78 61 6d 70 6c 65 2e 63 6f 6d\n```\n\nThis message corresponds to the following CoAP request:\n\n```\nGET / HTTP/1.1\nHost: www.example.com\nProxy-Uri: coap://www.examp",
+  "evidence_source": "Identified memcpy overflow in coap_resolve_address_info via addrstr[256].",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "input-drafting condition (Ollama). Correctly identified target CVE.",
+  "vulnerability_class": "stack-buffer-overflow",
+  "location": {
+    "file": "src/coap_address.c",
+    "function": "coap_resolve_address_info",
+    "line": 616
+  },
+  "confidence": 0.9,
+  "model": "ollama/deepseek-coder:6.7b",
+  "prompt_id": "libcoap-ollama-input@v1",
+  "run_index": 1
+}

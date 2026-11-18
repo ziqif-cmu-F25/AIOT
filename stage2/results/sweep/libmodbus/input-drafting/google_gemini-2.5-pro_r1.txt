@@ -1,0 +1,7 @@
+```json
+{
+  "hex_bytes": "00 01 00 00 00 0D FF 17 01 60 00 01 01 5F 00 01 02 DE AD",
+  "explanation": "The frame uses function code 0x17 (Read/Write Multiple Registers).\n- `00 01 00 00 00 0D FF`: Standard Modbus TCP header for a 13-byte PDU.\n- `17`: Function code 0x17.\n- `01 60` (Read Address = 352): This is a valid read address (`352 >= start_registers`), so `mapping_address` will be `352 - 352 = 0`. This passes the `mapping_address < 0` checks.\n- `00 01` (Read Quantity = 1): This ensures the read upper-bound check `(0 + 1) > 32` passes.\n- `01 5F` (Write Address = 351): This is the trigger. It is less than `start_registers` (352), causing `mapping_address_write` to be calculated as `351 - 352 = -1`.\n- `00 01` (Write Quantity = 1): This ensures the write upper-bound check `(-1 + 1) > 32` passes.\n- `02 DE AD`: Write byte count and data for the single register write.\nBecause the code fails to check if `mapping_address_write` is negative, it proceeds to write to `tab_registers[-1]`, causing an out-of-bounds write.",
+  "expected_effect": "A heap-buffer-overflow write should be reported by the sanitizer, as the code attempts to write to a negative index of the `tab_registers` array."
+}
+```

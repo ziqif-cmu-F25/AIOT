@@ -1,0 +1,14 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libcoap/src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 536
+    },
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "A remote client can send a Proxy-Uri with an overly long host component (>256 bytes). The proxy parses it into server_use->uri.host and then calls coap_resolve_address_info(&server_use->uri.host,...). coap_resolve_address_info blindly memcpy()s address->length bytes into a fixed 256-byte stack buffer addrstr, overflowing it and corrupting the stack.",
+    "evidence": "In coap_resolve_address_info:\n  static char addrstr[256];\n  ...\n  memset(addrstr, 0, sizeof(addrstr));\n  if (address && address->length)\n    memcpy(addrstr, address->s, address->length);\n\nNo bounds check on address->length vs sizeof(addrstr).\nSource of address->length is network-controlled via Proxy-Uri. In coap_pdu.c option validation allows Proxy-Uri up to 1034 bytes:\n  case COAP_OPTION_PROXY_URI:\n    if (len < 1 || len > 1034) res = 0;\nAnd coap_uri.c’s coap_split_proxy_uri() populates uri.host without clamping its length:\n  COAP_SET_STR(&uri->host, q - p, p);\nHence, address->length can exceed 256, causing stack overflow when memcpy() is called.",
+    "confidence": 0.95
+  }
+]

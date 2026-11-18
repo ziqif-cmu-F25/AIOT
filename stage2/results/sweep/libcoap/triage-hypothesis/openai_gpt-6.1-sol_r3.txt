@@ -1,0 +1,41 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "<not provided>",
+      "function": "coap_resolve_address_info",
+      "line": 538
+    },
+    "bug_class": "buffer-overflow",
+    "hypothesis": "The unchecked address->length permits memcpy to write beyond the 256-byte static addrstr buffer when a non-Unix-domain address contains more than 256 bytes.",
+    "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "The non-RIOT, non-Contiki branch receives an address that bypasses the Unix-domain branch, with address->length >= 257 and address->s pointing to that many readable, attacker-controlled bytes.",
+    "confidence": 1.0
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "<not provided>",
+      "function": "coap_resolve_address_info",
+      "line": 547
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "An exactly 256-byte address without embedded NUL bytes overwrites every zero in addrstr, causing getaddrinfo to consume an unterminated string and potentially read beyond the static buffer.",
+    "vulnerable_line": "error = getaddrinfo(addrstr, NULL, &hints, &res);",
+    "trigger_condition": "The non-RIOT, non-Contiki branch receives a non-Unix-domain address with address->length == 256 and no NUL byte among the copied bytes, leaving no terminator within addrstr.",
+    "confidence": 0.98
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "<not provided>",
+      "function": "coap_resolve_address_info",
+      "line": 683
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "The RIOT error log formats the length-delimited address->s with unbounded %s, reading beyond its allocation if an invalid address has no terminating NUL.",
+    "vulnerable_line": "coap_log_err(\"coap_resolve_address_info: Unable to parse '%s'\\n\", address->s);",
+    "trigger_condition": "In a RIOT build with error logging enabled, a nonempty, non-NUL-terminated address occupies its entire backing allocation and fails the enabled address parsers, leaving family == AF_UNSPEC.",
+    "confidence": 0.96
+  }
+]

@@ -1,0 +1,14 @@
+```json
+{
+  "training_cutoff": "2023-04",
+  "known_cves": [
+    {
+      "cve": "CVE-2022-44900",
+      "file_function": "mg_http_parse",
+      "bug_class": "Heap-based buffer overflow",
+      "recall_confidence": 0.9
+    }
+  ],
+  "notes": "The query specified the year 2026, which is in the future. I have answered based on the version constraint (on or before 7.21) and my training data, assuming the year was an error. The recalled vulnerability affects versions up to 7.7, which is before 7.21."
+}
+```

@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "A Write/Read Multiple Registers request whose write address is below mb_mapping->start_registers can bypass the address validation and write before tab_registers. The condition mistakenly tests mapping_address twice instead of testing mapping_address_write < 0.",
+  "evidence_source": "mapping_address_write is computed as address_write - mb_mapping->start_registers at line 953, but the range condition at lines 962-965 repeats `mapping_address < 0`. If mapping_address_write is negative while the read range is valid and `(mapping_address_write + nb_write)` is not above the mapping size, execution reaches the loop at lines 978-982 and indexes `tab_registers[i]` with a negative i.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "A crafted function 0x17 request against a mapping with a nonzero start_registers can cause a heap-buffer-underflow write, producing memory corruption, a crash, or an AddressSanitizer heap-buffer-overflow report at line 980.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "The third predicate should be `mapping_address_write < 0`. The request must otherwise contain valid read/write quantities and byte count, and a valid read address.",
+  "vulnerability_class": "buffer-overflow",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 964
+  },
+  "confidence": 0.99,
+  "model": "openai/gpt-5.6-sol",
+  "prompt_id": "libmodbus-0367-source-review@v1",
+  "run_index": 2
+}

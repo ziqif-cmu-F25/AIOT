@@ -1,0 +1,21 @@
+{
+  "rank": 1,
+  "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+  "explanation": "The 3-byte heap buffer is ASCII \"ab\\r\". skip_chunk allows len==3, then the hex loop consumes i==2 digits and stops on '\\r'. The guard is `len < i + 1` (3 < 3), which is false, so it is enough only for buf[i]. Because buf[2]=='\\r', C then evaluates `buf[i + 1]` (buf[3]) — a 1-byte read exactly at the end of the 3-byte region. The check never requires room for the LF of the chunk-size CRLF.",
+  "fix": "if (len < i + 2 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+  "confidence": 0.95
+}
+{
+  "rank": 2,
+  "root_cause": {"file": "mongoose/src/http.c", "function": "skiptorn", "line": 231},
+  "explanation": "Same 3-byte \"ab\\r\" pattern: the loop stops with s on the final '\\r' (s < end). The stray-CR test then does `s[0]=='\\r' && s[1] != '\\n'`, reading s[1] one byte past end. mg_http_parse never reaches this on this input (get_request_len returns 0), so it does not match the chunk oracle as well.",
+  "fix": "if (s >= end || (s[0] == '\\r' && (s + 1 >= end || s[1] != '\\n'))) return NULL;",
+  "confidence": 0.25
+}
+{
+  "rank": 3,
+  "root_cause": {"file": "mongoose/src/http.c", "function": "mg_http_parse_headers", "line": 245},
+  "explanation": "After only `s >= end`, the blank-line test `s[0]=='\\r' && s[1]=='\\n'` can read one past a buffer that ends on CR. Not reachable from the given 3-byte chunk input.",
+  "fix": "if (s[0] == '\\n' || (s + 1 < end && s[0] == '\\r' && s[1] == '\\n')) break;",
+  "confidence": 0.1
+}

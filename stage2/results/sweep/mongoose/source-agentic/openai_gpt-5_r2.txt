@@ -1,0 +1,2 @@
+HYPOTHESIS: The chunked transfer-encoding parser skip_chunk has an off-by-one boundary check that can read past the end of the receive buffer when only a single byte of the CRLF is present. I will confirm surrounding context and then prepare the final report. 
+FINAL

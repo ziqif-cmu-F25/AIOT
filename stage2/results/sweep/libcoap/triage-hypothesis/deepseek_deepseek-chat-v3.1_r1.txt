@@ -1,0 +1,27 @@
+```json
+[{
+  "rank": 1,
+  "location": {"file": "coap_resolve.c", "function": "coap_resolve_address_info", "line": 538},
+  "bug_class": "buffer-overflow",
+  "hypothesis": "A buffer overflow occurs when copying untrusted network input into a fixed-size stack buffer without proper bounds checking.",
+  "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+  "trigger_condition": "When address->length >= 256, the memcpy operation will write beyond the bounds of the 256-byte addrstr buffer.",
+  "confidence": 0.9
+}, {
+  "rank": 2,
+  "location": {"file": "coap_resolve.c", "function": "coap_resolve_address_info", "line": 509},
+  "bug_class": "buffer-overflow",
+  "hypothesis": "A buffer overflow occurs in the Unix domain path handling when copying an overly long path string.",
+  "vulnerable_line": "if (address->length >= COAP_UNIX_PATH_MAX)",
+  "trigger_condition": "When address->length >= COAP_UNIX_PATH_MAX, the subsequent coap_address_set_unix_domain() call may overflow the destination buffer.",
+  "confidence": 0.7
+}, {
+  "rank": 3,
+  "location": {"file": "coap_resolve.c", "function": "coap_resolve_address_info", "line": 576},
+  "bug_class": "oob-read",
+  "hypothesis": "An out-of-bounds read occurs when copying address information from getaddrinfo() results without proper validation.",
+  "vulnerable_line": "memcpy(&info->addr.addr, ainfo->ai_addr, ainfo->ai_addrlen);",
+  "trigger_condition": "When ainfo->ai_addrlen exceeds the size of info->addr.addr, the memcpy reads beyond the bounds of ainfo->ai_addr.",
+  "confidence": 0.6
+}]
+```

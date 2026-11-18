@@ -1,0 +1,19 @@
+You are performing a white-box security review of {TARGET}, {PROTOCOL}.
+Untrusted input arrives from the network.
+
+Below is the source file(s). Find the memory-safety vulnerability and report it.
+Do NOT assume a particular bug class in advance. Give a ranked list of up to {K}
+candidates, best first:
+[{
+  "rank": <n>,
+  "location": {"file": "...", "function": "...", "line": <n>},
+  "vulnerability_class": "<oob-read|oob-write|buffer-overflow|integer-overflow|use-after-free|other>",
+  "hypothesis": "<what input causes what memory error, and why>",
+  "evidence": "<the exact code you rely on>",
+  "confidence": <0.0-1.0>
+}]
+
+<<<SOURCE>>>
+{SOURCE}
+
+Do not use web search. Work only from the code provided.

@@ -1,0 +1,15 @@
+FINAL
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "mongoose/src/http.c",
+      "function": "skip_chunk",
+      "line": 1011
+    },
+    "vulnerability_class": "integer-overflow",
+    "hypothesis": "When parsing chunked transfer encoding, a malicious chunk size header with value close to INT_MAX (e.g., 0x7FFFFFFF) causes integer overflow in the expression 'i + n + 3' where n is the chunk size and i is the hex digit count. This overflow bypasses the bounds check at line 1010 and leads to out-of-bounds read when accessing buf[i + n + 2] and buf[i + n + 3].",
+    "evidence": "static int skip_chunk(const char *buf, int len, int *pl, int *dl) {\n  int i = 0, n = 0;\n  // ...\n  if (mg_str_to_num(mg_str_n(buf, (size_t) i), 16, &n, sizeof(int)) == false)\n    return -1;\n  if (n > len - i - 4) return 0;  // Chunk not yet fully buffered\n  if (buf[i + n + 2] != '\\r' || buf[i + n + 3] != '\\n') return -1;  // Error\n}",
+    "confidence": 0.9
+  }
+]

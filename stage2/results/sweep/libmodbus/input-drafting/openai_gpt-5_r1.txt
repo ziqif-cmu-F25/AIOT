@@ -1,0 +1,5 @@
+{
+  "hex_bytes": "00 01 00 00 00 0D 01 17 01 60 00 01 01 5F 00 01 02 DE AD",
+  "explanation": "MBAP: 00 01 (TID) 00 00 (PID) 00 0D (Length=13) 01 (Unit ID). PDU (0x17 Read/Write Multiple Registers): 17 (function) 01 60 (read start=0x0160=352) 00 01 (read qty=1) 01 5F (write start=0x015F=351) 00 01 (write qty=1) 02 (byte count=2) DE AD (one register value). Read part is within [352..383]: mapping_address=352-352=0, 0+1<=32 passes. Write start=351 makes mapping_address_write=351-352=-1; due to the bug, the negative check is skipped. Upper-bound check uses -1+1=0<=32, so it also passes. The handler then enters the write loop with i starting at -1.",
+  "expected_effect": "Out-of-bounds write below the start of holding registers: tab_registers[-1] is written in function 0x17 write loop (negative index from mapping_address_write)."
+}

@@ -1,0 +1,23 @@
+{
+  "rank": 1,
+  "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 980},
+  "explanation": "The ASan report shows a SEGV on a WRITE memory access at line 980 in modbus_reply. At line 980, the code writes to mb_mapping->tab_registers[i] where 'i' is calculated as mapping_address_write + j. The issue occurs because mapping_address_write is negative due to insufficient validation. In the WRITE_AND_READ_REGISTERS case (line 947), the code checks if mapping_address_write is negative at line 964, but the condition is flawed: it checks mapping_address < 0 twice (redundant) and does not correctly validate mapping_address_write. If address_write (from the request) is less than mb_mapping->start_registers, mapping_address_write becomes negative, leading to an out-of-bounds write.",
+  "fix": "Correct the condition at line 964 to check mapping_address_write instead of mapping_address twice. Change: 'if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers)' to 'if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address_write < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers)'.",
+  "confidence": 0.95
+}
+
+{
+  "rank": 2,
+  "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 964},
+  "explanation": "The condition at line 964 checks for illegal data addresses in the WRITE_AND_READ_REGISTERS case. However, it has a redundant check for mapping_address (twice) and does not check mapping_address_write correctly. This allows a negative mapping_address_write to pass the check, leading to an out-of-bounds write at line 980.",
+  "fix": "Replace the redundant mapping_address check with a check for mapping_address_write: 'if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address_write < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers)'.",
+  "confidence": 0.90
+}
+
+{
+  "rank": 3,
+  "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 955},
+  "explanation": "The WRITE_AND_READ_REGISTERS case does not validate the address_write value from the request before computing mapping_address_write. If address_write is less than start_registers, mapping_address_write becomes negative, which is not caught by the subsequent condition due to the redundant check.",
+  "fix": "Add a check to ensure address_write is within valid range before computing mapping_address_write, or ensure the condition at line 964 correctly checks both addresses.",
+  "confidence": 0.80
+}

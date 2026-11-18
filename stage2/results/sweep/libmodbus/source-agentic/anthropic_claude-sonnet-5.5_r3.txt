@@ -1,0 +1,22 @@
+FINAL
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 962},
+    "vulnerability_class": "oob-write",
+    "hypothesis": "In the MODBUS_FC_WRITE_AND_READ_REGISTERS case, the lower-bound check is applied to the wrong variable. `mapping_address < 0` appears twice, and `mapping_address_write < 0` is never checked. When the mapping has a non-zero start_registers, a client can send a write address (`address_write`, bytes 5-6 of the request) below start_registers. This makes `mapping_address_write = address_write - start_registers` negative. The upper-bound check `(mapping_address_write + nb_write) > nb_registers` still passes because the negative value is small. The write loop then runs `mb_mapping->tab_registers[i] = ...` with a negative `i`, writing attacker-controlled 16-bit values up to 2*nb_write bytes before the start of tab_registers. nb_write can be up to 121, so this is a heap out-of-bounds write with attacker-controlled data. The read side uses `mapping_address`, which is correctly checked.",
+    "evidence": "} else if (mapping_address < 0 ||\n           (mapping_address + nb) > mb_mapping->nb_registers ||\n           mapping_address < 0 ||\n           (mapping_address_write + nb_write) > mb_mapping->nb_registers) {  ...  for (i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; i++, j += 2) { mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1]; }",
+    "confidence": 0.85
+  },
+  {
+    "rank": 2,
+    "location": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 862},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "In the write-multiple-coils and write-multiple-registers cases, the code never compares the declared byte count or nb against the number of bytes actually received (req_length). A truncated request could cause modbus_set_bits_from_bytes or the register loop to read past the received data. The reads stay inside the fixed 260-byte req buffer, so this is mostly stale-data use rather than a true out-of-bounds read. I did not read the length-computation code in modbus_receive to confirm. Confidence is low.",
+    "evidence": "modbus_set_bits_from_bytes(mb_mapping->tab_bits, mapping_address, nb, &req[offset + 6]); with checks only `nb_bits * 8 < nb`, and no check against req_length",
+    "confidence": 0.15
+  }
+]
+```

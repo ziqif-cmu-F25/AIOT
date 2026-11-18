@@ -1,0 +1,30 @@
+**Most likely issue:** an off-by-one out-of-bounds read in `skip_chunk`. I could not confirm a clear-cut overflow elsewhere, so confidence is moderate. Candidates 2 and 3 are weaker.
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "A chunked request whose buffered body ends right after the hex length and a '\\r' (for example the body bytes \"12\\r\") makes i == len-1. The guard `len < i + 1` passes and buf[i] == '\\r' passes. The code then reads buf[i + 1], which is buf[len], one byte past the received data. The bound should be `len < i + 2`. The attacker fully controls the chunk header, and skip_chunk runs on every READ event for chunked bodies.",
+    "evidence": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // Error",
+    "confidence": 0.5
+  },
+  {
+    "rank": 2,
+    "location": {"file": "mongoose/src/http.c", "function": "http_cb", "line": 1072},
+    "vulnerability_class": "integer-overflow",
+    "hypothesis": "A POST or PUT request with no Content-Length and no Transfer-Encoding goes through this branch, where `ofs += n` runs. Execution then reaches the non-chunked branch. There `len = c->recv.len - ofs - n` subtracts the header length a second time, which can wrap to a huge size_t, and `ofs += n + body.len` advances again. ofs can then exceed recv.len, giving a wrong (past-the-end) buffer position for later parsing and for mg_iobuf_del.",
+    "evidence": "ofs += (size_t) n;  // this request has been processed ... size_t len = c->recv.len - ofs - (size_t) n; ... ofs += (size_t) n + hm.body.len;",
+    "confidence": 0.25
+  },
+  {
+    "rank": 3,
+    "location": {"file": "mongoose/src/http.c", "function": "mg_http_next_multipart", "line": 90},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "Multipart parsing indexes s[b2 + 1] and calls memcmp at &s[b2 + 2] for b - ofs bytes. A crafted boundary or offset (ofs supplied by the caller) could push these reads beyond body.len if the bound arithmetic is mis-specified.",
+    "evidence": "while (b2 + 2 + (b - ofs) + 2 < max && !(s[b2] == '\\r' && s[b2 + 1] == '\\n' && memcmp(&s[b2 + 2], s, b - ofs) == 0))",
+    "confidence": 0.1
+  }
+]
+```

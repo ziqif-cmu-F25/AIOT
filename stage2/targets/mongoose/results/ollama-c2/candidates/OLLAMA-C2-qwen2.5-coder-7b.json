@@ -1,0 +1,21 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "crash-given",
+  "property": "memory-safety",
+  "hypothesis": "```json\n{\n  \"root_cause_line\": \"if (n > len - i - 4) return 0;\",\n  \"explanation\": \"The bounds check here is incorrect because it does not account for the fact that the chunk length (n) is already included in the length of the buffer (len). The check should be `if (n > len - i - 2) return 0;` to correctly account for the chunk length and the two trailing CRLF characters.\",\n  \"fix\": \"if (n > len - i - 2) return 0;\",\n  \"confidence\": 1.0\n}\n```",
+  "evidence_source": "```json\n{\n  \"root_cause_line\": \"if (n > len - i - 4) return 0;\",\n  \"explanation\": \"The bounds check here is incorrect because it does not account for the fact that the chunk length (n) is already included in the length of the buffer (len). The check should be `if (n > len - i - 2) return 0;` to corr",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "crash-given condition (Ollama). Did not clearly identify target CVE.",
+  "vulnerability_class": "unknown",
+  "location": {
+    "file": "src/http.c"
+  },
+  "confidence": 0.5,
+  "model": "ollama/qwen2.5-coder:7b",
+  "prompt_id": "mongoose-ollama-c2@v1",
+  "run_index": 1
+}

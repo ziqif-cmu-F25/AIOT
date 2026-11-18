@@ -1,0 +1,2 @@
+HYPOTHESIS: skip_chunk off-by-one: `len < i+1` should be `len < i+2`, causing a 1-byte heap OOB read of untrusted chunked bodies when the buffer ends with hex-size + CR.
+FINAL

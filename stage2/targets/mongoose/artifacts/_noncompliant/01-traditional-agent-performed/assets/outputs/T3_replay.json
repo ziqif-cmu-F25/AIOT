@@ -1,0 +1,15 @@
+{
+  "host": "target",
+  "port": 8000,
+  "request_len": 83,
+  "request_sha256": "ae26ad61c4581d341d8eaedd1542c745c75cd2826990610a4954f69cd1f4dfa3",
+  "timeout_s": 3.0,
+  "timed_out": false,
+  "connected": true,
+  "response_len": 0,
+  "response_sha256": "",
+  "response_preview": "",
+  "error": "",
+  "elapsed_s": 0.0019,
+  "replay_of": "/workspace/results/run-001/outputs/T3_chunk_incomplete_crlf.req"
+}

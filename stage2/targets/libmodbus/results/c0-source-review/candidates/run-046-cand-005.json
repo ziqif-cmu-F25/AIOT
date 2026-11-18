@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-005",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "In modbus_reply handling of WRITE_MULTIPLE_COILS, the code uses nb_bits (byte count) to process data starting at &req[offset+6] without verifying the request actually contains nb_bits bytes; this can cause an out-of-bounds read when modbus_set_bits_from_bytes dereferences past the end of req.",
+  "evidence_source": "Lines 841-869: nb = (req[offset+3]<<8)+..., nb_bits = req[offset+5]; ... modbus_set_bits_from_bytes(..., &req[offset + 6]); There is no check that req_length >= offset + 6 + nb_bits.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "With an underlength request (declaring a larger byte count than actually sent), the server will read past the end of the input buffer, causing a crash or sanitizer report.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "The code validates logical consistency (nb_bits*8 < nb) and mapping bounds but never validates actual buffer length before consuming nb_bits bytes.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 863
+  },
+  "confidence": 0.78,
+  "model": "openai/gpt-5",
+  "prompt_id": "libmodbus-0367-source-review@v1",
+  "run_index": 3
+}

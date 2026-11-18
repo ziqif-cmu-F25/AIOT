@@ -1,0 +1,21 @@
+run_id: run-049
+task_id: libmodbus-0367-source-review
+prompt_id: libmodbus-0367-source-review@v1
+model_requested: google/gemini-2.5-pro
+model_resolved:
+- google/gemini-2.5-pro
+scored_utc: '2026-11-04T08:31:42Z'
+run_verdict: rejected
+reason: no candidates reported (expected finding missed)
+expected:
+  file: modbus.c
+  function: modbus_reply
+  lines:
+  - 962
+  - 980
+  line_tolerance: 3
+  vulnerability_class: buffer-overflow
+ground_truth_file: stage2/scoring/ground_truth/libmodbus-0367-source-review.yaml
+ground_truth_sha256: 51560a163ea07d0903869fc39a5af295d0f4e5dd9a48a42ecc1aa53f31aebedb
+references: []
+candidates: []

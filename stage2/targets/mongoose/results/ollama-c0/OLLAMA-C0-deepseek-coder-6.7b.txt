@@ -1,0 +1,7 @@
+{
+  "hypothesis": "The function `skip_chunk()` can overflow the buffer size if the input length is larger than the size of an integer.",
+  "vulnerable_line": "if  (i > (int) sizeof(int) * 2) return -1;",
+  "bug_class": "buffer-overflow",
+  "trigger_condition": "When the input length is larger than the size of an integer",
+  "confidence": 0.9
+}

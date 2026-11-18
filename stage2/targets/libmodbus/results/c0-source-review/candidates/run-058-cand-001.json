@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "A function-0x17 or other address-less/unsupported request can cause modbus_reply to read two bytes beyond the received request because it unconditionally decodes an address before inspecting the function and never verifies req_length.",
+  "evidence_source": "After only checking ctx, modbus_reply executes address = (req[offset + 1] << 8) + req[offset + 2] at line 724. Address-less functions such as MODBUS_FC_REPORT_SLAVE_ID are parsed by compute_meta_length_after_function with zero metadata, so a received request need only extend through req[offset]. The supplied req_length is not checked before these reads.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "With an exactly sized request buffer, AddressSanitizer reports a heap- or stack-buffer-overflow read at line 724; otherwise the function reads uninitialized bytes beyond the logical request.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "The same missing request-length validation can expose additional function-specific reads when modbus_reply is called with a truncated request. Validation should occur before every fixed-field or payload access, using req_length after backend framing adjustment.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 724
+  },
+  "confidence": 0.84,
+  "model": "openai/gpt-5.6-sol",
+  "prompt_id": "libmodbus-0367-source-review@v1",
+  "run_index": 3
+}

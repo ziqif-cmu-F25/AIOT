@@ -1,0 +1,29 @@
+[
+  {
+    "rank": 1,
+    "location": {"file": "unknown", "function": "MODBUS_FC_WRITE_AND_READ_REGISTERS handler", "line": 980},
+    "bug_class": "oob-write",
+    "hypothesis": "Missing check for negative mapping_address_write allows i to start negative, causing writes before mb_mapping->tab_registers when processing the write loop.",
+    "vulnerable_line": "mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];",
+    "trigger_condition": "address_write < mb_mapping->start_registers (so mapping_address_write < 0), while (mapping_address + nb) <= mb_mapping->nb_registers and (mapping_address_write + nb_write) <= mb_mapping->nb_registers and 1 <= nb_write <= MODBUS_MAX_WR_WRITE_REGISTERS and 1 <= nb <= MODBUS_MAX_WR_READ_REGISTERS and nb_write_bytes == nb_write*2; e.g., mapping_address_write = -1, nb_write = 1 passes the checks and writes to tab_registers[-1].",
+    "confidence": 0.92
+  },
+  {
+    "rank": 2,
+    "location": {"file": "unknown", "function": "MODBUS_FC_WRITE_AND_READ_REGISTERS handler", "line": 981},
+    "bug_class": "oob-read",
+    "hypothesis": "The write loop reads req[offset + j] and req[offset + j + 1] without verifying the request buffer is at least 10 + 2*nb_write bytes long, allowing an out-of-bounds read on truncated packets.",
+    "vulnerable_line": "(req[offset + j] << 8) + req[offset + j + 1]",
+    "trigger_condition": "A packet with nb_write_bytes == nb_write*2 but whose actual buffer length < offset + 10 + 2*nb_write (e.g., network truncation) reaches the loop for j=10..(10+2*nb_write-2).",
+    "confidence": 0.63
+  },
+  {
+    "rank": 3,
+    "location": {"file": "unknown", "function": "MODBUS_FC_WRITE_AND_READ_REGISTERS handler", "line": 948},
+    "bug_class": "oob-read",
+    "hypothesis": "Header fields are read from req at fixed offsets without any prior length check, enabling out-of-bounds reads if the request is shorter than offset+10 bytes.",
+    "vulnerable_line": "int nb = (req[offset + 3] << 8) + req[offset + 4]; ... nb_write_bytes = req[offset + 9];",
+    "trigger_condition": "The received request buffer length is < offset + 10, so accessing req[offset+3..9] reads past the end of the buffer.",
+    "confidence": 0.5
+  }
+]

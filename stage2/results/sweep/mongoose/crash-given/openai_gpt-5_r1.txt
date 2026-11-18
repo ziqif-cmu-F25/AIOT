@@ -1,0 +1,35 @@
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "mongoose/src/http.c",
+      "function": "skip_chunk",
+      "line": 1008
+    },
+    "explanation": "When parsing the chunk-size line, after consuming hex digits (count i), the code checks `if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n')` before reading `buf[i+1]`. This check is off by one: it allows `len == i + 1`, in which case `buf[i+1]` reads one byte past the end. With input \"ab\\r\" (len=3, i=2), the code reads `buf[3]` out of bounds.",
+    "fix": "Require two bytes for CRLF before accessing them, and treat insufficient data as 'need more':\n- Replace `if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;`\n- With:\n  `if (len < i + 2) return 0;  // not enough buffered for CRLF yet`\n  `if (buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;`",
+    "confidence": 0.98
+  },
+  {
+    "rank": 2,
+    "root_cause": {
+      "file": "mongoose/src/http.c",
+      "function": "skiptorn",
+      "line": 231
+    },
+    "explanation": "The stray-CR check `if (s >= end || (s[0] == '\\r' && s[1] != '\\n')) return NULL;` can read `s[1]` when `s == end - 1` and `*s == '\\r'` (e.g., buffer ends with a lone CR). This also causes a 1-byte read past the end.",
+    "fix": "Guard the access to s[1]:\n- Split the check: `if (s >= end) return NULL;`\n- Then: `if (s[0] == '\\r') { if (s + 1 >= end || s[1] != '\\n') return NULL; }`",
+    "confidence": 0.7
+  },
+  {
+    "rank": 3,
+    "root_cause": {
+      "file": "mongoose/src/http.c",
+      "function": "mg_http_parse_headers",
+      "line": 246
+    },
+    "explanation": "After `if (s >= end) return false;`, the code does `if (s[0] == '\\n' || (s[0] == '\\r' && s[1] == '\\n')) ...` which can read `s[1]` when `s == end - 1`. A header block ending with a lone CR at the buffer end triggers an out-of-bounds read.",
+    "fix": "Avoid reading s[1] unless it is in-bounds:\n- Use: `if (s[0] == '\\n') break; if (s[0] == '\\r') { if (s + 1 >= end) return false; if (s[1] == '\\n') break; }`",
+    "confidence": 0.6
+  }
+]

@@ -1,0 +1,28 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "The bounds check on the chunk-size line is off by one. It tests `len < i + 1` but then reads `buf[i + 1]`. A remote client sends `Transfer-Encoding: chunked` and a chunk header whose buffered data ends exactly after the `\\r` that follows the hex digits (for example `...\\r\\n\\r\\n3\\r` with len == i + 1). `buf[i]` is `\\r`, so the check proceeds to read `buf[i + 1]`, which is one byte past the buffered data. If `c->recv.len` equals `c->recv.size` at that point, this reads one byte beyond the heap buffer. The result is a 1-byte out-of-bounds heap read. The byte is only compared with `\\n`, so it is not directly leaked, but it can crash under ASAN or a guarded allocator. The same unchecked read can also take stale or uninitialised bytes from the buffer tail and use them in the parse decision.",
+    "evidence": "if (len < 3) return 0;\nwhile (i < len && is_hex_digit(buf[i])) i++;\n...\nif (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // should be len < i + 2",
+    "confidence": 0.5
+  },
+  {
+    "rank": 2,
+    "location": {"file": "mongoose/src/http.c", "function": "mg_http_next_multipart", "line": 70},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "The scan loops for the boundary and header ends use `&&` where `||` is needed. `s[b] != '\\r' && s[b+1] != '\\n'` stops at any single `\\r` or `\\n`, so parsing positions are wrong for crafted multipart bodies. Later offsets such as `h2 + 2`, `b2` and the `memcmp(&s[b2+2], s, b-ofs)` use these wrong positions. The memcmp compares against `s` rather than `s + ofs`. The loop conditions keep most reads in range, so this is likely only a logic error or a small over-read.",
+    "evidence": "while (b + 2 < max && s[b] != '\\r' && s[b + 1] != '\\n') b++;\n...\nmemcmp(&s[b2 + 2], s, b - ofs) == 0",
+    "confidence": 0.15
+  },
+  {
+    "rank": 3,
+    "location": {"file": "mongoose/src/http.c", "function": "mg_http_creds", "line": 911},
+    "vulnerability_class": "other",
+    "hypothesis": "The `%.*s` precision argument is passed as a `ptrdiff_t` (`p - buf`) at line 911 and as a `size_t` at line 912. The format expects an `int`, so this is a vararg type mismatch. On 64-bit builds the value is probably still read correctly. On some ABIs or custom printf implementations the precision could be misread. The decoded buffer is only 256 bytes, so the practical impact is limited.",
+    "evidence": "mg_snprintf(user, userlen, \"%.*s\", p - buf, buf);\nmg_snprintf(pass, passlen, \"%.*s\", n - (size_t) (p - buf) - 1, p + 1);",
+    "confidence": 0.1
+  }
+]
+```

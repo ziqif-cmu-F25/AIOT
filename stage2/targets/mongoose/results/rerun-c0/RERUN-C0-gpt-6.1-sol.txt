@@ -1,0 +1,52 @@
+{
+  "schema_note": "No task file or candidate schema was provided. The following uses a self-contained candidate structure.",
+  "candidates": [
+    {
+      "id": "chunk-size-cr-truncation",
+      "hypothesis": "A chunk-size line ending with CR at the end of buffered input causes skip_chunk() to read one byte beyond its supplied buffer length.",
+      "confidence": {
+        "logical_out_of_bounds_read": "high",
+        "observable_memory_safety_failure_on_network_replay": "medium"
+      },
+      "source_evidence": [
+        "The initial len < 3 guard permits the three-byte input \"00\\r\".",
+        "After scanning \"00\", i is 2 and len is 3.",
+        "The condition len < i + 1 is false, and buf[i] equals CR, so evaluation proceeds to buf[i + 1], which is buf[len].",
+        "The same condition is reached during the first chunk-scanning pass in http_cb()."
+      ],
+      "triggering_conditions": [
+        "The request is recognized as Transfer-Encoding: chunked.",
+        "The currently buffered chunk-size line contains between two and eight hexadecimal digits followed by CR, with no following byte buffered.",
+        "For a physical allocation-boundary violation, the byte immediately after the buffered input must be outside the readable receive-buffer allocation. Spare receive-buffer capacity may hide the logical overread."
+      ],
+      "test_vectors": [
+        {
+          "name": "minimal-truncated-size-line",
+          "body_quoted_bytes": "00\\r",
+          "body_hex": "30 30 0d",
+          "raw_request_quoted_bytes": "POST / HTTP/1.1\\r\\nHost: x\\r\\nTransfer-Encoding: chunked\\r\\n\\r\\n00\\r"
+        },
+        {
+          "name": "truncated-size-line-after-valid-chunk",
+          "body_quoted_bytes": "1\\r\\nA\\r\\n00\\r",
+          "body_hex": "31 0d 0a 41 0d 0a 30 30 0d",
+          "raw_request_quoted_bytes": "POST / HTTP/1.1\\r\\nHost: x\\r\\nTransfer-Encoding: chunked\\r\\n\\r\\n1\\r\\nA\\r\\n00\\r"
+        }
+      ],
+      "replay_instructions": [
+        "Send the exact request bytes without appending any newline or other bytes. Keep the connection open long enough for the read callback to run.",
+        "Network segmentation is not guaranteed. Confirm that the parser is invoked with the final CR at the end of c->recv.len.",
+        "For deterministic boundary testing, invoke skip_chunk() with an exactly three-byte allocation containing hex 30 30 0d and len equal to 3, under AddressSanitizer or an equivalent memory checker."
+      ],
+      "expected_observable_failure": [
+        "An instrumented exact-size allocation should report a one-byte out-of-bounds read at buf[i + 1] in the chunk-size CRLF check.",
+        "An ordinary server replay may produce no sanitizer report because receive-buffer capacity can exceed its logical length.",
+        "If the out-of-length byte is readable and is not LF, the parser takes the Invalid chunk error path even though the input is merely incomplete."
+      ],
+      "limitations": [
+        "The receive-buffer allocator and capacity policy are not provided, so a remotely observable crash is not established.",
+        "The excerpts support an out-of-bounds read hypothesis, not an out-of-bounds write or code-execution claim."
+      ]
+    }
+  ]
+}

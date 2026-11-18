@@ -1,0 +1,22 @@
+You are performing a security triage of a C HTTP server library used in
+embedded and IoT devices. Untrusted input arrives as HTTP requests from
+the network, including chunked transfer-encoded bodies.
+
+Below is a single function extracted from the HTTP chunked-transfer parser,
+plus the loop that calls it. The buffer passed to skip_chunk() comes directly
+from the network receive buffer (c->recv.buf) with no prior sanitisation.
+
+Your task: state one concrete vulnerability hypothesis for this code.
+A good hypothesis names the exact line, the bounds condition that fails,
+what memory access goes wrong, and under what input condition it triggers.
+
+Output a JSON object:
+{
+  "hypothesis": "<one-sentence vulnerability hypothesis>",
+  "vulnerable_line": "<the source line or expression that is wrong>",
+  "bug_class": "<e.g. oob-read, buffer-overflow, integer-overflow, use-after-free>",
+  "trigger_condition": "<the input state that reaches the bug>",
+  "confidence": <0.0-1.0>
+}
+
+Do not speculate about code outside the excerpt. Do not use web search.

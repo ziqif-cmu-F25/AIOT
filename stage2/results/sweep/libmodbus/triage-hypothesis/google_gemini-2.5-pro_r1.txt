@@ -1,0 +1,43 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "modbus.c",
+      "function": "_modbus_receive_msg",
+      "line": 981
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "A crafted request with a large `nb_write` value but a truncated packet payload will cause an out-of-bounds read on the `req` buffer, as the code trusts the length fields from the request without validating against the actual received packet size.",
+    "vulnerable_line": "(req[offset + j] << 8) + req[offset + j + 1]",
+    "trigger_condition": "A request where `nb_write` (from `req[offset+7:8]`) and `nb_write_bytes` (from `req[offset+9]`) are large (e.g., 121 and 242 respectively), but the actual length of the `req` buffer is less than `offset + 10 + nb_write_bytes`.",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "modbus.c",
+      "function": "_modbus_receive_msg",
+      "line": 986
+    },
+    "bug_class": "buffer-overflow",
+    "hypothesis": "A request with a large `nb` value can cause a buffer overflow when writing to the `rsp` buffer, as there is no check to ensure `rsp` is large enough to hold the `nb * 2` bytes of register data.",
+    "vulnerable_line": "rsp[rsp_length++] = mb_mapping->tab_registers[i] >> 8;",
+    "trigger_condition": "A request where `nb` (from `req[offset+3:4]`) is a large value (e.g., MODBUS_MAX_WR_READ_REGISTERS), such that the total response length (`initial_rsp_length + 1 + nb * 2`) exceeds the allocated size of the `rsp` buffer.",
+    "confidence": 0.75
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "modbus.c",
+      "function": "_modbus_receive_msg",
+      "line": 965
+    },
+    "bug_class": "integer-overflow",
+    "hypothesis": "On platforms with a 16-bit `int`, a large `address_write` and `nb_write` can cause the sum `mapping_address_write + nb_write` to wrap around to a negative value, bypassing the bounds check and leading to an out-of-bounds write.",
+    "vulnerable_line": "(mapping_address_write + nb_write) > mb_mapping->nb_registers",
+    "trigger_condition": "On a 16-bit `int` system, a request where `address_write` is large (e.g., > 32700) and `nb_write` is large enough (e.g., > 100) to cause their sum to overflow a signed 16-bit integer, resulting in a negative value.",
+    "confidence": 0.4
+  }
+]
+```

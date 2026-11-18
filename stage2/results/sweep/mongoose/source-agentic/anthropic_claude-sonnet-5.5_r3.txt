@@ -1,0 +1,22 @@
+FINAL
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "The bounds check before reading buf[i + 1] is off by one. If the buffered data ends exactly with the hex digits followed by '\\r' (for example \"1a\\r\" with len == i + 1), the check `len < i + 1` is false, so buf[i] is read in bounds. buf[i + 1] is then read one byte past the supplied length, i.e. past c->recv.len. When recv.len equals recv.size, this is a heap over-read of one byte. The byte is only compared against '\\n', so the impact is small (a one-byte read past the end of the buffer, no direct leak). The check should be `len < i + 2`.",
+    "evidence": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "confidence": 0.4
+  },
+  {
+    "rank": 2,
+    "location": {"file": "mongoose/src/http.c", "function": "http_cb", "line": 1072},
+    "vulnerability_class": "integer-overflow",
+    "hypothesis": "For a POST or PUT request with no Content-Length or Transfer-Encoding, `ofs += n` is applied at line 1072. The non-chunked path then adds `n + hm.body.len` again at line 1111. `ofs` is therefore double-counted and can exceed recv.len. The loop condition `ofs < c->recv.len` and the clamping in mg_iobuf_del (lines 57-58) appear to stop this from becoming an out-of-bounds access. I did not find a memory error here. The result is mostly a logic bug that can skip or discard pipelined data.",
+    "evidence": "ofs += (size_t) n;  // this request has been processed ... later: ofs += (size_t) n + hm.body.len;",
+    "confidence": 0.15
+  }
+]
+```

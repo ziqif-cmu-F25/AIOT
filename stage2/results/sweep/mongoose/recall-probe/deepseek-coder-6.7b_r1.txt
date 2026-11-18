@@ -1,0 +1,5 @@
+{
+  "training_cutoff": "unknown",
+  "known_cves": [],
+  "notes": "I don't have any information about the training data cutoff date or about any publicly disclosed memory-safety vulnerabilities in Mongoose affecting versions on or before 7.21 (2026). I am unable to recall any public advisories or guess about the confidence in recalling them."
+}

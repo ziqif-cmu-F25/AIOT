@@ -1,0 +1,49 @@
+CANDIDATES (ranked, most likely first):
+
+**1. src/coap_address.c / coap_resolve_address_info() / approx line 400 (the `memcpy(addrstr, ...)` after `memset(addrstr, 0, sizeof(addrstr))`)**
+- **Bug class:** Static-buffer (BSS) overflow caused by a missing length check.
+- **Reasoning:**
+  ```c
+  static char addrstr[256];
+  ...
+  if (address && address->length)
+    memcpy(addrstr, address->s, address->length);
+  ```
+  - There is no `address->length < sizeof(addrstr)` check.
+  - The only length check in this function is the AF_UNIX one (`>= COAP_UNIX_PATH_MAX`), which is skipped for ordinary hostnames.
+  - A length of exactly 256 also leaves `addrstr` unterminated, so `getaddrinfo()` reads past the buffer.
+- **Data flow:**
+  1. A proxy server running a `*_STRIP` type receives a request containing a Proxy-Uri option.
+  2. `coap_proxy_get_session()` calls `coap_split_proxy_uri()`, which sets `server_use->uri.host` to a pointer and length taken from the option bytes. There is no host-length cap in `coap_split_uri_sub`.
+  3. `coap_proxy_get_ongoing_session()` calls `coap_resolve_address_info(&server_use->uri.host, ...)` when `proxy_entry->ongoing` is NULL.
+  4. This path is taken for any new or previously failed host.
+- **Triggering input:**
+  - A request with a Proxy-Uri such as `coap://AAAA…(≥256, up to ~1030 bytes)…/`.
+  - `coap_pdu_parse_opt_base` allows Proxy-Uri lengths up to 1034, so the host can overflow `addrstr` by about 770 bytes.
+  - An IPv6 `[...]` host of the same length also works.
+  - The Proxy-Scheme path is capped at 255 by Uri-Host validation, so it is less exploitable, but see #5.
+
+**2. src/coap_proxy.c / coap_proxy_forward_request_lkd() / approx line 560 (`coap_add_data_large_request_lkd(proxy_entry->ongoing, pdu, total, data, ...)`)**
+- **Bug class:** Heap use-after-free (read), leading to information disclosure and crash.
+- **Reasoning:**
+  - The code copies the body so the request PDU may go away: `body_data = coap_new_binary(total); memcpy(body_data->s, data, size);`.
+  - It then passes the original `data` pointer, not `body_data->s`, to `coap_add_data_large_request_lkd(..., total, data, coap_proxy_release_body_data, body_data)`.
+  - The response path does it correctly with `data = body_data->s;`.
+  - For a body larger than one PDU, the block-wise transmit state keeps `data` and reads later blocks from it after the incoming request, and its reassembled body, has been freed.
+- **Data flow:**
+  1. A client sends a large block-wise request body (BLOCK1 / single-body mode) to a proxied resource.
+  2. `coap_get_data_large(request...)` returns `request->body_data` or `request->data`.
+  3. The pointer is stored in the upstream lg_xmit.
+  4. The request and reassembly buffers are freed after the handler returns.
+  5. Subsequent upstream BLOCK1 requests, and retransmissions, read freed heap memory and send it to the upstream server.
+- **Triggering input:** A request with a payload larger than the upstream session's max PDU size, so that it is not sent in a single PDU.
+
+**3. src/coap_proxy.c / coap_proxy_get_session() / approx line 215 (`proxy_list[i].uri = server_use->uri;`)**
+- **Bug class:** Dangling pointer stored in a long-lived structure, giving a heap use-after-free read.
+- **Reasoning:**
+  - `server_use->uri.host.s` points into the incoming request PDU. It is set either by `coap_get_uri_proxy_scheme_info()` (`uri->host.s = coap_opt_value(opt)`) or by `coap_split_proxy_uri()` (`COAP_SET_STR` into the option bytes).
+  - The struct is then copied into `context->proxy_list[i].uri` and persists.
+  - Later requests run `coap_string_equal(&proxy_list[i].uri.host, &server_use->uri.host)`, which does a memcmp of up to `host.length` bytes against freed or reused memory.
+  - Entries whose resolution failed are never removed, so dangling entries accumulate (`coap_proxy_remove_association(session, 0)` does not drop them).
+  - `uri.path` and `uri.query` also point into `uri_path` and `uri_query` strings that are leaked and never freed in this function.
+- **Data flow:

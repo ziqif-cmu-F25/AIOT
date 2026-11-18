@@ -1,0 +1,37 @@
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "libcoap/src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 537
+    },
+    "explanation": "The report is a WRITE of size 300 into the 256-byte static buffer `coap_resolve_address_info.addrstr`. Its address is exactly 256 bytes past the start of the buffer (0x...a40 + 0x100 = 0x...b40), so the first out-of-bounds byte is at offset 256 and the 300-byte copy runs past the end. The offending write is the unbounded copy at lines 537-538:\n\n    if (address && address->length)\n      memcpy(addrstr, address->s, address->length);\n\nNothing checks `address->length` against `sizeof(addrstr)` (256). The `memset` at line 536 only clears the buffer. It does not limit the copy. The non-Unix path has no length guard at all, while the Unix-domain path just above (lines 509-512) does check `address->length >= COAP_UNIX_PATH_MAX`, so the pattern exists but was not applied here.\n\nThe length reaches this function from `coap_proxy_get_ongoing_session` (coap_proxy.c line 420), which passes `&server_use->uri.host`. That host comes from a Proxy-Uri option (`coap_split_proxy_uri`) or from a Proxy-Scheme plus Uri-Host. Proxy-Uri is accepted up to 1034 bytes by `coap_pdu_parse_opt_base` (coap_pdu.c line 1256), and `coap_split_uri_sub` never caps the host length (coap_uri.c lines 192-202). A crafted Proxy-Uri with a ~300-byte host therefore reaches line 538 unchanged. The `addrstr` buffer also needs a trailing NUL for `getaddrinfo()`, so a length of 256 would overflow by one byte even without the 300-byte case.",
+    "fix": "Reject over-long hosts before the copy, and keep room for the terminating NUL:\n\n    if (address && address->length) {\n      if (address->length >= sizeof(addrstr)) {\n        coap_log_warn(\"coap_resolve_address_info: host too long\\n\");\n        return NULL;\n      }\n      memcpy(addrstr, address->s, address->length);\n    } else {\n      memcpy(addrstr, \"localhost\", 9);\n    }\n\nThe `>=` comparison is deliberate: a length equal to 256 would fill the buffer with no NUL terminator. The caller already handles a NULL return by setting 502 and removing the association.",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "root_cause": {
+      "file": "libcoap/src/coap_uri.c",
+      "function": "coap_split_uri_sub",
+      "line": 202
+    },
+    "explanation": "The URI splitter stores the host with `COAP_SET_STR(&uri->host, q - p, p)` with no upper bound on the host length. For a Proxy-Uri option (up to 1034 bytes by the option check), a host of around 300 bytes is accepted and returned as a valid `uri->host`. Downstream code that assumes hosts fit in 255 or 256 bytes, including `coap_resolve_address_info`, then receives an oversized string. The same missing bound applies to the IPv6 branch at line 181. This is an input-validation gap that lets the oversized host reach the vulnerable copy in candidate 1.",
+    "fix": "Reject hosts longer than the largest length any consumer can handle, immediately after the host is determined (for example, `if (q - p > 255) { res = -3; goto error; }` in both the IPv6 and the generic branch). This is defence in depth. The primary fix is still the bounds check in coap_address.c.",
+    "confidence": 0.5
+  },
+  {
+    "rank": 3,
+    "root_cause": {
+      "file": "libcoap/src/coap_pdu.c",
+      "function": "coap_pdu_parse_opt_base",
+      "line": 1256
+    },
+    "explanation": "The Proxy-Uri length is validated only as `len > 1034`. That bound is larger than any downstream buffer on the proxy path (the 256-byte `addrstr`). Because the option is accepted at this length, attacker-controlled host strings of up to about 1000 bytes can reach `coap_proxy_get_ongoing_session`. This is a contributing condition, not the missing check itself: the bound may be correct for the wire format, but the proxy code does not enforce a tighter limit for the host it passes on.",
+    "fix": "Either keep the 1034-byte wire limit and enforce the host-length limit in the proxy path (see candidate 1), or tighten the per-field limits so the resolved host cannot exceed the resolver buffer. Validating at the consumer is the more robust option.",
+    "confidence": 0.2
+  }
+]
+```

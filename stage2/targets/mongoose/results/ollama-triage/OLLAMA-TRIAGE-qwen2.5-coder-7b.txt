@@ -1,0 +1,9 @@
+```json
+{
+  "hypothesis": "The function skip_chunk() reads beyond the bounds of the input buffer when the chunk length is too large.",
+  "vulnerable_line": "if (n > len - i - 4) return 0;",
+  "bug_class": "oob-read",
+  "trigger_condition": "The input buffer contains a chunk length that is larger than the remaining buffer size minus 4.",
+  "confidence": 0.9
+}
+```

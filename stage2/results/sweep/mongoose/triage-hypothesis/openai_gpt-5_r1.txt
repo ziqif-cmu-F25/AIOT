@@ -1,0 +1,11 @@
+[
+  {
+    "rank": 1,
+    "location": {"file": "unknown", "function": "skip_chunk", "line": 1006},
+    "bug_class": "oob-read",
+    "hypothesis": "Off-by-one bounds check allows reading buf[i+1] one byte past the provided buffer when the CR is present but the LF is not yet buffered.",
+    "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "trigger_condition": "Input contains exactly i hex digits followed by a single '\\r' with no trailing '\\n' yet (len == i + 1 and buf[i] == '\\r'); the first two operands of the OR are false, forcing evaluation of buf[i+1] which is out of bounds.",
+    "confidence": 0.95
+  }
+]

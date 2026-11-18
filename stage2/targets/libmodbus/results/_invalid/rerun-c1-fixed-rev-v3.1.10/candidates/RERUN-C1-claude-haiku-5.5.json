@@ -1,0 +1,22 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "source-agentic",
+  "property": "memory-safety",
+  "hypothesis": " HYPOTHESIS: Unchecked length fields in request parsing (e.g., byte counts or quantities) feed a memcpy or buffer write in the server-side reply path, so I'll start by locating copy sites in the core library.\n\n\nGREP memcpy src/modbus.c HYPOTHESIS: The server-side `modbus_reply` path copies request bytes into the response buffer using lengths derived from the request, so I'll read the dispatch code around the memcpy sites (lines 880\u20131060) to check whether those lengths are bounded.\n\nREAD src/modb",
+  "evidence_source": " HYPOTHESIS: Unchecked length fields in request parsing (e.g., byte counts or quantities) feed a memcpy or buffer write in the server-side reply path, so I'll start by locating copy sites in the core library.\n\n\nGREP memcpy src/modbus.c HYPOTHESIS: The server-side `modbus_reply` path copies request b",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "C1 agentic condition (C1-orig), 15 turns. Status: turn_limit_reached. Did not clearly identify target CVE.",
+  "vulnerability_class": "unknown",
+  "location": {
+    "file": "src/modbus.c",
+    "function": "modbus_reply"
+  },
+  "confidence": 0.5,
+  "model": "anthropic/claude-haiku-5.5",
+  "prompt_id": "libmodbus-C1-orig@v1",
+  "run_index": 1
+}

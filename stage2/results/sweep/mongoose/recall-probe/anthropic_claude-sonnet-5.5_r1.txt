@@ -1,0 +1,7 @@
+```json
+{
+  "training_cutoff": "unknown",
+  "known_cves": [],
+  "notes": "Cutoff: I can't pin down an exact month. My best guess is sometime in 2025, and I have no reliable knowledge of 2026 events. 'Mongoose 7.21 (2026)' most likely refers to the Cesanta Mongoose embedded C web server/networking library, not the Node.js MongoDB ODM, whose versioning differs. I have a vague sense that Cesanta Mongoose has had a few CVEs in earlier versions, such as HTTP/MQTT/DNS parsing issues and out-of-bounds reads. I can't reliably attach specific CVE IDs, versions, functions, or bug classes to them, and I won't invent identifiers. I have no recall of any advisory covering versions up to 7.21. Anything I named would be a guess, so I am listing none. If a real advisory exists, it is either outside my training data or not recalled with enough fidelity to report."
+}
+```

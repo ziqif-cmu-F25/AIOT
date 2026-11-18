@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-007",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "In modbus_reply handling of WRITE_AND_READ_REGISTERS, the write phase reads 2*nb_write bytes starting at req[offset+10] without verifying the buffer is that long; a truncated request causes out-of-bounds reads.",
+  "evidence_source": "Lines 976-983: for (i = ..., j = 10; i < mapping_address_write + nb_write; i++, j += 2) { mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1]; } There is no check of req_length >= offset + 10 + 2*nb_write.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Process may crash or sanitizers report out-of-bounds-read when the declared write byte-count does not match buffer length.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "nb_write_bytes is checked to equal nb_write*2 but the underlying buffer length is never enforced.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 982
+  },
+  "confidence": 0.79,
+  "model": "openai/gpt-5",
+  "prompt_id": "libmodbus-0367-source-review@v1",
+  "run_index": 3
+}

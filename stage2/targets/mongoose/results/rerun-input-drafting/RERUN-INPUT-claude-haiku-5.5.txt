@@ -1,0 +1,14 @@
+```json
+{
+  "raw_request": "POST /upload HTTP/1.1\r\nHost: target.local\r\nContent-Type: application/octet-stream\r\nTransfer-Encoding: chunked\r\nConnection: keep-alive\r\n\r\n1\r\nA\r",
+  "hex_body": "310d0a410d",
+  "explanation": "The body is a single chunk: size line '1' + CRLF, one data byte 'A', then the '\\r' that begins the mandatory CRLF terminator after chunk data. The '\\n' is withheld. If skip_chunk() is invoked while only this trailing '\\r' is buffered, then len == i + 1 where i indexes that '\\r', and the check `len < i + 1` passes (since len == i + 1 is not less than i + 1). The next expression `buf[i + 1]` then reads one byte past the logical end of valid data. The intended guard `len < i + 2` would have returned -1 here. Whether this is a real OOB read depends on the exact position of the terminator relative to len in Mongoose's parser, which I have not verified against the source.",
+  "delivery_notes": "The request must be split across at least two TCP segments. Segment 1: the headers plus the body bytes '1\\r\\nA\\r' (hex 310d0a410d), so the server's receive buffer ends exactly on the '\\r'. Segment 2: the single byte '\\n' (0x0a), sent only after the server has had time to process segment 1 (e.g., 100-500 ms, or after observing that the server has not yet responded or closed). Sending everything in one segment would likely let the parser see the full CRLF and never reach the len == i + 1 state. Disabling Nagle (TCP_NODELAY) on the client helps ensure the segment boundary is preserved. Notice that buf[i+1] reads one byte past the valid length, so the read is usually harmless in practice; detecting it reliably requires an ASan/Valgrind build or a sentinel byte placed after the buffer. Expect little or no observable crash on a release build.",
+  "confidence": 0.35
+}
+```
+
+**Caveats for the analyst:**
+- I worked only from your hypothesis and general knowledge of chunked encoding. I have not seen Mongoose's source, so I cannot confirm the buffering model, the caller's loop, or whether `skip_chunk()` is called on partial input at all. Check that the call site matches the assumption that the buffer passed in ends at the `'\r'`.
+- Mongoose may only call the chunk parser once a complete chunk is buffered, in which case this input will not reach the vulnerable state. If that is the case, try a variant where the data is split across segments at different offsets, or confirm the call path with a debugger breakpoint on line 17.
+- Validate the result with a sanitizer build (`-fsanitize=address`) rather than relying on crash behavior, since a one-byte overread often goes unnoticed.

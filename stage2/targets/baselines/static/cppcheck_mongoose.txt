@@ -1,0 +1,238 @@
+Checking vendor\mongoose\src\http.c ...
+vendor\mongoose\src\http.c:0:0: information: Too many #ifdef configurations - cppcheck only checks 12 of 37 configurations. Use --force to check all configurations. [toomanyconfigs]
+
+^
+vendor\mongoose\src\arch.h:32:0: information: Include file: "mongoose_config.h" not found. [missingInclude]
+#include "mongoose_config.h"  // keep this include
+^
+vendor\mongoose\src\arch_unix.h:17:0: information: Include file: <arpa/inet.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <arpa/inet.h>
+^
+vendor\mongoose\src\arch_unix.h:18:0: information: Include file: <ctype.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <ctype.h>
+^
+vendor\mongoose\src\arch_unix.h:19:0: information: Include file: <dirent.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <dirent.h>
+^
+vendor\mongoose\src\arch_unix.h:20:0: information: Include file: <errno.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <errno.h>
+^
+vendor\mongoose\src\arch_unix.h:21:0: information: Include file: <fcntl.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <fcntl.h>
+^
+vendor\mongoose\src\arch_unix.h:22:0: information: Include file: <inttypes.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <inttypes.h>
+^
+vendor\mongoose\src\arch_unix.h:23:0: information: Include file: <limits.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <limits.h>
+^
+vendor\mongoose\src\arch_unix.h:24:0: information: Include file: <netdb.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <netdb.h>
+^
+vendor\mongoose\src\arch_unix.h:25:0: information: Include file: <netinet/in.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <netinet/in.h>
+^
+vendor\mongoose\src\arch_unix.h:26:0: information: Include file: <netinet/tcp.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <netinet/tcp.h>
+^
+vendor\mongoose\src\arch_unix.h:27:0: information: Include file: <signal.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <signal.h>
+^
+vendor\mongoose\src\arch_unix.h:28:0: information: Include file: <stdarg.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <stdarg.h>
+^
+vendor\mongoose\src\arch_unix.h:29:0: information: Include file: <stdbool.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <stdbool.h>
+^
+vendor\mongoose\src\arch_unix.h:30:0: information: Include file: <stddef.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <stddef.h>
+^
+vendor\mongoose\src\arch_unix.h:31:0: information: Include file: <stdint.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <stdint.h>
+^
+vendor\mongoose\src\arch_unix.h:32:0: information: Include file: <stdio.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <stdio.h>
+^
+vendor\mongoose\src\arch_unix.h:33:0: information: Include file: <stdlib.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <stdlib.h>
+^
+vendor\mongoose\src\arch_unix.h:34:0: information: Include file: <string.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <string.h>
+^
+vendor\mongoose\src\arch_unix.h:39:0: information: Include file: <poll.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <poll.h>
+^
+vendor\mongoose\src\arch_unix.h:44:0: information: Include file: <sys/socket.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <sys/socket.h>
+^
+vendor\mongoose\src\arch_unix.h:45:0: information: Include file: <sys/stat.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <sys/stat.h>
+^
+vendor\mongoose\src\arch_unix.h:46:0: information: Include file: <sys/time.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <sys/time.h>
+^
+vendor\mongoose\src\arch_unix.h:47:0: information: Include file: <sys/types.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <sys/types.h>
+^
+vendor\mongoose\src\arch_unix.h:48:0: information: Include file: <time.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <time.h>
+^
+vendor\mongoose\src\arch_unix.h:49:0: information: Include file: <unistd.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <unistd.h>
+^
+Checking vendor\mongoose\src\http.c: MG_ARCH...
+vendor\mongoose\src\http.c:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+vendor\mongoose\src\http.c:232:9: style: Condition 's<end' is always true [knownConditionTrueFalse]
+  if (s < end && s[0] == '\r') s++;                               // Skip \r
+        ^
+vendor\mongoose\src\http.c:231:9: note: Assuming that condition 's>=end' is not redundant
+  if (s >= end || (s[0] == '\r' && s[1] != '\n')) return NULL;    // Stray \r
+        ^
+vendor\mongoose\src\http.c:232:9: note: Condition 's<end' is always true
+  if (s < end && s[0] == '\r') s++;                               // Skip \r
+        ^
+vendor\mongoose\src\http.c:239:13: style: The scope of the variable 'n' can be reduced. [variableScope]
+  size_t i, n;
+            ^
+vendor\mongoose\src\http.c:788:14: style: The scope of the variable 'tmp' can be reduced. [variableScope]
+  int flags, tmp;
+             ^
+vendor\mongoose\src\http.c:165:31: style: inconclusive: Function 'mg_url_decode' argument 1 names different: declaration 's' definition 'src'. [funcArgNamesDifferent]
+int mg_url_decode(const char *src, size_t src_len, char *dst, size_t dst_len,
+                              ^
+vendor\mongoose\src\http.h:56:31: note: Function 'mg_url_decode' argument 1 names different: declaration 's' definition 'src'.
+int mg_url_decode(const char *s, size_t n, char *to, size_t to_len, int form);
+                              ^
+vendor\mongoose\src\http.c:165:31: note: Function 'mg_url_decode' argument 1 names different: declaration 's' definition 'src'.
+int mg_url_decode(const char *src, size_t src_len, char *dst, size_t dst_len,
+                              ^
+vendor\mongoose\src\http.c:165:43: style: inconclusive: Function 'mg_url_decode' argument 2 names different: declaration 'n' definition 'src_len'. [funcArgNamesDifferent]
+int mg_url_decode(const char *src, size_t src_len, char *dst, size_t dst_len,
+                                          ^
+vendor\mongoose\src\http.h:56:41: note: Function 'mg_url_decode' argument 2 names different: declaration 'n' definition 'src_len'.
+int mg_url_decode(const char *s, size_t n, char *to, size_t to_len, int form);
+                                        ^
+vendor\mongoose\src\http.c:165:43: note: Function 'mg_url_decode' argument 2 names different: declaration 'n' definition 'src_len'.
+int mg_url_decode(const char *src, size_t src_len, char *dst, size_t dst_len,
+                                          ^
+vendor\mongoose\src\http.c:165:58: style: inconclusive: Function 'mg_url_decode' argument 3 names different: declaration 'to' definition 'dst'. [funcArgNamesDifferent]
+int mg_url_decode(const char *src, size_t src_len, char *dst, size_t dst_len,
+                                                         ^
+vendor\mongoose\src\http.h:56:50: note: Function 'mg_url_decode' argument 3 names different: declaration 'to' definition 'dst'.
+int mg_url_decode(const char *s, size_t n, char *to, size_t to_len, int form);
+                                                 ^
+vendor\mongoose\src\http.c:165:58: note: Function 'mg_url_decode' argument 3 names different: declaration 'to' definition 'dst'.
+int mg_url_decode(const char *src, size_t src_len, char *dst, size_t dst_len,
+                                                         ^
+vendor\mongoose\src\http.c:165:70: style: inconclusive: Function 'mg_url_decode' argument 4 names different: declaration 'to_len' definition 'dst_len'. [funcArgNamesDifferent]
+int mg_url_decode(const char *src, size_t src_len, char *dst, size_t dst_len,
+                                                                     ^
+vendor\mongoose\src\http.h:56:61: note: Function 'mg_url_decode' argument 4 names different: declaration 'to_len' definition 'dst_len'.
+int mg_url_decode(const char *s, size_t n, char *to, size_t to_len, int form);
+                                                            ^
+vendor\mongoose\src\http.c:165:70: note: Function 'mg_url_decode' argument 4 names different: declaration 'to_len' definition 'dst_len'.
+int mg_url_decode(const char *src, size_t src_len, char *dst, size_t dst_len,
+                                                                     ^
+vendor\mongoose\src\http.c:166:23: style: inconclusive: Function 'mg_url_decode' argument 5 names different: declaration 'form' definition 'is_form_url_encoded'. [funcArgNamesDifferent]
+                  int is_form_url_encoded) {
+                      ^
+vendor\mongoose\src\http.h:56:73: note: Function 'mg_url_decode' argument 5 names different: declaration 'form' definition 'is_form_url_encoded'.
+int mg_url_decode(const char *s, size_t n, char *to, size_t to_len, int form);
+                                                                        ^
+vendor\mongoose\src\http.c:166:23: note: Function 'mg_url_decode' argument 5 names different: declaration 'form' definition 'is_form_url_encoded'.
+                  int is_form_url_encoded) {
+                      ^
+vendor\mongoose\src\http.c:362:49: style: inconclusive: Function 'mg_http_printf_chunk' argument 1 names different: declaration 'cnn' definition 'c'. [funcArgNamesDifferent]
+void mg_http_printf_chunk(struct mg_connection *c, const char *fmt, ...) {
+                                                ^
+vendor\mongoose\src\http.h:41:49: note: Function 'mg_http_printf_chunk' argument 1 names different: declaration 'cnn' definition 'c'.
+void mg_http_printf_chunk(struct mg_connection *cnn, const char *fmt, ...);
+                                                ^
+vendor\mongoose\src\http.c:362:49: note: Function 'mg_http_printf_chunk' argument 1 names different: declaration 'cnn' definition 'c'.
+void mg_http_printf_chunk(struct mg_connection *c, const char *fmt, ...) {
+                                                ^
+vendor\mongoose\src\http.c:446:49: style: inconclusive: Function 'mg_http_reply' argument 2 names different: declaration 'status_code' definition 'code'. [funcArgNamesDifferent]
+void mg_http_reply(struct mg_connection *c, int code, const char *headers,
+                                                ^
+vendor\mongoose\src\http.h:51:48: note: Function 'mg_http_reply' argument 2 names different: declaration 'status_code' definition 'code'.
+void mg_http_reply(struct mg_connection *, int status_code, const char *headers,
+                                               ^
+vendor\mongoose\src\http.c:446:49: note: Function 'mg_http_reply' argument 2 names different: declaration 'status_code' definition 'code'.
+void mg_http_reply(struct mg_connection *c, int code, const char *headers,
+                                                ^
+vendor\mongoose\src\http.c:447:32: style: inconclusive: Function 'mg_http_reply' argument 4 names different: declaration 'body_fmt' definition 'fmt'. [funcArgNamesDifferent]
+                   const char *fmt, ...) {
+                               ^
+vendor\mongoose\src\http.h:52:32: note: Function 'mg_http_reply' argument 4 names different: declaration 'body_fmt' definition 'fmt'.
+                   const char *body_fmt, ...);
+                               ^
+vendor\mongoose\src\http.c:447:32: note: Function 'mg_http_reply' argument 4 names different: declaration 'body_fmt' definition 'fmt'.
+                   const char *fmt, ...) {
+                               ^
+vendor\mongoose\src\http.c:885:44: style: inconclusive: Function 'mg_url_encode' argument 2 names different: declaration 'n' definition 'sl'. [funcArgNamesDifferent]
+size_t mg_url_encode(const char *s, size_t sl, char *buf, size_t len) {
+                                           ^
+vendor\mongoose\src\http.h:57:44: note: Function 'mg_url_encode' argument 2 names different: declaration 'n' definition 'sl'.
+size_t mg_url_encode(const char *s, size_t n, char *buf, size_t len);
+                                           ^
+vendor\mongoose\src\http.c:885:44: note: Function 'mg_url_encode' argument 2 names different: declaration 'n' definition 'sl'.
+size_t mg_url_encode(const char *s, size_t sl, char *buf, size_t len) {
+                                           ^
+vendor\mongoose\src\http.c:204:20: style: Variable 'k' can be declared as pointer to const [constVariablePointer]
+    struct mg_str *k = &h->headers[i].name, *v = &h->headers[i].value;
+                   ^
+vendor\mongoose\src\http.c:562:36: style: Parameter 's' can be declared as pointer to const [constParameterPointer]
+static int getrange(struct mg_str *s, size_t *a, size_t *b) {
+                                   ^
+vendor\mongoose\src\http.c:586:18: style: Variable 'inm' can be declared as pointer to const [constVariablePointer]
+  struct mg_str *inm = NULL;
+                 ^
+vendor\mongoose\src\http.c:592:20: style: Variable 'ae' can be declared as pointer to const [constVariablePointer]
+    struct mg_str *ae = mg_http_get_header(hm, "Accept-Encoding");
+                   ^
+vendor\mongoose\src\http.c:1025:22: style: Variable 'te' can be declared as pointer to const [constVariablePointer]
+      struct mg_str *te;  // Transfer - encoding header
+                     ^
+vendor\mongoose\src\http.c:1117:24: style: Variable 'cc' can be declared as pointer to const [constVariablePointer]
+        struct mg_str *cc = mg_http_get_header(&hm, "Connection");
+                       ^
+vendor\mongoose\src\http.c:682:16: style: Variable 'n' is assigned a value that is never used. [unreadVariable]
+  int flags, n = 0;
+               ^
+Checking vendor\mongoose\src\http.c: MG_ARCH;_WIN32...
+vendor\mongoose\src\arch_unix.h:8:0: information: Include file: <mach/mach_time.h> not found. Please note: Cppcheck does not need standard library headers to get proper results. [missingIncludeSystem]
+#include <mach/mach_time.h>
+^
+Checking vendor\mongoose\src\http.c: MG_ARCH;__APPLE__;__unix__...
+Checking vendor\mongoose\src\http.c: __APPLE__...
+vendor\mongoose\src\http.c:60:0: style: The function 'mg_http_next_multipart' is never used. [unusedFunction]
+size_t mg_http_next_multipart(struct mg_str body, size_t ofs,
+^
+vendor\mongoose\src\http.c:100:0: style: The function 'mg_http_bauth' is never used. [unusedFunction]
+void mg_http_bauth(struct mg_connection *c, const char *user,
+^
+vendor\mongoose\src\http.c:362:0: style: The function 'mg_http_printf_chunk' is never used. [unusedFunction]
+void mg_http_printf_chunk(struct mg_connection *c, const char *fmt, ...) {
+^
+vendor\mongoose\src\http.c:369:0: style: The function 'mg_http_write_chunk' is never used. [unusedFunction]
+void mg_http_write_chunk(struct mg_connection *c, const char *buf, size_t len) {
+^
+vendor\mongoose\src\http.c:860:0: style: The function 'mg_http_serve_dir' is never used. [unusedFunction]
+void mg_http_serve_dir(struct mg_connection *c, struct mg_http_message *hm,
+^
+vendor\mongoose\src\http.c:902:0: style: The function 'mg_http_creds' is never used. [unusedFunction]
+void mg_http_creds(struct mg_http_message *hm, char *user, size_t userlen,
+^
+vendor\mongoose\src\http.c:947:0: style: The function 'mg_http_upload' is never used. [unusedFunction]
+long mg_http_upload(struct mg_connection *c, struct mg_http_message *hm,
+^
+vendor\mongoose\src\http.c:1129:0: style: The function 'mg_http_connect' is never used. [unusedFunction]
+struct mg_connection *mg_http_connect(struct mg_mgr *mgr, const char *url,
+^
+vendor\mongoose\src\http.c:1134:0: style: The function 'mg_http_listen' is never used. [unusedFunction]
+struct mg_connection *mg_http_listen(struct mg_mgr *mgr, const char *url,
+^
+nofile:0:0: information: Active checkers: 113/712 (use --checkers-report=<filename> to see details) [checkersReport]
+

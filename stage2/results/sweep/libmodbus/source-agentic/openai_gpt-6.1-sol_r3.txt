@@ -1,0 +1,21 @@
+HYPOTHESIS: The register mapping indices are signed integers, so subtracting a nonzero mapping start from a lower network write address produces a negative array index.
+GREP "start_registers|nb_registers|MAX_WR_WRITE_REGISTERS|WRITE_AND_READ_REGISTERS" libmodbus/src/modbus.h
+
+
+HYPOTHESIS: Function 0x17 omits the lower-bound check for its write address, permitting a remotely controlled write before a shifted register mapping.
+FINAL
+
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 964
+    },
+    "vulnerability_class": "oob-write",
+    "hypothesis": "A network client sends a complete Write/Read Multiple Registers request (function 0x17) with a valid read address but a write address below mb_mapping->start_registers. The bounds check mistakenly tests mapping_address < 0 twice, never checking mapping_address_write < 0. For example, with start_registers=100 and nb_registers=10, read address=100, read quantity=1, write address=99, write quantity=1, and byte count=2 pass all checks. The write loop starts at index -1 and stores an attacker-controlled 16-bit value immediately before the heap-allocated tab_registers array. This requires a server configured with a nonzero register mapping start.",
+    "evidence": "libmodbus/src/modbus.c:952-953:\nint mapping_address = address - mb_mapping->start_registers;\nint mapping_address_write = address_write - mb_mapping->start_registers;\n\nlibmodbus/src/modbus.c:955-957 validates quantities and byte count:\nif (nb_write < 1 || MODBUS_MAX_WR_WRITE_REGISTERS < nb_write ||\n    nb < 1 || MODBUS_MAX_WR_READ_REGISTERS < nb ||\n    nb_write_bytes != nb_write * 2)\n\nlibmodbus/src/modbus.c:962-965 repeats the read-index lower-bound check:\n} else if (mapping_address < 0 ||\n           (mapping_address + nb) > mb_mapping->nb_registers ||\n           mapping_address < 0 ||\n           (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\n\nlibmodbus/src/modbus.c:978-981 performs the unchecked write:\nfor (i = mapping_address_write, j = 10;\n     i < mapping_address_write + nb_write; i++, j += 2) {\n    mb_mapping->tab_registers[i] =\n        (req[offset + j] << 8) + req[offset + j + 1];\n\nlibmodbus/src/modbus.c:1815-1821 establishes the shifted heap mapping:\nmb_mapping->nb_registers = nb_registers;\nmb_mapping->start_registers = start_registers;\n...\nmb_mapping->tab_registers =\n    (uint16_t *) malloc(nb_registers * sizeof(uint16_t));\n\nlibmodbus/src/modbus-tcp.c:175-180 routes TCP requests through _modbus_receive_msg and recv; lines 183-185 implement TCP integrity checking as return msg_length.",
+    "confidence": 0.99
+  }
+]

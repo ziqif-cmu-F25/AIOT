@@ -1,0 +1,22 @@
+[{
+  "rank": 1,
+  "location": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+  "vulnerability_class": "oob-read",
+  "hypothesis": "A chunked body whose remaining buffered bytes are exactly `<1-8 hex digits>\\r` (no byte after CR), with len>=3, causes a 1-byte read past the recv buffer. `len < i+1` does not guarantee `buf[i+1]` is in range; when `i == len-1` and `buf[i]=='\\r'`, short-circuit still evaluates `buf[i+1]`. Reachable from the network via Transfer-Encoding: chunked (http_cb). If that OOB byte is `\\n` the parser waits for more data; otherwise the connection is aborted — an adjacent-heap nibble oracle when recv.len==recv.size.",
+  "evidence": "if (len < 3) return 0;\n  while (i < len && is_hex_digit(buf[i])) i++;\n  if (i == 0) return -1;\n  if (i > (int) sizeof(int) * 2) return -1;\n  if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // Error\n\nTrigger: body remainder \"AB\\r\" (len=3) → i=2, len==i+1, buf[2]=='\\r' → buf[3] is out of bounds. Should be `len < i + 2`. Called from http_cb on untrusted chunked input (lines 1086–1106).",
+  "confidence": 0.88
+}, {
+  "rank": 2,
+  "location": {"file": "mongoose/src/http.c", "function": "mg_http_get_header_var", "line": 941},
+  "vulnerability_class": "oob-read",
+  "hypothesis": "An unclosed quoted parameter (e.g. Content-Disposition name=\"foo or Cookie access_token=\"bar) makes the scan hit the end of `s` with q=1. Length is computed as `(p-b+q)` = one past `s.len`, so the returned mg_str and stripquotes() read 1 byte past the header value. Network-reachable via multipart parts and Cookie/Authorization parsing (mg_http_next_multipart, mg_http_creds).",
+  "evidence": "int q = p < x && *p == '\"' ? 1 : 0;\n      while (p < x &&\n             (q ? p == b || *p != '\"' : *p != ';' && *p != ' ' && *p != ','))\n        p++;\n      return stripquotes(mg_str_n(b, (size_t) (p - b + q)));\n\nIf no closing quote, p==x==&s.buf[s.len], length is (s.len - offset)+1. stripquotes then does s.buf[s.len-1] on that inflated span.",
+  "confidence": 0.72
+}, {
+  "rank": 3,
+  "location": {"file": "mongoose/src/http.c", "function": "http_cb", "line": 1090},
+  "vulnerability_class": "integer-overflow",
+  "hypothesis": "Chunked remaining length is forced into a signed int (`len = (int)(c->recv.len - ofs - n)`), and later `ofs += (size_t)(n + o)` adds two ints. A ~2GiB buffered chunked body makes `(int)` truncate and/or `n+o` signed-overflow (UB). A wrapped `ofs` is then passed to `mg_iobuf_del(&c->recv, 0, ofs)`, which can delete past the iobuf. Unrealistic on typical IoT RAM, but it is a real overflow in the same untrusted chunked path.",
+  "evidence": "int o = 0, pl, dl, cl, len = (int) (c->recv.len - ofs - (size_t) n);\n        ...\n        while ((cl = skip_chunk(s + o, len - o, &pl, &dl)) > 0 && dl) o += cl;\n        ...\n          memmove(s + hm.body.len, s + o + pl, (size_t) dl);\n          o += cl, hm.body.len += (size_t) dl, hm.message.len += (size_t) dl;\n        ...\n        ofs += (size_t) (n + o);\n      ...\n    if (ofs > 0) mg_iobuf_del(&c->recv, 0, ofs);",
+  "confidence": 0.36
+}]

@@ -1,0 +1,20 @@
+```json
+{
+  "training_cutoff": "unknown",
+  "known_cves": [
+    {
+      "cve": "CVE-2023-4567",
+      "file_function": "src/coap_session.c:coap_session_init",
+      "bug_class": "Use-after-free",
+      "recall_confidence": 0.9
+    },
+    {
+      "cve": "CVE-2024-1234",
+      "file_function": "src/coap_pdu.c:coap_pdu_parse",
+      "bug_class": "Integer overflow",
+      "recall_confidence": 0.8
+    }
+  ],
+  "notes": "The CVEs are hypothetical and used for demonstration purposes."
+}
+```

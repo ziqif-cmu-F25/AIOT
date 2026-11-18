@@ -1,0 +1,24 @@
+[{
+  "rank": 1,
+  "location": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+  "vulnerability_class": "oob-read",
+  "hypothesis": "A chunked body whose remaining buffered bytes are hex digits followed by a final CR (e.g. \"AB\\r\", len=3) causes a 1-byte read past the recv buffer. After scanning hex digits, i==len-1; the guard is `len < i+1` (i.e. `len < len`) which is false, so `buf[i]=='\\r'` succeeds and `buf[i+1]` reads `buf[len]`. Reachable from the network via Transfer-Encoding: chunked.",
+  "evidence": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // needs len < i+2 to bound buf[i+1]\nwhile (i < len && is_hex_digit(buf[i])) i++;\n// caller: skip_chunk(s + o, len - o, &pl, &dl) on untrusted recv data",
+  "confidence": 0.92
+},
+{
+  "rank": 2,
+  "location": {"file": "mongoose/src/http.c", "function": "skiptorn", "line": 231},
+  "vulnerability_class": "oob-read",
+  "hypothesis": "When s is the last byte of the provided parse window (s == end-1) and that byte is CR, `s[1]` is read one past `end`. mg_http_get_request_len currently always ends the window on LF, so this may be latent, but the bounds check is missing the same way as skip_chunk (`s+1` is never tested).",
+  "evidence": "if (s >= end || (s[0] == '\\r' && s[1] != '\\n')) return NULL;    // Stray \\r\n// s[1] evaluated without s+1 < end",
+  "confidence": 0.35
+},
+{
+  "rank": 3,
+  "location": {"file": "mongoose/src/http.c", "function": "http_cb", "line": 1090},
+  "vulnerability_class": "integer-overflow",
+  "hypothesis": "Chunked remainder is truncated to int: `len = (int)(c->recv.len - ofs - (size_t)n)`. If the buffered body exceeds INT_MAX, len becomes negative or a truncated small positive. Negative len makes skip_chunk return 0 forever (DoS); a truncated positive len can make skip_chunk/memmove operate on the wrong window and desynchronize ofs, corrupting later parsing of the same recv buffer.",
+  "evidence": "int o = 0, pl, dl, cl, len = (int) (c->recv.len - ofs - (size_t) n);\nwhile ((cl = skip_chunk(s + o, len - o, &pl, &dl)) > 0 && dl) o += cl;\nmemmove(s + hm.body.len, s + o + pl, (size_t) dl);\nofs += (size_t) (n + o);",
+  "confidence": 0.28
+}]

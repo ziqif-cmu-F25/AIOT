@@ -1,0 +1,20 @@
+[
+  {
+    "rank": 1,
+    "location": {"file": "unknown", "function": "case MODBUS_FC_WRITE_AND_READ_REGISTERS", "line": 980},
+    "bug_class": "oob-write",
+    "hypothesis": "Missing lower-bound check for mapping_address_write allows a negative start index, causing the write loop to store to mb_mapping->tab_registers[i] with i < 0.",
+    "vulnerable_line": "mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];",
+    "trigger_condition": "Attacker chooses address_write < mb_mapping->start_registers so mapping_address_write = address_write - mb_mapping->start_registers < 0, while also ensuring (mapping_address_write + nb_write) <= mb_mapping->nb_registers, nb_write in [1..MODBUS_MAX_WR_WRITE_REGISTERS], nb in range, nb_write_bytes == 2*nb_write, and the read side address is valid; the check at lines 962–965 omits 'mapping_address_write < 0', so the for-loop at lines 978–982 runs with i starting negative and writes out-of-bounds before tab_registers.",
+    "confidence": 0.92
+  },
+  {
+    "rank": 2,
+    "location": {"file": "unknown", "function": "case MODBUS_FC_WRITE_AND_READ_REGISTERS", "line": 981},
+    "bug_class": "oob-read",
+    "hypothesis": "The parser reads write values from req without verifying the actual buffer length, so a truncated frame can cause out-of-bounds reads when j advances to offset+10+2*nb_write-1.",
+    "vulnerable_line": "(req[offset + j] << 8) + req[offset + j + 1]",
+    "trigger_condition": "Attacker sends a request where nb_write and nb_write_bytes are self-consistent (nb_write_bytes == 2*nb_write) and pass all checks, but the underlying req buffer is shorter than offset + 10 + 2*nb_write bytes; the loop at lines 978–982 then reads beyond the end of req.",
+    "confidence": 0.4
+  }
+]

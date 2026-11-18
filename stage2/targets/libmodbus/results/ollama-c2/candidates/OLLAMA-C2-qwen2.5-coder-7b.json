@@ -1,0 +1,22 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "crash-given",
+  "property": "memory-safety",
+  "hypothesis": "```json\n{\n  \"root_cause_line\": \"mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];\",\n  \"explanation\": \"The bounds check for the write operation is missing. The variable `i` is used to index into `mb_mapping->tab_registers`, but there is no check to ensure that `i` is within the valid range of `0` to `mb_mapping->nb_registers - 1`. This can lead to an out-of-bounds write if `i` is greater than or equal to `mb_mapping->nb_registers`.\",\n  \"fix\": \"Add a bounds check before ",
+  "evidence_source": "```json\n{\n  \"root_cause_line\": \"mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];\",\n  \"explanation\": \"The bounds check for the write operation is missing. The variable `i` is used to index into `mb_mapping->tab_registers`, but there is no check to ensure that `i` is within",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "crash-given condition (Ollama). Did not clearly identify target CVE.",
+  "vulnerability_class": "unknown",
+  "location": {
+    "file": "src/modbus.c",
+    "function": "modbus_reply"
+  },
+  "confidence": 0.5,
+  "model": "ollama/qwen2.5-coder:7b",
+  "prompt_id": "libmodbus-ollama-c2@v1",
+  "run_index": 1
+}

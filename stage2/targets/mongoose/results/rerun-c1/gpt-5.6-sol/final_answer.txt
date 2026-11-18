@@ -1,0 +1,5 @@
+HYPOTHESIS: `skip_chunk()` has a confirmed off-by-one bounds check that permits reading `buf[len]` when a fragmented chunk-size line ends with `'\r'`.
+FINAL
+
+CANDIDATES (ranked, max 5):
+1. `src/http.c` / `skip_chunk` / approx. line 17 / one-byte out-of-bounds read / The check `if (len < i + 1 || buf[i] != '\r' || buf[i + 1] != '\n')` is insufficient: when `len == i + 1` and `buf[i] == '\r'`, evaluation reaches `buf[i + 1]`, which is `buf[len]`, one byte beyond the supplied range. The check must require two available bytes, e.g. `if (len < i + 2 || ...)`; preferably use overflow-safe logic such as `if (i > len - 2 || ...)` after ensuring `len >= 2`. Network data enters `c->recv`, `http_cb()` recognizes `Transfer-Encoding: chunked`, and lines 104/113 pass the body bytes to `skip_chunk()`. A complete HTTP header followed by a fragmented chunk-size line ending exactly after its carriage return reaches the defect—for example, a receive buffer whose chunked body currently ends in `1\r` or `0\r`, with the `'\n'` arriving in a later read.

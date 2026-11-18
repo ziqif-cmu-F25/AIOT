@@ -1,0 +1,43 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libmodbus.c",
+      "function": "modbus_receive",
+      "line": 980
+    },
+    "bug_class": "buffer-overflow",
+    "hypothesis": "The code writes to `mb_mapping->tab_registers` without checking if `mapping_address_write + nb_write` exceeds the array bounds.",
+    "vulnerable_line": "mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];",
+    "trigger_condition": "If `mapping_address_write + nb_write` exceeds the bounds of `mb_mapping->tab_registers`, it will lead to a buffer overflow.",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "libmodbus.c",
+      "function": "modbus_receive",
+      "line": 986
+    },
+    "bug_class": "buffer-overflow",
+    "hypothesis": "The code reads from `mb_mapping->tab_registers` without checking if `mapping_address + nb` exceeds the array bounds.",
+    "vulnerable_line": "rsp[rsp_length++] = mb_mapping->tab_registers[i] >> 8;",
+    "trigger_condition": "If `mapping_address + nb` exceeds the bounds of `mb_mapping->tab_registers`, it will lead to a buffer overflow.",
+    "confidence": 0.8
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "libmodbus.c",
+      "function": "modbus_receive",
+      "line": 949
+    },
+    "bug_class": "integer-overflow",
+    "hypothesis": "The code calculates `nb_write_bytes` by multiplying `nb_write` by 2, which could lead to an integer overflow if `nb_write` is large enough.",
+    "vulnerable_line": "int nb_write_bytes = req[offset + 9];",
+    "trigger_condition": "If `nb_write` is large enough to cause an integer overflow when multiplied by 2, it will lead to an incorrect value for `nb_write_bytes`.",
+    "confidence": 0.7
+  }
+]
+```

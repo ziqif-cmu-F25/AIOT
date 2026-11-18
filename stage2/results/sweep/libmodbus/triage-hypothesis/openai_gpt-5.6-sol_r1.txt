@@ -1,0 +1,15 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "unknown",
+      "function": "unknown",
+      "line": 980
+    },
+    "bug_class": "oob-write",
+    "hypothesis": "The duplicated `mapping_address < 0` check on line 964 fails to reject a negative `mapping_address_write`, allowing line 980 to write before `mb_mapping->tab_registers`.",
+    "vulnerable_line": "mb_mapping->tab_registers[i] =",
+    "trigger_condition": "A valid read range and valid counts are supplied, but `address_write < mb_mapping->start_registers` while `(mapping_address_write + nb_write) <= mb_mapping->nb_registers`; for example, `start_registers=100`, `address_write=99`, and `nb_write=1` cause `tab_registers[-1]` to be written.",
+    "confidence": 0.99
+  }
+]

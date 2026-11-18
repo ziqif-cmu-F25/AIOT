@@ -1,0 +1,45 @@
+# Candidate findings
+
+Status values: candidate | validated | rejected | inconclusive
+
+Written by stage2/driver/run_task.py. Do not edit; scoring writes
+verdict.md instead. Machine-readable copy: candidates.json.
+
+```yaml
+candidate_id: CAND-001
+viewpoint: ai-source-review
+property: memory-safety
+hypothesis: In the write-and-read-registers server path, the bounds check never validates
+  `mapping_address_write` against zero. A request whose write address is below `start_registers`
+  yields a negative `mapping_address_write`. The upper-bound test `(mapping_address_write
+  + nb_write) > nb_registers` still passes, so the write loop stores to `tab_registers[i]`
+  at negative indices, before the start of the heap array.
+evidence_source: 'In modbus_reply, case MODBUS_FC_WRITE_AND_READ_REGISTERS: `int mapping_address_write
+  = address_write - mb_mapping->start_registers;` followed by the guard `if (mapping_address
+  < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address < 0
+  || (mapping_address_write + nb_write) > mb_mapping->nb_registers)`. The guard checks
+  `mapping_address < 0` twice and never checks `mapping_address_write < 0`, even though
+  the error message reports `mapping_address_write < 0 ? address_write : ...`. The
+  write loop `for (i = mapping_address_write, j = 10; i < mapping_address_write +
+  nb_write; ...) mb_mapping->tab_registers[i] = ...` then runs with a negative `i`.'
+input_artifact: not_available (static source review; no input artifact)
+expected_behavior: A crafted write-and-read request with write_addr below the mapping
+  start (e.g. address 0 with start_registers > 0) triggers an out-of-bounds write
+  before tab_registers, causing heap corruption or a crash (detectable by AddressSanitizer
+  as heap-buffer-overflow/underflow write).
+observed_behavior: not_available (static source review; nothing was executed)
+status: candidate
+oracle_verdict: pending
+notes: The read-side check uses the same negative test on `mapping_address`, so only
+  the write-side index is unchecked. The fix is to add `mapping_address_write < 0
+  ||` to the address-range condition.
+vulnerability_class: buffer-overflow
+location:
+  file: modbus.c
+  function: modbus_reply
+  line: 965
+confidence: 0.8
+model: anthropic/claude-haiku-5.5
+prompt_id: libmodbus-0367-source-review@v1
+run_index: 3
+```

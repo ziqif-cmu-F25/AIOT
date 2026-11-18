@@ -1,0 +1,34 @@
+The provided code is a part of a Modbus library, which is used for communication with Modbus devices. The library includes functions for creating, manipulating, and freeing Modbus mappings, as well as setting debug flags.
+
+Here's a breakdown of the key functions and their purposes:
+
+1. **modbus_mapping_new_start_address**: This function allocates memory for a new Modbus mapping structure and initializes it with the specified number of bits, input bits, registers, and input registers. It also sets the starting addresses for each type of data. If any memory allocation fails, it returns `NULL` and sets `errno` to `ENOMEM`.
+
+2. **modbus_mapping_new**: This is a convenience function that calls `modbus_mapping_new_start_address` with default starting addresses (0 for all types of data).
+
+3. **modbus_mapping_free**: This function frees the memory allocated for a Modbus mapping structure, including all the arrays that store the data.
+
+4. **modbus_mapping_set_debug**: This function sets the debug flag for a Modbus context. If the context is `NULL`, it sets `errno` to `EINVAL` and returns `-1`. Otherwise, it sets the debug flag to the specified value and returns `0`.
+
+The code also includes a `strlcpy` function, which is a safer version of the standard `strcpy` function. It copies up to `dest_size - 1` characters from `src` to `dest`, ensuring that `dest` is always null-terminated. If `dest_size` is 0, it returns the length of `src` without copying anything.
+
+Here's a brief overview of the structure `modbus_mapping_t`:
+
+```c
+typedef struct {
+    uint8_t *tab_bits;          // Array for 0X (Coils)
+    uint8_t *tab_input_bits;   // Array for 1X (Input Contacts)
+    uint16_t *tab_registers;   // Array for 4X (Holding Registers)
+    uint16_t *tab_input_registers; // Array for 3X (Input Registers)
+    unsigned int start_bits;    // Starting address for 0X
+    unsigned int start_input_bits; // Starting address for 1X
+    unsigned int start_registers; // Starting address for 4X
+    unsigned int start_input_registers; // Starting address for 3X
+    unsigned int nb_bits;       // Number of 0X bits
+    unsigned int nb_input_bits; // Number of 1X bits
+    unsigned int nb_registers;   // Number of 4X registers
+    unsigned int nb_input_registers; // Number of 3X registers
+} modbus_mapping_t;
+```
+
+This structure is used to store the data that will be exchanged with a Modbus device, including the data types (Coils, Input Contacts, Holding Registers, and Input Registers) and their starting addresses.

@@ -1,0 +1,18 @@
+HYPOTHESIS: The confirmed finding is a remotely controlled heap underwrite in function 0x17 caused by checking mapping_address twice instead of validating mapping_address_write.
+FINAL
+
+
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply",
+      "line": 980
+    },
+    "vulnerability_class": "oob-write",
+    "hypothesis": "A network client can write before the heap-allocated register array using a Write and Read Registers request (function 0x17) when the server uses a nonzero start_registers. The bounds check tests mapping_address < 0 twice and never tests mapping_address_write < 0. For example, with start_registers=1 and nb_registers=1, send read address=1, read quantity=1, write address=0, write quantity=1, byte count=2, and two attacker-chosen value bytes. This produces mapping_address=0 and mapping_address_write=-1. All checks pass, and the write loop stores the supplied 16-bit value into tab_registers[-1], two bytes before the allocation. Larger differences between the configured start and supplied write address allow writes farther before the array.",
+    "evidence": "modbus.c:952-953 computes:\nint mapping_address = address - mb_mapping->start_registers;\nint mapping_address_write = address_write - mb_mapping->start_registers;\n\nmodbus.c:955-957 validates quantities and byte count, which the example satisfies:\nif (nb_write < 1 || MODBUS_MAX_WR_WRITE_REGISTERS < nb_write ||\n    nb < 1 || MODBUS_MAX_WR_READ_REGISTERS < nb ||\n    nb_write_bytes != nb_write * 2)\n\nmodbus.c:962-965 incorrectly duplicates the read-offset lower-bound check:\n} else if (mapping_address < 0 ||\n           (mapping_address + nb) > mb_mapping->nb_registers ||\n           mapping_address < 0 ||\n           (mapping_address_write + nb_write) > mb_mapping->nb_registers) {\n\nmodbus.c:978-981 uses the unchecked negative write offset:\nfor (i = mapping_address_write, j = 10;\n     i < mapping_address_write + nb_write; i++, j += 2) {\n    mb_mapping->tab_registers[i] =\n        (req[offset + j] << 8) + req[offset + j + 1];\n\nmodbus.c:1815-1821 confirms that tab_registers points to an allocation of only nb_registers elements:\nmb_mapping->nb_registers = nb_registers;\nmb_mapping->start_registers = start_registers;\n...\nmb_mapping->tab_registers =\n    (uint16_t *) malloc(nb_registers * sizeof(uint16_t));\n\nNetwork framing supports this request: modbus.c:265-266 reads nine metadata bytes for MODBUS_FC_WRITE_AND_READ_REGISTERS, and modbus.c:304-305 takes its payload length from msg[ctx->backend->header_length + 9].",
+    "confidence": 0.99
+  }
+]

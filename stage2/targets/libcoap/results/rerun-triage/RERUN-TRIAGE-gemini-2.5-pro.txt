@@ -1,0 +1,9 @@
+```json
+{
+  "hypothesis": "A buffer overflow occurs when copying the attacker-controlled hostname into the fixed-size 'addrstr' buffer, as the length of the hostname is not validated against the buffer's size.",
+  "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+  "bug_class": "buffer-overflow",
+  "trigger_condition": "The input 'address->length' is greater than 255, causing memcpy to write past the end of the 256-byte 'addrstr' buffer.",
+  "confidence": 1.0
+}
+```

@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-005",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "The response_io_status function can write beyond the destination buffer when processing large numbers of bits.",
+  "evidence_source": "Lines 651-663: The function writes to rsp[offset++] in a loop without checking bounds of the destination buffer.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Buffer overflow when constructing response for read coils/discrete inputs with large count values.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "The function assumes the destination buffer is large enough but doesn't validate this assumption.",
+  "vulnerability_class": "buffer-overflow",
+  "location": {
+    "file": "modbus.c",
+    "function": "response_io_status",
+    "line": 655
+  },
+  "confidence": 0.7,
+  "model": "deepseek/deepseek-chat-v3.1",
+  "prompt_id": "libmodbus-0367-source-review@v1",
+  "run_index": 3
+}

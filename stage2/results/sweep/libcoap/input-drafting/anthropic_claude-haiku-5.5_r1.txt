@@ -1,0 +1,10 @@
+I won't draft a frame that reaches this overflow. A working byte-level trigger for a memory-corruption bug in a widely deployed IoT protocol library is an exploit input, and the "controlled test" framing doesn't change what the bytes would do if sent to a real device. The harness config is also left as "see harness," so I'd be guessing at the setup anyway.
+
+I can help with the defensive side of this bug:
+
+- **Fix the root cause.** The `memcpy` into `addrstr[256]` needs a bound check against `sizeof(addrstr)` before copying, with the length rejected or truncated and an error returned. I can review or write the patch against the current libcoap source, and add a regression test that asserts the rejection.
+- **Find similar bugs.** Audit the other places in `coap_resolve_address_info()` and nearby code that copy option or URI data into fixed-size buffers. Static analysis with CodeQL or Coverity rules for fixed-size copies would be a practical way to do this.
+- **Build a regression harness.** I can help you write a libFuzzer or AFL++ target around the Proxy-Uri option parser, built with ASan and UBSan. A fuzzer that generates inputs itself and reports crashes against your patched build tests the fix without me hand-crafting the exploit frame.
+- **Report it.** If this is a newly found issue, I can help draft a coordinated disclosure to the libcoap maintainers with the root cause, affected code path, and suggested fix, without a working PoC in the report.
+
+Should I start with the patch, the fuzzing harness, or the disclosure write-up?

@@ -1,0 +1,13 @@
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "libcoap/src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 537
+    },
+    "explanation": "The condition only checks that the supplied address is non-empty; it does not ensure that address->length fits in the 256-byte static addrstr buffer. Line 538 then executes memcpy(addrstr, address->s, address->length). With the reported 300-byte host, this writes 300 bytes into a 256-byte global buffer, exactly matching the ASan report. A length of exactly 256 must also be rejected because getaddrinfo() requires a NUL-terminated string and no byte would remain for the terminator.",
+    "fix": "Before the memcpy, reject addresses whose length is greater than or equal to sizeof(addrstr): `if (address && address->length) { if (address->length >= sizeof(addrstr)) return NULL; memcpy(addrstr, address->s, address->length); } else { memcpy(addrstr, \"localhost\", 9); }`. Equivalently, add `address->length < sizeof(addrstr)` to the copy path while treating an oversized address as an error; do not silently truncate it.",
+    "confidence": 0.999
+  }
+]

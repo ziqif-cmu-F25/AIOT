@@ -1,0 +1,29 @@
+[
+  {
+    "rank": 1,
+    "location": {"file": "unknown", "function": "unknown", "line": 980},
+    "bug_class": "oob-write",
+    "hypothesis": "Negative write index not rejected allows writing to mb_mapping->tab_registers with a negative i when mapping_address_write < 0 due to a duplicated check that omits mapping_address_write < 0.",
+    "vulnerable_line": "mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];",
+    "trigger_condition": "Attacker sets address_write < mb_mapping->start_registers so mapping_address_write = address_write - start_registers < 0; chooses nb_write in [1, MODBUS_MAX_WR_WRITE_REGISTERS] and nb, nb_write_bytes valid so that (mapping_address_write + nb_write) <= mb_mapping->nb_registers and mapping_address/read bounds pass; because the bounds check at lines 962-965 mistakenly repeats 'mapping_address < 0' and never checks 'mapping_address_write < 0', the loop at lines 978-982 executes with i starting negative, writing tab_registers[-1], etc.",
+    "confidence": 0.95
+  },
+  {
+    "rank": 2,
+    "location": {"file": "unknown", "function": "unknown", "line": 981},
+    "bug_class": "oob-read",
+    "hypothesis": "The write loop reads past the end of the request buffer when the frame is truncated but nb_write_bytes equals nb_write*2, causing req[offset + j + 1] to read beyond req.",
+    "vulnerable_line": "(req[offset + j] << 8) + req[offset + j + 1]",
+    "trigger_condition": "Attacker crafts a PDU such that nb_write and nb_write_bytes satisfy the value checks (nb_write in range, nb_write_bytes == nb_write*2) but the actual buffer length is < offset + 10 + 2*nb_write, causing the for-loop (j = 10; j += 2) to access req beyond its length.",
+    "confidence": 0.6
+  },
+  {
+    "rank": 3,
+    "location": {"file": "unknown", "function": "unknown", "line": 951},
+    "bug_class": "oob-read",
+    "hypothesis": "Parsing request fields at the start of the case block reads beyond the provided request buffer if it is shorter than offset+10 bytes.",
+    "vulnerable_line": "int nb_write_bytes = req[offset + 9];",
+    "trigger_condition": "Attacker sends a request buffer whose length is <= offset + 9 (i.e., the PDU is shorter than 10 bytes past offset), causing accesses at req[offset+3..9] (lines 948–951) to read out of bounds.",
+    "confidence": 0.45
+  }
+]

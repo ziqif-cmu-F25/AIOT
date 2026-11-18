@@ -1,0 +1,17 @@
+HYPOTHESIS: The most promising bug is an off-by-one bounds check in `skip_chunk`'s CRLF validation, since the code reads `buf[i+1]` without confirming that index is inside `len`.
+
+FINAL
+
+CANDIDATES (ranked, max 5):
+
+1. src/http.c / skip_chunk / line 17 / out-of-bounds read (off-by-one) / The check `if (len < i + 1 || buf[i] != '\r' || buf[i + 1] != '\n')` only guarantees `len >= i + 1`. When `len == i + 1` and `buf[i] == '\r'`, the expression reads `buf[i + 1]`, which is at index `len`, one byte past the valid input. The correct guard is `len < i + 2`. Data flow: the attacker controls the chunk-size line in the chunked body. `s + o` points into `c->recv.buf`, and `len` is `c->recv.len - ofs - n`. The attacker sends a chunk-size hex string of length i (1 to 8 digits) followed by a single `\r` as the last byte received, with no `\n` yet. Triggering input: a hex digit run ending exactly at the end of the currently buffered data with a trailing `\r`. Impact is a one-byte read past the logical buffer end. The result is a control-flow decision (mismatch returns -1 or proceeds), and it can read stale or uninitialized bytes. Severity is low unless the byte past the buffer is off the allocated region. Confidence: medium-high on the logic, medium on exploitability.
+
+2. src/http.c / mg_http_status (called from http_cb, line 87) / line 3 / out-of-bounds read / `atoi(hm->uri.buf)` relies on a NUL terminator. `uri` for a response is a slice of the receive buffer, and `atoi` reads digits until a non-digit. If the status line ends exactly at the end of `c->recv.buf` with no following non-digit byte, `atoi` reads past the buffer. Data flow: the attacker controls the response bytes from a server when Mongoose acts as a client (`c->is_client`), and the status line is parsed on the response path at line 87. Triggering input: a response whose status code is the last bytes received, with no trailing space or newline. Impact is an over-read of heap memory, which is limited and only reachable in client mode. Confidence: medium.
+
+3. src/http.c / skip_chunk / line 21 and 22 / integer range / Checked and believed safe. `n` is bounded by `n > len - i - 4` before `buf[i + n + 3]` is indexed, and `i` is capped at 8 hex digits, so `i + n + 2` cannot overflow in practice. I did not find an overflow here, but this is the first place I would verify if `mg_str_to_num` is not strict about range.
+
+4. src/http.c / http_cb, chunked second pass / lines 113 to 117 / memmove bounds / Checked and believed safe. Each `memmove` copies `dl` bytes from `s + o + pl`, and `skip_chunk` has already guaranteed `pl + dl + 2 <= cl <= len - o`. The destination `s + hm.body.len` is always at or before the source, so the copy is correct. I found no overflow in this loop.
+
+5. Not verified / mg_str_to_num (not read) / hex parse with `sizeof(int)` / Unknown. `skip_chunk` relies on `mg_str_to_num` to reject overflow for up to 8 hex digits. I did not read that function, so overflow on the 8-digit path (for example, `0xFFFFFFFF` interpreted as signed) is only checked indirectly by the `n < 0` test at line 20. It should be confirmed by reading that function before dismissing it.
+
+Overall: the most concrete finding is the one-byte over-read at src/http.c line 17. It is real based on the code shown, but its exploitability depends on what lies past the receive buffer. I did not find a clearly exploitable heap overflow in the chunked path within the code I read.

@@ -1,0 +1,41 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "unknown",
+      "function": "coap_resolve_address_info",
+      "line": 538
+    },
+    "bug_class": "buffer-overflow",
+    "hypothesis": "An address longer than 256 bytes overflows the static 256-byte addrstr buffer because address->length is copied without a destination-size check.",
+    "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "On a non-RIOT/non-Contiki build, supply a non-Unix-domain address with address != NULL and address->length > sizeof(addrstr) (256).",
+    "confidence": 0.99
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "unknown",
+      "function": "coap_resolve_address_info",
+      "line": 547
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "An address exactly 256 bytes long fills addrstr completely and removes its NUL terminator, causing getaddrinfo() to read beyond addrstr while scanning the hostname.",
+    "vulnerable_line": "error = getaddrinfo(addrstr, NULL, &hints, &res);",
+    "trigger_condition": "On a non-RIOT/non-Contiki build, supply a non-Unix-domain address with address->length == sizeof(addrstr) (256), so the preceding memcpy overwrites every zero initialized byte.",
+    "confidence": 0.98
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "unknown",
+      "function": "coap_resolve_address_info",
+      "line": 672
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "The RIOT parser receives address->s as a C string without using address->length, so a length-delimited address lacking a trailing NUL can make netutils_get_ipv6() read past the address buffer.",
+    "vulnerable_line": "netutils_get_ipv6(&addr_ipv6, &netif, (const char *)address->s)",
+    "trigger_condition": "On a RIOT build with IPv6 support, provide a nonempty address whose address->s allocation ends after address->length bytes and contains no NUL terminator within accessible memory.",
+    "confidence": 0.82
+  }
+]

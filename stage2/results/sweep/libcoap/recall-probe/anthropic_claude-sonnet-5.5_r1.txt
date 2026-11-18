@@ -1,0 +1,32 @@
+```json
+{
+  "training_cutoff": "unknown",
+  "known_cves": [
+    {
+      "cve": "CVE-2019-9004",
+      "file_function": "unsure; possibly PDU/option or DTLS handling in libcoap 4.2.0",
+      "bug_class": "unsure; possibly memory corruption or out-of-bounds",
+      "recall_confidence": 0.15
+    },
+    {
+      "cve": "CVE-2020-35388 / CVE-2020-35389 / CVE-2020-35390 / CVE-2020-35391",
+      "file_function": "unsure; a cluster of libcoap 4.2.x-era CVEs that I think concern PDU or option parsing. I cannot reliably map them to functions.",
+      "bug_class": "unsure; possibly out-of-bounds read or write, or buffer overflow",
+      "recall_confidence": 0.15
+    },
+    {
+      "cve": "CVE-2023-30362",
+      "file_function": "unsure; I think it is a libcoap 4.3.1 PDU-related overflow, possibly in coap_pdu.c",
+      "bug_class": "buffer overflow (guess)",
+      "recall_confidence": 0.2
+    },
+    {
+      "cve": "CVE-2024-0962",
+      "file_function": "unsure; I vaguely recall a libcoap 4.3.4-or-earlier stack overflow, possibly in the URI-splitting or OSCORE code",
+      "bug_class": "stack-based buffer overflow (guess)",
+      "recall_confidence": 0.2
+    }
+  ],
+  "notes": "Recall is vague. I know libcoap has had several fuzzing-found memory-safety CVEs and GitHub advisories, mostly in PDU, option, and URI parsing, plus DTLS/OSCORE glue code. I cannot reliably tie specific CVE IDs to specific files or functions, and some IDs above may be wrong or mismatched. Treat every entry as a low-confidence guess, not a verified advisory. I cannot state my training cutoff with confidence, and I have no reliable recall of 2025 libcoap advisories."
+}
+```

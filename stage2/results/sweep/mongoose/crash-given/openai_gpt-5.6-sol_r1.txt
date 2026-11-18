@@ -1,0 +1,13 @@
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "mongoose/src/http.c",
+      "function": "skip_chunk",
+      "line": 1006
+    },
+    "explanation": "The bounds check is off by one. For the 3-byte input \"ab\\r\", the hexadecimal scan sets i = 2 and len = 3. The condition `len < i + 1` evaluates as `3 < 3`, which is false. After confirming `buf[2] == '\\r'`, the expression reads `buf[i + 1]`, i.e. `buf[3]`, exactly one byte past the allocated 3-byte buffer. Short-circuit evaluation does not prevent the read because the preceding checks pass.",
+    "fix": "Require both CRLF bytes to be present before reading them: `if (len < i + 2 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;` Equivalently, use `i + 1 >= len` as the bounds condition.",
+    "confidence": 1.0
+  }
+]

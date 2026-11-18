@@ -1,0 +1,21 @@
+{
+  "rank": 1,
+  "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 964},
+  "explanation": "The WRITE_AND_READ_REGISTERS path crashes at the store tab_registers[i] (line 980). i is initialized from mapping_address_write (address_write - start_registers). The range guard is copy-pasted wrong: it tests mapping_address < 0 twice and never tests mapping_address_write < 0. A crafted FC 23 request can therefore keep the read window inside the map while the write start is negative. (mapping_address_write + nb_write) > nb_registers then stays false (negative/small sum), the loop runs with i < 0, and the uint16_t* write lands before the buffer (SEGV at 0x505ffffffec8).",
+  "fix": "Replace the duplicated check with mapping_address_write < 0, i.e. else if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address_write < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers)",
+  "confidence": 0.96
+}
+{
+  "rank": 2,
+  "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 965},
+  "explanation": "Even after fixing line 964, the remaining test (mapping_address_write + nb_write) > nb_registers is a signed int add. If mapping_address_write were ever large enough for that add to wrap, a too-high write index could still reach line 980. Unlikely with uint16 Modbus addresses and the existing nb_write cap, so this is a hardening concern, not the crash in the report.",
+  "fix": "After mapping_address_write < 0 || mapping_address_write >= mb_mapping->nb_registers, use mapping_address_write > mb_mapping->nb_registers - nb_write (nb_write already validated >= 1).",
+  "confidence": 0.18
+}
+{
+  "rank": 3,
+  "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 705},
+  "explanation": "modbus_reply never checks req_length before decoding FC 23 fields (offset+3..+9). A short buffer could feed garbage into address_write/nb_write and then the same write loop. Receive normally fills a MAX_MESSAGE_LENGTH buffer and ASan reported a WRITE at 980, not a READ of req, so this is not the observed fault.",
+  "fix": "Reject the request unless req_length is large enough for header + 10-byte FC23 meta + nb_write_bytes before computing mapping addresses.",
+  "confidence": 0.08
+}

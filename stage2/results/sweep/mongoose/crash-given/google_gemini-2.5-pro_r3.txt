@@ -1,0 +1,14 @@
+
+```c
+// http.c
+1000 : static int skip_chunk(const char *buf, int len, int *pl, int *dl) { 
+1001:   int i = 0, n = 0;
+1002:    if (len < 3) return 0;
+1003:   while (i < len  && is_hex_digit(buf[i])) i++;
+1004:   if (i ==  0) return -1;                     // Error, no length specified
+1005:   if (i  > (int) sizeof(int) * 2) return -1;  // Chunk length is too big
+ 1006:   if (len < i + 1 || buf[i] != '\r' ||  buf[i + 1] != '\n') return -1;  // Error
+1007:    if (mg_str_to_num(mg_str_n(buf, (size_t)  i), 16, &n, sizeof(int)) == false)
+1008:     return  -1;                    // Decode chunk length, overflow
+1009:   if (n < 0)  return -1;           // Error. TODO(): some checks now redundant
+1010:   if (n

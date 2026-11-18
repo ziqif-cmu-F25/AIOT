@@ -1,0 +1,39 @@
+**Trace of the triggering input**
+
+The input is `"ab\r"`: 3 bytes, no slack after the buffer. It reaches `skip_chunk(buf, len=3, ...)` (src/http.c, lines 1000–1014).
+
+1. Line 1002: `len < 3` is false, so execution continues.
+2. Line 1003: `'a'` and `'b'` are hex digits, so `i = 2`. `buf[2] = '\r'` stops the loop.
+3. Lines 1004–1005: `i != 0` and `i <= 8`, so both checks pass.
+4. Line 1006: `len < i + 1` is `3 < 3`, which is false.
+   - `buf[2] != '\r'` is false.
+   - The code then evaluates `buf[i + 1]`, which is `buf[3]`.
+   - This is a 1-byte read exactly 0 bytes past the 3-byte allocation, matching the ASan report.
+
+The guard is off by one. The line reads both `buf[i]` and `buf[i+1]`, so it needs `len >= i + 2`, not `len >= i + 1`.
+
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+    "explanation": "After scanning the hex chunk-size digits (i = number of hex digits), the code reads both buf[i] (expected '\\r') and buf[i+1] (expected '\\n'). The guard `len < i + 1` only guarantees buf[i] is in bounds. With input \"ab\\r\" (len=3, i=2), the guard 3 < 3 is false, buf[2]=='\\r' passes, and buf[3] is read: a 1-byte heap read exactly 0 bytes past the 3-byte region, as ASan reports. A chunk-size line ending in a lone '\\r' at the buffer end triggers it, which happens whenever a TCP segment ends right after the CR.",
+    "fix": "if (len < i + 2 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  (or better: if (len < i + 2) return 0; so a partially buffered CRLF means 'need more data' rather than an error, then check buf[i]/buf[i+1])",
+    "confidence": 0.95
+  },
+  {
+    "rank": 2,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1002},
+    "explanation": "The early `len < 3` length gate is meant to ensure the minimal '<hex>\\r\\n' header is present, but it does not account for the number of hex digits i. It therefore cannot protect the later buf[i+1] access for i >= 2. It lets the short input through to the faulty line 1006; it is a contributing check rather than the faulting line.",
+    "fix": "Keep the early-out, but make the per-access bound explicit at line 1006 (len < i + 2). Optionally also change the gate to `if (len < 5) return 0;` (minimal complete chunk is \"0\\r\\n\\r\\n\"), noting that this alone does not fix longer hex prefixes.",
+    "confidence": 0.3
+  },
+  {
+    "rank": 3,
+    "root_cause": {"file": "mongoose/src/http.c", "function": "skiptorn", "line": 231},
+    "explanation": "This is the same off-by-one pattern: `s[0] == '\\r' && s[1] != '\\n'` reads s[1] when only s < end is guaranteed, so s+1 may equal end. In mg_http_parse, end is bounded by the request length found by mg_http_get_request_len, which makes it harder to hit, and it is not the path for this 3-byte chunk input. Listed as a related latent instance.",
+    "fix": "if (s >= end || (s[0] == '\\r' && (s + 1 >= end || s[1] != '\\n'))) return NULL;",
+    "confidence": 0.1
+  }
+]
+```

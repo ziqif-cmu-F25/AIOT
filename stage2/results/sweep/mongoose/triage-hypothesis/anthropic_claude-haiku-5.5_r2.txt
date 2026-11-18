@@ -1,0 +1,31 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1006},
+    "bug_class": "oob-read",
+    "hypothesis": "The bounds check `len < i + 1` is off by one: when len == i + 1 and buf[i] == '\\r', the condition passes and `buf[i + 1]` reads one byte past the end of the caller's buffer (buf[len]), because the check should be `len < i + 2`.",
+    "vulnerable_line": "if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "trigger_condition": "A chunk-size line with hex digits followed by a single '\\r' as the last byte of the readable data, with no '\\n' after it. Example: buf = \"0AB\\r\" with len = 3 (i = 2). Then len < i+1 is false, buf[2] == '\\r' holds, and buf[3] (== buf[len]) is read out of bounds. Requires len >= 3 to pass line 1002.",
+    "confidence": 0.85
+  },
+  {
+    "rank": 2,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1007},
+    "bug_class": "integer-overflow",
+    "hypothesis": "Up to 8 hex digits are accepted (line 1005), so the parsed chunk size can reach 0xFFFFFFFF. The code depends on mg_str_to_num to reject values that overflow a signed int; if it instead wraps to a non-negative value, the later arithmetic on n could mis-compute bounds.",
+    "vulnerable_line": "if (mg_str_to_num(mg_str_n(buf, (size_t) i), 16, &n, sizeof(int)) == false)",
+    "trigger_condition": "A chunk-size field of 8 hex digits with the high bit set (e.g. \"FFFFFFFF\\r\\n\" or \"80000000\\r\\n\"), followed by the rest of the input. Values that become negative are caught at line 1009, so exploitation needs mg_str_to_num to return a wrapped non-negative value, which is unverified from this excerpt.",
+    "confidence": 0.2
+  },
+  {
+    "rank": 3,
+    "location": {"file": "mongoose.c", "function": "skip_chunk", "line": 1010},
+    "bug_class": "other",
+    "hypothesis": "When len - i - 4 is negative, the 'not yet buffered' test is relied on to return 0 for any non-negative n, which is safe here. However, the comparison is done in signed int arithmetic, so if n were ever negative (for example, from a missed overflow in line 1007) it would bypass this bound and make line 1011 read at out-of-range indices.",
+    "vulnerable_line": "if (n > len - i - 4) return 0;",
+    "trigger_condition": "Requires n < 0 to survive line 1009; this depends on the earlier checks, so it is only reachable if line 1009 is bypassed.",
+    "confidence": 0.1
+  }
+]
+```

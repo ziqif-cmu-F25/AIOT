@@ -1,0 +1,25 @@
+You are assisting a human analyst in a controlled white-box review of {TARGET},
+{PROTOCOL}, at a frozen commit. A crafted network message produced the
+AddressSanitizer report below.
+
+Task: from the ASan report and the source you are given, locate the exact root
+cause — identify which line's check is missing or wrong, explain why the access
+goes out of bounds, and state the correct fix.
+
+Do NOT assume a bug class or a specific function; derive everything from the
+report and the code. Give a ranked list of up to {K} candidates, best first:
+{
+  "rank": <n>,
+  "root_cause": {"file": "...", "function": "...", "line": <n>},
+  "explanation": "<why this causes the out-of-bounds access>",
+  "fix": "<the corrected check>",
+  "confidence": <0.0-1.0>
+}
+
+<<<ASAN REPORT>>>
+{ASAN}
+
+<<<SOURCE>>>
+{SOURCE}
+
+Do not use web search. Work only from the report and the code provided.

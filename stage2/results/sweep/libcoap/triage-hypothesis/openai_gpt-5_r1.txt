@@ -1,0 +1,29 @@
+[
+  {
+    "rank": 1,
+    "location": {"file": "unknown", "function": "coap_resolve_address_info", "line": 538},
+    "bug_class": "buffer-overflow",
+    "hypothesis": "Unbounded copy of the network-supplied address into a 256-byte buffer overflows addrstr when address->length > 256.",
+    "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "address != NULL and address->length > 256 (i.e., larger than sizeof(addrstr))",
+    "confidence": 0.95
+  },
+  {
+    "rank": 2,
+    "location": {"file": "unknown", "function": "coap_resolve_address_info", "line": 547},
+    "bug_class": "oob-read",
+    "hypothesis": "If address->length == 256, addrstr is not NUL-terminated and getaddrinfo() reads past the end of addrstr searching for a terminator.",
+    "vulnerable_line": "error = getaddrinfo(addrstr, NULL, &hints, &res);",
+    "trigger_condition": "address != NULL and address->length == 256 (exactly fills addrstr so no trailing NUL remains)",
+    "confidence": 0.8
+  },
+  {
+    "rank": 3,
+    "location": {"file": "unknown", "function": "coap_resolve_address_info", "line": 672},
+    "bug_class": "oob-read",
+    "hypothesis": "In the RIOT branch, address->s (not guaranteed NUL-terminated) is passed directly to netutils_get_ipv6(), which expects a C-string and can read past the provided buffer.",
+    "vulnerable_line": "if (netutils_get_ipv6(&addr_ipv6, &netif, (const char *)address->s) >= 0) {",
+    "trigger_condition": "RIOT_VERSION defined; address != NULL; address->length > 0; address->s is not NUL-terminated at address->s[address->length]",
+    "confidence": 0.7
+  }
+]

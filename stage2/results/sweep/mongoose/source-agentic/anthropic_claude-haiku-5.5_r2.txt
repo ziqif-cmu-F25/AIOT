@@ -1,0 +1,24 @@
+HYPOTHESIS: The `len < i + 1` guard in `skip_chunk` is off by one, so `buf[i + 1]` can be read one byte past the valid data.
+
+FINAL
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "mongoose/src/http.c", "function": "skip_chunk", "line": 1006},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "The bounds check on line 1006 tests `len < i + 1`, but the code then reads `buf[i + 1]`, which requires `len >= i + 2`. When the buffered data ends exactly after the chunk-size digits plus a CR (len == i + 1), the expression `buf[i] != '\\r'` is evaluated and, if it is '\\r', `buf[i + 1]` reads at index `len`, one byte past the valid received data. An attacker can trigger this with a chunked request whose buffer ends in a chunk-size line such as `10\\r` (len = 3, i = 2). The read is out of bounds of the logical data, and it is only harmless if the allocation happens to extend one byte past recv.len. The impact is limited to a one-byte OOB read, and it can also affect control flow because the byte value determines whether parsing continues.",
+    "evidence": "1002: if (len < 3) return 0;\n1003: while (i < len && is_hex_digit(buf[i])) i++;\n1004: if (i == 0) return -1;\n1005: if (i > (int) sizeof(int) * 2) return -1;\n1006: if (len < i + 1 || buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;  // Error",
+    "confidence": 0.45
+  }
+]
+```
+
+Other paths I checked and do not consider exploitable:
+- **Hex overflow in `mg_str_to_num` (str.c:158–172):** the overflow checks use `max = 0xFFFFFFFF` for a 4-byte `int`. The `c - '7'` and `c - 'W'` offsets correctly map 'A'–'F' and 'a'–'f' to 10–15.
+- **Negative length:** a result of 0x80000000 or more becomes negative in `n` and is rejected by `if (n < 0)` on line 1009.
+- **Payload bounds:** the check `n > len - i - 4` on line 1010 guarantees that `buf[i + n + 3]` is in range before line 1011 reads it.
+- **Relocation (http.c:1102–1104):** `memmove` in the second pass moves data toward the front of the buffer, and each chunk's `dl` is bounded by the first-pass validation.
+
+Confidence is limited because I did not verify the allocation size of `c->recv` beyond `recv.len`.

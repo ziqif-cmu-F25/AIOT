@@ -1,0 +1,23 @@
+
+
+
+
+
+
+
+
+
+
+
+
+I have found three strong candidates.
+1. OOB read in `coap_pdu_parse_header` when parsing extended token length.
+2. OOB read in `check_segment` when parsing malformed percent-encoding.
+3. Stack buffer overflow in `coap_resolve_address_info` when handling long hostnames from proxy options.
+
+All three are triggered by network input.
+The stack buffer overflow (candidate 3) is classic and very dangerous, potentially leading to RCE. It happens on a static buffer `addrstr[256]`. The length of the hostname comes from a CoAP option. The length of a CoAP option can be larger than 255. So this is a definite stack buffer overflow.
+
+Let's re-evaluate the ranking.
+- Candidate 3 (stack overflow) is probably the most severe in terms of impact (RCE).
+- Candidate 1 (PDU OOB read) is very easy to trigger and affects all PDU parsing.

@@ -1,0 +1,119 @@
+CANDIDATES (ranked, most likely first, max 5):
+
+1. file: `src/coap_address.c` / function: `coap_resolve_address_info()` / approx line: near `static char addrstr[256]` and the subsequent `memcpy`
+   
+   bug class: Static-buffer overflow; also missing NUL termination at the buffer boundary.
+   
+   reasoning (quote the specific code line(s) involved):
+   ```c
+   static char addrstr[256];
+   ...
+   memset(addrstr, 0, sizeof(addrstr));
+   if (address && address->length)
+     memcpy(addrstr, address->s, address->length);
+   ```
+   The copy has no destination-size check. More than 256 host bytes overwrite adjacent static storage. Exactly 256 non-NUL bytes erase all termination before:
+   ```c
+   error = getaddrinfo(addrstr, NULL, &hints, &res);
+   ```
+   That also exposes an unterminated string to a string-consuming API.
+   
+   how untrusted input reaches it (trace the data flow): A proxy request enters `coap_proxy_forward_request_lkd()` → `coap_proxy_get_ongoing_session()` → `coap_proxy_get_session()`. In a strip mode, the Proxy-Uri option is parsed by `coap_split_proxy_uri()`. `coap_split_uri_sub()` sets `uri->host` directly from the supplied URI without limiting host length. The resulting `server_use->uri.host` is passed to `coap_resolve_address_info()`. Although a standalone Uri-Host is limited to 255 bytes, the Proxy-Uri parser accepts an option up to 1034 bytes and does not impose that host limit.
+   
+   triggering input characteristics: A request handled by an enabled proxy in a strip mode, containing a valid Proxy-Uri such as `coap://` followed by more than 256 ordinary hostname bytes. Use a destination not already mapped so address resolution occurs. This applies to the resolver branch guarded by `!RIOT_VERSION && !WITH_CONTIKI`; the hostname need not resolve successfully because the overflow precedes resolution.
+
+2. file: `src/coap_proxy.c` / function: `coap_proxy_get_session()` / approx line: near `proxy_list[i].uri = server_use->uri`
+   
+   bug class: Use-after-free through persistent, shallow-copied URI pointers.
+   
+   reasoning (quote the specific code line(s) involved):
+   ```c
+   proxy_list[i].uri = server_use->uri;
+   ```
+   This copies URI pointers, not their backing bytes. For Proxy-Scheme, the host is explicitly borrowed from the received PDU:
+   ```c
+   uri->host.s = coap_opt_value(opt);
+   ```
+   Proxy-Uri parsing likewise constructs slices of the option:
+   ```c
+   COAP_SET_STR(&uri->host, q - p, p);
+   ```
+   Subsequent requests dereference the saved host:
+   ```c
+   coap_string_equal(&proxy_list[i].uri.host, &server_use->uri.host)
+   ```
+   No deep copy or ownership transfer of those URI bytes is shown. Saving a duplicate request elsewhere does not fix these pointers: they still reference the original PDU.
+   
+   how untrusted input reaches it (trace the data flow): Proxy-Uri or Proxy-Scheme/Uri-Host bytes in an incoming request → `coap_proxy_get_session()` in a strip mode → borrowed `server_use->uri` → persistent `context->proxy_list[i].uri` → host comparison on a later proxy request.
+   
+   triggering input characteristics: Send a valid proxy request that creates a forwarding mapping, allow the original received PDU to be released, then send another proxy request that causes the mapping list to be searched. The stale host is read during comparison. **Assumptions:** received PDUs are freed after request handling, and `coap_string_equal()` compares the pointed-to bytes, as its use implies. Their implementations/lifecycle callers are not included.
+
+3. file: `src/coap_proxy.c` / function: `coap_proxy_forward_request_lkd()` / approx line: payload-copy block before `coap_send_lkd()`
+   
+   bug class: Use-after-free / stale payload pointer during deferred blockwise transmission.
+   
+   reasoning (quote the specific code line(s) involved):
+   ```c
+   body_data = coap_new_binary(total);
+   ...
+   memcpy(body_data->s, data, size);
+   if (!coap_add_data_large_request_lkd(proxy_entry->ongoing, pdu, total, data,
+                                        coap_proxy_release_body_data, body_data)) {
+   ```
+   The function makes a durable copy but passes the original `data` pointer, not `body_data->s`, to the large-request API. The comment explicitly identifies the lifetime hazard:
+   ```c
+   /* Need to take a copy of the data as request PDU may go away before
+    * all data is transmitted.
+    */
+   ```
+   The response-forwarding implementation provides a useful contrast: after copying, it correctly executes `data = body_data->s;`.
+   
+   how untrusted input reaches it (trace the data flow): Incoming proxy request payload → `coap_get_data_large(request, ..., &data, ...)` → original receive-PDU or assembled-body pointer → `coap_add_data_large_request_lkd()` → later outgoing block transmission after incoming request storage has been released. The allocated copy is retained only as the release callback's argument.
+   
+   triggering input characteristics: A proxied request with a body sufficiently large to require deferred/blockwise forwarding, followed by release of the incoming request's payload storage before all outgoing blocks are generated. **Assumption:** the large-data API retains the supplied pointer for subsequent blocks rather than immediately copying the entire body; its implementation is omitted, but the surrounding comments and release-callback design strongly support this.
+
+4. file: `src/coap_pdu.c` / function: `coap_pdu_parse_size()` / approx line: extended-token accounting near the end of the function
+   
+   bug class: Out-of-bounds read of extended-token-length bytes.
+   
+   reasoning (quote the specific code line(s) involved):
+   ```c
+   assert(coap_pdu_parse_header_size(proto, data) <= length);
+   ```
+   Only the transport-header size is required. The code then places `token_start` immediately after that header, for example:
+   ```c
+   token_start = &data[2];
+   ```
+   and reads additional bytes without checking that they exist:
+   ```c
+   size += token_start[0] + COAP_TOKEN_EXT_1B_BIAS + 1;
+   ...
+   size += ((uint16_t)token_start[0] << 8) + token_start[1] +
+           COAP_TOKEN_EXT_2B_BIAS + 2;
+   ```
+   A complete transport header does not imply that either extended-token-length byte has arrived.
+   
+   how untrusted input reaches it (trace the data flow): Attacker-controlled TCP/TLS framing bytes → stream message-size calculation in `coap_pdu_parse_size()` → header TKL nibble selects an extended-token branch → unchecked read beyond the supplied header/input span. The stream receiver calling this helper is not provided.
+   
+   triggering input characteristics: A TCP message header with TKL equal to `COAP_TOKEN_EXT_1B_TKL` or `COAP_TOKEN_EXT_2B_TKL`, supplied without the required one or two following token-length bytes. For the shortest header, a two-byte input already satisfies the assertion. **Assumption:** the stream receiver calls this helper once the transport header is available; an actual allocation-boundary violation depends on its buffer allocation, while the missing input-length check is directly visible.
+
+5. file: `src/coap_pdu.c` / function: `coap_pdu_parse_header()` / approx line: extended-token branches before the final token-size check
+   
+   bug class: Out-of-bounds read before validation.
+   
+   reasoning (quote the specific code line(s) involved):
+   ```c
+   pdu->e_token_length = pdu->token[0] + COAP_TOKEN_EXT_1B_BIAS + 1;
+   ...
+   pdu->e_token_length = ((uint16_t)pdu->token[0] << 8) + pdu->token[1] +
+                         COAP_TOKEN_EXT_2B_BIAS + 2;
+   ```
+   These reads occur before:
+   ```c
+   if (pdu->e_token_length > pdu->alloc_size || e_token_length == 15) {
+   ```
+   Neither branch first checks that `used_size` contains its token-length prefix. A later rejection cannot undo an invalid read.
+   
+   how untrusted input reaches it (trace the data flow): Crafted datagram → `coap_pdu_parse()` → `pdu->used_size = length - hdr_size` → `coap_pdu_parse_header()` → extended TKL nibble causes reads from absent post-header bytes. `coap_pdu_parse_opt()` checks token size against `used_size` only afterward.
+   
+   triggering input characteristics: A UDP CoAP header with a valid version and an extended TKL value, but zero following bytes; alternatively, the two-byte extended form with only one following byte. **Allocation qualification:** this is a physical out-of-bounds read when the token storage has fewer than one/two accessible bytes—for example, a PDU initialized with zero token/options capacity. With a larger retained allocation it instead reads stale/uninitialized bytes outside the received message. The network receive allocation strategy is not shown, so that qualification matters.

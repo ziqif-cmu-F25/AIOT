@@ -1,0 +1,18 @@
+{
+  "connection_reset": false,
+  "elapsed_ms": 30.198,
+  "eof": true,
+  "error": null,
+  "host": "127.0.0.1",
+  "peer": "127.0.0.1:1502",
+  "port": 1502,
+  "response_hex": null,
+  "response_len": 0,
+  "response_sha256": null,
+  "sent_len": 19,
+  "sent_sha256": "d29c85250e09b0ff3b52fa622339b1e9f3853ce47977c92ab819e4296e19cd73",
+  "server_dropped": true,
+  "timed_out": false,
+  "timeout_s": 2.0,
+  "utc": "2026-11-04T06:19:22Z"
+}

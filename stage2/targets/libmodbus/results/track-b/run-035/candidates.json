@@ -1,0 +1,25 @@
+[
+  {
+    "candidate_id": "CAND-001",
+    "viewpoint": "ai-source-review",
+    "property": "memory-safety",
+    "hypothesis": "In modbus_reply's MODBUS_FC_WRITE_AND_READ_REGISTERS handler, the bounds check never rejects a negative write mapping address. A peer sends a write address (address_write) below mb_mapping->start_registers, so mapping_address_write is negative. The check `(mapping_address_write + nb_write) > nb_registers` then passes, and the write loop stores to mb_mapping->tab_registers[i] with negative i, writing before the start of the heap-allocated register table.",
+    "evidence_source": "Line 953: `int mapping_address_write = address_write - mb_mapping->start_registers;`. Lines 962-965 check `mapping_address < 0` twice and `(mapping_address_write + nb_write) > mb_mapping->nb_registers`, but never `mapping_address_write < 0`. Lines 978-982 then write `mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];` for i starting at mapping_address_write.",
+    "input_artifact": "not_available (static source review; no input artifact)",
+    "expected_behavior": "A crafted 0x17 request with address_write less than start_registers causes an out-of-bounds write before tab_registers, most likely a heap buffer underflow that corrupts allocator metadata or other mapping data, and can crash the server or allow code execution. Sanitizers would report a heap-buffer-overflow (write before the start of the allocation).",
+    "observed_behavior": "not_available (static source review; nothing was executed)",
+    "status": "candidate",
+    "oracle_verdict": "pending",
+    "notes": "The read side is checked correctly (`mapping_address < 0`). The single-write and multiple-write handlers check both bounds. The missing lower-bound check is specific to the write half of write_and_read_registers. Fix: add `mapping_address_write < 0 ||` to the condition at line 962-965.",
+    "vulnerability_class": "buffer-overflow",
+    "location": {
+      "file": "modbus.c",
+      "function": "modbus_reply",
+      "line": 965
+    },
+    "confidence": 0.7,
+    "model": "anthropic/claude-haiku-5.5",
+    "prompt_id": "libmodbus-0367-source-review@v1",
+    "run_index": 1
+  }
+]

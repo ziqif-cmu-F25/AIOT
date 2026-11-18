@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-003",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "For READ_HOLDING_REGISTERS/READ_INPUT_REGISTERS, a request shorter than header_length+5 causes OOB reads of req[offset+3]/[+4] to compute 'nb'.",
+  "evidence_source": "case MODBUS_FC_READ_HOLDING_REGISTERS / MODBUS_FC_READ_INPUT_REGISTERS: int nb = (req[offset + 3] << 8) + req[offset + 4]; No req_length validation.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Crash or sanitizer OOB-read report on truncated requests.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "Same missing length check pattern as for bit reads.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 854
+  },
+  "confidence": 0.86,
+  "model": "openai/gpt-5",
+  "prompt_id": "libmodbus-modbus-reply@v1",
+  "run_index": 2
+}

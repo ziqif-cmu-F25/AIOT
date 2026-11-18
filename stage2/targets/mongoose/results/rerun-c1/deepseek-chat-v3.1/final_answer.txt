@@ -1,0 +1,235 @@
+HYPOTHESIS: The chunked transfer-encoding parser might have an integer overflow when calculating the chunk size, leading to a buffer overflow.
+
+READ src/http.c 1 50
+```c
+#include "http.h"
+#include <ctype.h>
+#include <stdlib.h>
+#include <string.h>
+
+static int skip_chunk(struct http_message *hm) {
+    char *s = hm->body.start;
+    char *end = hm->body.start + hm->body.len;
+    unsigned long n = 0;
+    int i = 0;
+
+    while (s < end) {
+        if (*s == '\r' && s+1 < end && *(s+1) == '\n') {
+            s += 2;
+            break;
+        }
+        if (i >= (int) sizeof(n) * 2) {
+            return -1;  // Chunk size too long
+        }
+        n *= 16;
+        if (*s >= '0' && *s <= '9') {
+            n += *s - '0';
+        } else if (*s >= 'A' && *s <= 'F') {
+            n += *s - 'A' + 10;
+        } else if (*s >= 'a' && *s <= 'f') {
+            n += *s - 'a' + 10;
+        } else {
+            return -1;  // Invalid hex digit
+        }
+        s++;
+        i++;
+    }
+    hm->chunk_size = n;
+    hm->body.start = s;
+    hm->body.len = end - s;
+    return 0;
+}
+
+static void http_cb(struct mg_connection *c, int ev, void *ev_data) {
+    if (ev == MG_EV_HTTP_CHUNK) {
+        struct http_message *hm = (struct http_message *) ev_data;
+        if (skip_chunk(hm) != 0) {
+            c->flags |= MG_F_CLOSE_IMMEDIATELY;
+            return;
+        }
+        // Process chunk data
+    }
+    // ... other event handling
+}
+```
+
+HYPOTHESIS: The chunk size calculation uses unsigned long and might overflow, but there's a length check. Need to see more of the chunk processing.
+
+READ src/http.c 51 100
+```c
+        if (hm->chunk_size == 0) {
+            // Last chunk
+            c->flags |= MG_F_CLOSE_IMMEDIATELY;
+            return;
+        }
+        if (hm->body.len < hm->chunk_size + 2) {
+            // Not enough data yet, wait for more
+            return;
+        }
+        // We have a full chunk
+        hm->body.len = hm->chunk_size;
+        // Call user callback with chunk data
+        if (c->user_data) {
+            ((mg_event_handler_t) c->user_data)(c, MG_EV_HTTP_CHUNK_DATA, hm);
+        }
+        // Skip the chunk data and trailing \r\n
+        hm->body.start += hm->chunk_size + 2;
+        hm->body.len = end - hm->body.start;
+        // Reset for next chunk
+        hm->chunk_size = 0;
+    }
+}
+
+// Other HTTP parsing functions...
+```
+
+HYPOTHESIS: The vulnerability might be in the chunk size parsing where a very large chunk size could cause integer overflow in pointer arithmetic.
+
+READ src/http.c 101 150
+```c
+// Additional HTTP parsing functions
+
+static int parse_http_header(char *s, int len, struct http_message *hm) {
+    // Parse HTTP headers
+    // ... 
+    return 0;
+}
+
+static int process_chunked_body(struct mg_connection *c, struct http_message *hm) {
+    char *end = hm->body.start + hm->body.len;
+    while (hm->body.start < end) {
+        if (hm->chunk_size == 0) {
+            if (skip_chunk(hm) != 0) {
+                return -1;
+            }
+            if (hm->chunk_size == 0) {
+                break;  // Last chunk
+            }
+        }
+        if (hm->body.len < hm->chunk_size + 2) {
+            break;  // Need more data
+        }
+        // Process chunk data
+        hm->body.len = hm->chunk_size;
+        if (c->user_data) {
+            ((mg_event_handler_t) c->user_data)(c, MG_EV_HTTP_CHUNK_DATA, hm);
+        }
+        hm->body.start += hm->chunk_size + 2;
+        hm->body.len = end - hm->body.start;
+        hm->chunk_size = 0;
+    }
+    return 0;
+}
+```
+
+HYPOTHESIS: The pointer arithmetic `hm->body.start += hm->chunk_size + 2` could overflow if chunk_size is very large, causing the pointer to wrap around.
+
+GREP "hm->body.start +="
+```c
+src/http.c:        hm->body.start += hm->chunk_size + 2;
+src/http.c:        hm->body.start += hm->chunk_size + 2;
+```
+
+HYPOTHESIS: The pointer addition `hm->body.start += hm->chunk_size + 2` could wrap around if `hm->chunk_size` is close to maximum size_t value.
+
+READ src/http.c 40 50
+```c
+    hm->chunk_size = n;
+    hm->body.start = s;
+    hm->body.len = end - s;
+    return 0;
+}
+```
+
+HYPOTHESIS: Need to check if there are any bounds checks on the chunk size before pointer arithmetic.
+
+READ src/http.c 60 80
+```c
+        if (hm->body.len < hm->chunk_size + 2) {
+            // Not enough data yet, wait for more
+            return;
+        }
+        // We have a full chunk
+        hm->body.len = hm->chunk_size;
+        // Call user callback with chunk data
+        if (c->user_data) {
+            ((mg_event_handler_t) c->user_data)(c, MG_EV_HTTP_CHUNK_DATA, hm);
+        }
+        // Skip the chunk data and trailing \r\n
+        hm->body.start += hm->chunk_size + 2;
+        hm->body.len = end - hm->body.start;
+```
+
+HYPOTHESIS: The check `hm->body.len < hm->chunk_size + 2` could overflow if chunk_size is very large (close to SIZE_MAX), making the check pass incorrectly.
+
+GREP "SIZE_MAX"
+GREP "size_t"
+```c
+src/http.c:    size_t chunk_size;
+```
+
+READ src/http.c 1 20
+```c
+#include "http.h"
+#include <ctype.h>
+#include <stdlib.h>
+#include <string.h>
+
+struct http_message {
+    struct mg_str body;
+    size_t chunk_size;
+    // ... other fields
+};
+```
+
+HYPOTHESIS: If chunk_size is SIZE_MAX - 1, then chunk_size + 2 = 1 due to integer overflow, bypassing the length check and causing pointer underflow.
+
+READ src/http.c 55 70
+```c
+        if (hm->body.len < hm->chunk_size + 2) {
+            // Not enough data yet, wait for more
+            return;
+        }
+        // We have a full chunk
+        hm->body.len = hm->chunk_size;
+        // Call user callback with chunk data
+        if (c->user_data) {
+            ((mg_event_handler_t) c->user_data)(c, MG_EV_HTTP_CHUNK_DATA, hm);
+        }
+```
+
+HYPOTHESIS: The vulnerability is an integer overflow in the length check `hm->body.len < hm->chunk_size + 2` when chunk_size is very large.
+
+GREP "unsigned long" src/http.c
+```c
+src/http.c:    unsigned long n = 0;
+```
+
+HYPOTHESIS: The chunk size is parsed as unsigned long but stored as size_t. On some platforms, size_t might be smaller than unsigned long, causing truncation.
+
+READ src/http.c 15 25
+```c
+        if (i >= (int) sizeof(n) * 2) {
+            return -1;  // Chunk size too long
+        }
+        n *= 16;
+        if (*s >= '0' && *s <= '9') {
+            n += *s - '0';
+        } else if (*s >= 'A' && *s <= 'F') {
+            n += *s - 'A' + 10;
+        } else if (*s >= 'a' && *s <= 'f') {
+            n += *s - 'a' + 10;
+        } else {
+            return -1;  // Invalid hex digit
+        }
+```
+
+HYPOTHESIS: The chunk size parsing limits to sizeof(n)*2 hex digits (16 chars for 64-bit), but doesn't check if the value overflows size_t.
+
+FINAL
+CANDIDATES (ranked, max 5):
+1. src/http.c / skip_chunk / ~20 / Integer overflow / The chunk size is parsed as unsigned long and stored in size_t without checking for overflow: `hm->chunk_size = n;` / Network input → chunk size hex digits → n → hm->chunk_size / Chunk size with value > SIZE_MAX causes truncation
+2. src/http.c / http_cb / ~65 / Integer overflow / The length check `hm->body.len < hm->chunk_size + 2` can overflow when chunk_size is large: `if (hm->body.len < hm->chunk_size + 2)` / Network input → chunk size → arithmetic operation / Chunk size close to SIZE_MAX causes overflow in addition
+3. src/http.c / http_cb / ~75 / Pointer overflow / Pointer arithmetic `hm->body.start += hm->chunk_size + 2` can wrap around: `hm->body.start += hm->chunk_size + 2;` / Network input → chunk size → pointer arithmetic / Very large chunk size causes pointer to wrap around
+4. src/http.c / skip_chunk / ~15 / Buffer overflow / The hex digit parsing loop has a length check but may allow values that overflow unsigned long: `if (i >= (int) sizeof(n) * 2)` / Network input → chunk size hex digits → n / Many hex digits could overflow unsigned long calculation
+5. src/http.c / process_chunked_body / ~120 / Integer overflow / Similar to http_cb, the check `hm->body.len < hm->chunk_size + 2` can overflow: `if (hm->body.len < hm->chunk_size + 2)` / Network input → chunk size → arithmetic operation / Chunk size close to SIZE_MAX causes integer wrap

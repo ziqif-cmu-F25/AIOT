@@ -1,0 +1,3 @@
+HYPOTHESIS: coap_resolve_address_info() copies an arbitrary-length hostname into a fixed-size buffer without bounds checking, leading to a stack buffer overflow. I will confirm callsites to assess exploitability from network input, but the direct code already shows an unsafe memcpy.
+
+FINAL

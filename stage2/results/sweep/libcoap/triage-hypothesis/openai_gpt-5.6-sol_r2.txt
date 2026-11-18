@@ -1,0 +1,41 @@
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 538
+    },
+    "bug_class": "buffer-overflow",
+    "hypothesis": "An address longer than 256 bytes overflows the static 256-byte addrstr buffer because address->length is copied without an upper-bound check.",
+    "vulnerable_line": "memcpy(addrstr, address->s, address->length);",
+    "trigger_condition": "address is non-NULL, address->length > sizeof(addrstr), and the address is not handled by the AF_UNIX early-return path.",
+    "confidence": 0.99
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 547
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "An address exactly 256 bytes long fills addrstr without a terminating NUL, causing getaddrinfo() to read beyond addrstr while treating it as a C string.",
+    "vulnerable_line": "error = getaddrinfo(addrstr, NULL, &hints, &res);",
+    "trigger_condition": "address is non-NULL, address->length == sizeof(addrstr), its 256 bytes contain no NUL, and the address is not handled by the AF_UNIX early-return path.",
+    "confidence": 0.97
+  },
+  {
+    "rank": 3,
+    "location": {
+      "file": "src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 672
+    },
+    "bug_class": "oob-read",
+    "hypothesis": "In a RIOT build, a length-delimited address that is not NUL-terminated is passed to netutils_get_ipv6() as a C string, allowing the parser to read past address->s.",
+    "vulnerable_line": "if (netutils_get_ipv6(&addr_ipv6, &netif, (const char *)address->s) >= 0) {",
+    "trigger_condition": "RIOT_VERSION and COAP_IPV6_SUPPORT are enabled, address->length is nonzero, and the network-derived address bytes end at the accessible buffer boundary without a trailing NUL.",
+    "confidence": 0.9
+  }
+]

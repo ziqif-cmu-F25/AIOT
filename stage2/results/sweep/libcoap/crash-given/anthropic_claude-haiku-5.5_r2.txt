@@ -1,0 +1,43 @@
+```json
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "libcoap/src/coap_address.c",
+      "function": "coap_resolve_address_info",
+      "line": 537
+    },
+    "explanation": "The copy into the 256-byte static buffer `addrstr` is unbounded. Line 537 tests only `address->length` is nonzero, and line 538 does `memcpy(addrstr, address->s, address->length)` with no comparison against `sizeof(addrstr)`. Any host string of 256 or more bytes writes past the end of the global. The ASan report matches this: the write is `WRITE of size 300` (the memcpy length), and the first poisoned byte is `addrstr+256` (\"0 bytes after\"). ASan's memcpy interceptor reports the first bad byte with the full copy length, so the 300-byte copy starts at `addrstr` and its first out-of-bounds byte is at offset 256. The memset on line 536 only clears 256 bytes, so it is not the source. The 300-byte length must come from the caller's `address->length`, which is the URI host.",
+    "fix": "Reject oversized input before copying, leaving room for the NUL terminator:\n\n```c\nmemset(addrstr, 0, sizeof(addrstr));\nif (address && address->length) {\n  if (address->length >= sizeof(addrstr)) {\n    coap_log_warn(\"coap_resolve_address_info: host too long\\n\");\n    return NULL;\n  }\n  memcpy(addrstr, address->s, address->length);\n} else {\n  memcpy(addrstr, \"localhost\", 9);\n}\n```",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "root_cause": {
+      "file": "libcoap/src/coap_uri.c",
+      "function": "coap_split_uri_sub",
+      "line": 202
+    },
+    "explanation": "This is the source of the 300-byte host. For a proxy URI, `coap_split_uri_sub` stores the host length `q - p` (line 202, and IPv6 at line 181) with no limit. The only upstream bound is the Proxy-Uri option length check in `coap_pdu_parse_opt_base` (coap_pdu.c line 1255-1257), which allows up to 1034 bytes. So a Proxy-Uri such as `coap://<300+ char host>/` passes parsing, and the host reaches `coap_resolve_address_info` at coap_proxy.c line 420 as a host longer than 256 bytes. Uri-Host is capped at 255 by coap_pdu.c line 1188, but that cap is not applied to hosts that come from Proxy-Uri. The Proxy-Scheme path goes through Uri-Host, so it is bounded.",
+    "fix": "Enforce the same host limit that Uri-Host uses, before setting the host (in both the IPv6 and the regular branch):\n\n```c\nif (q - p > 255 || (size_t)(q - p) >= sizeof(addrstr_limit_placeholder)) ...\n```\n\nMore concretely, add before line 202 (and before line 181 for the bracketed form):\n\n```c\nif (q - p > 255) {\n  res = -3;\n  goto error;\n}\n```\n\nThis is defense in depth. The primary fix is still the bounds check in coap_address.c.",
+    "confidence": 0.6
+  },
+  {
+    "rank": 3,
+    "root_cause": {
+      "file": "libcoap/src/coap_proxy.c",
+      "function": "coap_proxy_get_ongoing_session",
+      "line": 420
+    },
+    "explanation": "The caller hands `server_use->uri.host` (attacker-controlled length from Proxy-Uri, see candidate 2) to `coap_resolve_address_info` without validating its length against the resolver's fixed buffer. The `snprintf` at lines 438-439 is bounded by `sizeof(client_sni)` and is not the overflow, so the overflow is in the resolver's copy, not the proxy's `snprintf`. The caller is the wrong place to fix the overflow, but adding a check here would prevent the bad call.",
+    "fix": "Validate the host length before resolving:\n\n```c\nif (server_use->uri.host.length >= 256) {\n  response->code = COAP_RESPONSE_CODE(505);\n  coap_proxy_remove_association(session, 0);\n  return NULL;\n}\n```",
+    "confidence": 0.35
+  }
+]
+```
+
+**Notes and caveats**
+
+- **Symbolization:** The report says the external symbolizer failed, so frames #1 onward are raw offsets in `libcoap-3-notls.so.3`. I could not map them to functions with certainty. The attribution to `coap_resolve_address_info` comes from the ASan global-variable name (`coap_resolve_address_info.addrstr`), which is a strong indicator. Frame #0 is in `coap-server` rather than libcoap, which is likely the ASan interceptor's call site. Confirm the call chain with a symbolized rerun.
+- **Why line 537 and not the `snprintf`:** `client_sni` in coap_proxy.c is a separate 256-byte static, and its `snprintf` is bounded. The reported global is `addrstr`, so the faulting copy is the unbounded `memcpy` at line 538.
+- **Trigger path:** The most likely trigger is a Proxy-Uri option containing a URI host of roughly 256 to 1020 bytes. Uri-Host alone cannot trigger this, because it is capped at 255 bytes during option parsing.

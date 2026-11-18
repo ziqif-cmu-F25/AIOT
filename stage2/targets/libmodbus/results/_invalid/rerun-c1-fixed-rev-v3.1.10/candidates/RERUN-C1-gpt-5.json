@@ -1,0 +1,22 @@
+{
+  "candidate_id": "CAND-001",
+  "viewpoint": "source-agentic",
+  "property": "memory-safety",
+  "hypothesis": " HYPOTHESIS: There is an out-of-bounds write in a Modbus function handler that trusts the \"quantity\" field and copies value bytes into a fixed-size buffer without validating against PDU length or internal buffer size.\n\nGREP write multiple HYPOTHESIS: A handler for \u201cwrite multiple\u201d operations trusts the byte count/quantity fields and memcpy\u2019s into a fixed-size buffer without sufficient length checks, causing OOB write.\n\nGREP memcpy HYPOTHESIS: The function that copies raw request data into an int",
+  "evidence_source": " HYPOTHESIS: There is an out-of-bounds write in a Modbus function handler that trusts the \"quantity\" field and copies value bytes into a fixed-size buffer without validating against PDU length or internal buffer size.\n\nGREP write multiple HYPOTHESIS: A handler for \u201cwrite multiple\u201d operations trusts ",
+  "input_artifact": "not_available (static source review; nothing was executed)",
+  "expected_behavior": "not_available",
+  "observed_behavior": "not_available (static analysis only; no execution)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "C1 agentic condition (C1-orig), 15 turns. Status: turn_limit_reached. Did not clearly identify target CVE.",
+  "vulnerability_class": "unknown",
+  "location": {
+    "file": "src/modbus.c",
+    "function": "modbus_reply"
+  },
+  "confidence": 0.5,
+  "model": "openai/gpt-5",
+  "prompt_id": "libmodbus-C1-orig@v1",
+  "run_index": 1
+}

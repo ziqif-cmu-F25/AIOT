@@ -1,0 +1,5128 @@
+==== src/coap_pdu.c ====
+/* coap_pdu.c -- CoAP PDU handling
+ *
+ * Copyright (C) 2010--2024 Olaf Bergmann <bergmann@tzi.org>
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *
+ * This file is part of the CoAP library libcoap. Please see
+ * README for terms of use.
+ */
+
+/**
+ * @file coap_pdu.c
+ * @brief CoAP PDU handling
+ */
+
+#include "coap3/coap_libcoap_build.h"
+
+#if defined(HAVE_LIMITS_H)
+#include <limits.h>
+#endif
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#ifdef HAVE_ARPA_INET_H
+#include <arpa/inet.h>
+#endif
+#ifdef HAVE_WINSOCK2_H
+#include <winsock2.h>
+#endif
+#include <ctype.h>
+
+#ifndef min
+#define min(a,b) ((a) < (b) ? (a) : (b))
+#endif
+
+#ifndef max
+#define max(a,b) ((a) > (b) ? (a) : (b))
+#endif
+
+void
+coap_pdu_clear(coap_pdu_t *pdu, size_t size) {
+  assert(pdu);
+  assert(pdu->token);
+  assert(pdu->max_hdr_size >= COAP_PDU_MAX_UDP_HEADER_SIZE);
+  if (pdu->alloc_size > size)
+    pdu->alloc_size = size;
+  pdu->type = 0;
+  pdu->code = 0;
+  pdu->hdr_size = 0;
+  pdu->actual_token.length = 0;
+  pdu->e_token_length = 0;
+  pdu->crit_opt = 0;
+  pdu->mid = 0;
+  pdu->max_opt = 0;
+  pdu->max_size = size;
+  pdu->used_size = 0;
+  pdu->data = NULL;
+  pdu->body_data = NULL;
+  pdu->body_length = 0;
+  pdu->body_offset = 0;
+  pdu->body_total = 0;
+  pdu->lg_xmit = NULL;
+  pdu->session = NULL;
+}
+
+#ifdef WITH_LWIP
+coap_pdu_t *
+coap_pdu_from_pbuf(struct pbuf *pbuf) {
+  coap_pdu_t *pdu;
+
+  if (pbuf == NULL)
+    return NULL;
+
+  LWIP_ASSERT("Can only deal with contiguous PBUFs (increase PBUF_POOL_BUFSIZE)",
+              pbuf->tot_len == pbuf->len);
+  LWIP_ASSERT("coap_io_do_io needs to receive an exclusive copy of the incoming pbuf",
+              pbuf->ref == 1);
+
+  pdu = coap_malloc_type(COAP_PDU, sizeof(coap_pdu_t));
+  if (!pdu) {
+    pbuf_free(pbuf);
+    return NULL;
+  }
+
+  pdu->max_hdr_size = COAP_PDU_MAX_UDP_HEADER_SIZE;
+  pdu->pbuf = pbuf;
+  pdu->token = (uint8_t *)pbuf->payload + pdu->max_hdr_size;
+  pdu->alloc_size = pbuf->tot_len - pdu->max_hdr_size;
+  coap_pdu_clear(pdu, pdu->alloc_size);
+
+  return pdu;
+}
+#endif /* LWIP */
+
+coap_pdu_t *
+coap_pdu_init(coap_pdu_type_t type, coap_pdu_code_t code, coap_mid_t mid,
+              size_t size) {
+  coap_pdu_t *pdu;
+
+#ifndef RIOT_VERSION
+  assert(type <= 0x3);
+  assert(code <= 0xff);
+  assert(mid >= 0 && mid <= 0xffff);
+#endif /* RIOT_VERSION */
+
+#ifdef WITH_LWIP
+#if MEMP_STATS
+  /* Reserve 1 PDU for a response packet */
+  if (memp_pools[MEMP_COAP_PDU]->stats->used + 1 >=
+      memp_pools[MEMP_COAP_PDU]->stats->avail) {
+    memp_pools[MEMP_COAP_PDU]->stats->err++;
+    return NULL;
+  }
+#endif /* MEMP_STATS */
+#endif /* LWIP */
+  pdu = coap_malloc_type(COAP_PDU, sizeof(coap_pdu_t));
+  if (!pdu)
+    return NULL;
+
+#if defined(WITH_CONTIKI) || defined(WITH_LWIP)
+  assert(size <= COAP_DEFAULT_MAX_PDU_RX_SIZE);
+  if (size > COAP_DEFAULT_MAX_PDU_RX_SIZE)
+    return NULL;
+  pdu->max_hdr_size = COAP_PDU_MAX_UDP_HEADER_SIZE;
+#else
+  pdu->max_hdr_size = COAP_PDU_MAX_TCP_HEADER_SIZE;
+#endif
+
+#ifdef WITH_LWIP
+  pdu->pbuf = pbuf_alloc(PBUF_TRANSPORT, size + pdu->max_hdr_size, PBUF_RAM);
+  if (pdu->pbuf == NULL) {
+    coap_free_type(COAP_PDU, pdu);
+    return NULL;
+  }
+  pdu->token = (uint8_t *)pdu->pbuf->payload + pdu->max_hdr_size;
+#else /* WITH_LWIP */
+  uint8_t *buf;
+  pdu->alloc_size = min(size, 256);
+  buf = coap_malloc_type(COAP_PDU_BUF, pdu->alloc_size + pdu->max_hdr_size);
+  if (buf == NULL) {
+    coap_free_type(COAP_PDU, pdu);
+    return NULL;
+  }
+  pdu->token = buf + pdu->max_hdr_size;
+#endif /* WITH_LWIP */
+  coap_pdu_clear(pdu, size);
+  pdu->mid = mid;
+  pdu->type = type;
+  pdu->code = code;
+  return pdu;
+}
+
+COAP_API coap_pdu_t *
+coap_new_pdu(coap_pdu_type_t type, coap_pdu_code_t code,
+             coap_session_t *session) {
+  coap_pdu_t *pdu;
+
+  coap_lock_lock(session->context, return NULL);
+  pdu = coap_new_pdu_lkd(type, code, session);
+  coap_lock_unlock(session->context);
+  return pdu;
+}
+
+coap_pdu_t *
+coap_new_pdu_lkd(coap_pdu_type_t type, coap_pdu_code_t code,
+                 coap_session_t *session) {
+  coap_pdu_t *pdu;
+
+  coap_lock_check_locked(session->context);
+  pdu = coap_pdu_init(type, code, coap_new_message_id_lkd(session),
+                      coap_session_max_pdu_size_lkd(session));
+  if (!pdu)
+    coap_log_crit("coap_new_pdu: cannot allocate memory for new PDU\n");
+  return pdu;
+}
+
+void
+coap_delete_pdu(coap_pdu_t *pdu) {
+  if (pdu != NULL) {
+#ifdef WITH_LWIP
+    pbuf_free(pdu->pbuf);
+#else
+    if (pdu->token != NULL)
+      coap_free_type(COAP_PDU_BUF, pdu->token - pdu->max_hdr_size);
+#endif
+    coap_free_type(COAP_PDU, pdu);
+  }
+}
+
+COAP_API coap_pdu_t *
+coap_pdu_duplicate(const coap_pdu_t *old_pdu,
+                   coap_session_t *session,
+                   size_t token_length,
+                   const uint8_t *token,
+                   coap_opt_filter_t *drop_options) {
+  coap_pdu_t *new_pdu;
+
+  coap_lock_lock(session->context, return NULL);
+  new_pdu = coap_pdu_duplicate_lkd(old_pdu,
+                                   session,
+                                   token_length,
+                                   token,
+                                   drop_options);
+  coap_lock_unlock(session->context);
+  return new_pdu;
+}
+
+
+/*
+ * Note: This does not include any data, just the token and options
+ */
+coap_pdu_t *
+coap_pdu_duplicate_lkd(const coap_pdu_t *old_pdu,
+                       coap_session_t *session,
+                       size_t token_length,
+                       const uint8_t *token,
+                       coap_opt_filter_t *drop_options) {
+  uint8_t doing_first = session->doing_first;
+  coap_pdu_t *pdu;
+
+  coap_lock_check_locked(session->context);
+  /*
+   * Need to make sure that coap_session_max_pdu_size_lkd() immediately
+   * returns, rather than wait for the first CSM response from remote
+   * that indicates BERT size (TCP/TLS only) as this may be called early
+   * the OSCORE logic.
+   */
+  session->doing_first = 0;
+  pdu = coap_pdu_init(old_pdu->type, old_pdu->code,
+                      coap_new_message_id_lkd(session),
+                      max(old_pdu->max_size,
+                          coap_session_max_pdu_size_lkd(session)));
+  /* Restore any pending waits */
+  session->doing_first = doing_first;
+  if (pdu == NULL)
+    return NULL;
+
+  coap_add_token(pdu, token_length, token);
+  pdu->lg_xmit = old_pdu->lg_xmit;
+
+  if (drop_options == NULL) {
+    /* Drop COAP_PAYLOAD_START as well if data */
+    size_t length = old_pdu->used_size - old_pdu->e_token_length -
+                    (old_pdu->data ?
+                     old_pdu->used_size - (old_pdu->data - old_pdu->token) +1 : 0);
+    if (!coap_pdu_resize(pdu, length + pdu->e_token_length))
+      goto fail;
+    /* Copy the options but not any data across */
+    memcpy(pdu->token + pdu->e_token_length,
+           old_pdu->token + old_pdu->e_token_length, length);
+    pdu->used_size += length;
+    pdu->max_opt = old_pdu->max_opt;
+  } else {
+    /* Copy across all the options the slow way */
+    coap_opt_iterator_t opt_iter;
+    coap_opt_t *option;
+
+    coap_option_iterator_init(old_pdu, &opt_iter, COAP_OPT_ALL);
+    while ((option = coap_option_next(&opt_iter))) {
+      if (drop_options && coap_option_filter_get(drop_options, opt_iter.number))
+        continue;
+      if (!coap_add_option_internal(pdu, opt_iter.number,
+                                    coap_opt_length(option),
+                                    coap_opt_value(option)))
+        goto fail;
+    }
+  }
+  return pdu;
+
+fail:
+  coap_delete_pdu(pdu);
+  return NULL;
+}
+
+
+/*
+ * The new size does not include the coap header (max_hdr_size)
+ */
+int
+coap_pdu_resize(coap_pdu_t *pdu, size_t new_size) {
+  if (new_size > pdu->alloc_size) {
+#if !defined(WITH_LWIP)
+    uint8_t *new_hdr;
+    size_t offset;
+#endif
+    if (pdu->max_size && new_size > pdu->max_size) {
+      coap_log_warn("coap_pdu_resize: pdu too big\n");
+      return 0;
+    }
+#if !defined(WITH_LWIP)
+    if (pdu->data != NULL) {
+      assert(pdu->data > pdu->token);
+      offset = pdu->data - pdu->token;
+    } else {
+      offset = 0;
+    }
+    new_hdr = (uint8_t *)coap_realloc_type(COAP_PDU_BUF,
+                                           pdu->token - pdu->max_hdr_size,
+                                           new_size + pdu->max_hdr_size);
+    if (new_hdr == NULL) {
+      coap_log_warn("coap_pdu_resize: realloc failed\n");
+      return 0;
+    }
+    pdu->token = new_hdr + pdu->max_hdr_size;
+    if (offset > 0)
+      pdu->data = pdu->token + offset;
+    else
+      pdu->data = NULL;
+    if (pdu->actual_token.length < COAP_TOKEN_EXT_1B_BIAS)
+      pdu->actual_token.s = &pdu->token[0];
+    else if (pdu->actual_token.length < COAP_TOKEN_EXT_2B_BIAS)
+      pdu->actual_token.s = &pdu->token[1];
+    else
+      pdu->actual_token.s = &pdu->token[2];
+#endif
+  }
+  pdu->alloc_size = new_size;
+  return 1;
+}
+
+int
+coap_pdu_check_resize(coap_pdu_t *pdu, size_t size) {
+  if (size > pdu->alloc_size) {
+    size_t new_size = max(256, pdu->alloc_size * 2);
+    while (size > new_size)
+      new_size *= 2;
+    if (pdu->max_size && new_size > pdu->max_size) {
+      new_size = pdu->max_size;
+      if (new_size < size)
+        return 0;
+    }
+    if (!coap_pdu_resize(pdu, new_size))
+      return 0;
+  }
+  return 1;
+}
+
+int
+coap_add_token(coap_pdu_t *pdu, size_t len, const uint8_t *data) {
+  size_t bias = 0;
+
+  /* must allow for pdu == NULL as callers may rely on this */
+  if (!pdu)
+    return 0;
+
+  if (pdu->used_size) {
+    coap_log_warn("coap_add_token: The token must defined first. Token ignored\n");
+    return 0;
+  }
+  pdu->actual_token.length = len;
+  if (len < COAP_TOKEN_EXT_1B_BIAS) {
+    bias = 0;
+  } else if (len < COAP_TOKEN_EXT_2B_BIAS) {
+    bias = 1;
+  } else if (len <= COAP_TOKEN_EXT_MAX) {
+    bias = 2;
+  } else {
+    coap_log_warn("coap_add_token: Token size too large. Token ignored\n");
+    return 0;
+  }
+  if (!coap_pdu_check_resize(pdu, len + bias)) {
+    coap_log_warn("coap_add_token: Insufficient space for token. Token ignored\n");
+    return 0;
+  }
+
+  pdu->actual_token.length = len;
+  pdu->actual_token.s = &pdu->token[bias];
+  pdu->e_token_length = (uint32_t)(len + bias);
+  if (len) {
+    switch (bias) {
+    case 0:
+      memcpy(pdu->token, data, len);
+      break;
+    case 1:
+      pdu->token[0] = (uint8_t)(len - COAP_TOKEN_EXT_1B_BIAS);
+      memcpy(&pdu->token[1], data, len);
+      break;
+    case 2:
+      pdu->token[0] = (uint8_t)((len - COAP_TOKEN_EXT_2B_BIAS) >> 8);
+      pdu->token[1] = (uint8_t)((len - COAP_TOKEN_EXT_2B_BIAS) & 0xff);
+      memcpy(&pdu->token[2], data, len);
+      break;
+    default:
+      break;
+    }
+  }
+  pdu->max_opt = 0;
+  pdu->used_size = len + bias;
+  pdu->data = NULL;
+
+  return 1;
+}
+
+/* It is assumed that coap_encode_var_safe8() has been called to reduce data */
+int
+coap_update_token(coap_pdu_t *pdu, size_t len, const uint8_t *data) {
+  size_t bias = 0;
+  size_t old_len;
+
+  /* must allow for pdu == NULL as callers may rely on this */
+  if (!pdu)
+    return 0;
+
+  if (pdu->used_size == 0) {
+    return coap_add_token(pdu, len, data);
+  }
+
+  old_len = pdu->e_token_length;
+
+  if (len < COAP_TOKEN_EXT_1B_BIAS) {
+    bias = 0;
+  } else if (len < COAP_TOKEN_EXT_2B_BIAS) {
+    bias = 1;
+  } else if (len <= COAP_TOKEN_EXT_MAX) {
+    bias = 2;
+  } else {
+    coap_log_warn("coap_add_token: Token size too large. Token ignored\n");
+    return 0;
+  }
+  if ((len + bias) == pdu->e_token_length) {
+    /* Easy case - just data has changed */
+  } else if ((len + bias) > pdu->e_token_length) {
+    if (!coap_pdu_check_resize(pdu,
+                               pdu->used_size + (len + bias) - pdu->e_token_length)) {
+      coap_log_warn("Failed to update token\n");
+      return 0;
+    }
+    memmove(&pdu->token[(len + bias) - pdu->e_token_length],
+            pdu->token, pdu->used_size);
+    pdu->used_size += len + bias - pdu->e_token_length;
+    if (pdu->data) {
+      pdu->data += (len + bias) - pdu->e_token_length;
+    }
+  } else {
+    pdu->used_size -= pdu->e_token_length - (len + bias);
+    memmove(pdu->token, &pdu->token[pdu->e_token_length - (len + bias)], pdu->used_size);
+    if (pdu->data) {
+      pdu->data -= pdu->e_token_length - (len + bias);
+    }
+  }
+
+  pdu->actual_token.length = len;
+  pdu->actual_token.s = &pdu->token[bias];
+  pdu->e_token_length = (uint8_t)(len + bias);
+  if (len) {
+    switch (bias) {
+    case 0:
+      if (memcmp(pdu->token, data, len) != 0)
+        memcpy(pdu->token, data, len);
+      break;
+    case 1:
+      pdu->token[0] = (uint8_t)(len - COAP_TOKEN_EXT_1B_BIAS);
+      memcpy(&pdu->token[1], data, len);
+      break;
+    case 2:
+      pdu->token[0] = (uint8_t)((len - COAP_TOKEN_EXT_2B_BIAS) >> 8);
+      pdu->token[1] = (uint8_t)((len - COAP_TOKEN_EXT_2B_BIAS) & 0xff);
+      memcpy(&pdu->token[2], data, len);
+      break;
+    default:
+      break;
+    }
+  }
+  if (old_len != pdu->e_token_length && pdu->hdr_size && pdu->session)
+    /* Need to fix up the header */
+    if (!coap_pdu_encode_header(pdu, pdu->session->proto))
+      return 0;
+  return 1;
+}
+
+int
+coap_remove_option(coap_pdu_t *pdu, coap_option_num_t number) {
+  coap_opt_iterator_t opt_iter;
+  coap_opt_t *option;
+  coap_opt_t *next_option = NULL;
+  size_t opt_delta;
+  coap_option_t decode_this;
+  coap_option_t decode_next;
+
+  /* Need to locate where in current options to remove this one */
+  coap_option_iterator_init(pdu, &opt_iter, COAP_OPT_ALL);
+  while ((option = coap_option_next(&opt_iter))) {
+    if (opt_iter.number == number) {
+      /* Found option to delete */
+      break;
+    }
+  }
+  if (!option)
+    return 0;
+
+  if (!coap_opt_parse(option, pdu->used_size - (option - pdu->token),
+                      &decode_this))
+    return 0;
+
+  next_option = coap_option_next(&opt_iter);
+  if (next_option) {
+    if (!coap_opt_parse(next_option,
+                        pdu->used_size - (next_option - pdu->token),
+                        &decode_next))
+      return 0;
+    opt_delta = decode_this.delta + decode_next.delta;
+    if (opt_delta < 13) {
+      /* can simply update the delta of next option */
+      next_option[0] = (next_option[0] & 0x0f) + (coap_opt_t)(opt_delta << 4);
+    } else if (opt_delta < 269 && decode_next.delta < 13) {
+      /* next option delta size increase */
+      next_option -= 1;
+      next_option[0] = (next_option[1] & 0x0f) + (13 << 4);
+      next_option[1] = (coap_opt_t)(opt_delta - 13);
+    } else if (opt_delta < 269) {
+      /* can simply update the delta of next option */
+      next_option[1] = (coap_opt_t)(opt_delta - 13);
+    } else if (decode_next.delta < 13) { /* opt_delta >= 269 */
+      /* next option delta size increase */
+      if (next_option - option < 2) {
+        /* Need to shuffle everything up by 1 before decrement */
+        if (!coap_pdu_check_resize(pdu, pdu->used_size + 1))
+          return 0;
+        /* Possible a re-size took place with a realloc() */
+        /* Need to rediscover this and next options */
+        coap_option_iterator_init(pdu, &opt_iter, COAP_OPT_ALL);
+        while ((option = coap_option_next(&opt_iter))) {
+          if (opt_iter.number == number) {
+            /* Found option to delete */
+            break;
+          }
+        }
+        next_option = coap_option_next(&opt_iter);
+        assert(option != NULL);
+        assert(next_option != NULL);
+        memmove(&next_option[1], next_option,
+                pdu->used_size - (next_option - pdu->token));
+        pdu->used_size++;
+        if (pdu->data)
+          pdu->data++;
+        next_option++;
+      }
+      next_option -= 2;
+      next_option[0] = (next_option[2] & 0x0f) + (14 << 4);
+      next_option[1] = (coap_opt_t)((opt_delta - 269) >> 8);
+      next_option[2] = (opt_delta - 269) & 0xff;
+    } else if (decode_next.delta < 269) { /* opt_delta >= 269 */
+      /* next option delta size increase */
+      next_option -= 1;
+      next_option[0] = (next_option[1] & 0x0f) + (14 << 4);
+      next_option[1] = (coap_opt_t)((opt_delta - 269) >> 8);
+      next_option[2] = (opt_delta - 269) & 0xff;
+    } else { /* decode_next.delta >= 269 && opt_delta >= 269 */
+      next_option[1] = (coap_opt_t)((opt_delta - 269) >> 8);
+      next_option[2] = (opt_delta - 269) & 0xff;
+    }
+  } else {
+    next_option = option + coap_opt_encode_size(decode_this.delta,
+                                                coap_opt_length(option));
+    pdu->max_opt -= decode_this.delta;
+  }
+  if (pdu->used_size - (next_option - pdu->token))
+    memmove(option, next_option, pdu->used_size - (next_option - pdu->token));
+  pdu->used_size -= next_option - option;
+  if (pdu->data)
+    pdu->data -= next_option - option;
+  return 1;
+}
+
+int
+coap_option_check_repeatable(coap_option_num_t number) {
+  /* Validate that the option is repeatable */
+  switch (number) {
+  /* Ignore list of genuine repeatable */
+  case COAP_OPTION_IF_MATCH:
+  case COAP_OPTION_ETAG:
+  case COAP_OPTION_LOCATION_PATH:
+  case COAP_OPTION_URI_PATH:
+  case COAP_OPTION_URI_QUERY:
+  case COAP_OPTION_LOCATION_QUERY:
+  case COAP_OPTION_RTAG:
+    break;
+  /* Protest at the known non-repeatable options and ignore them */
+  case COAP_OPTION_URI_HOST:
+  case COAP_OPTION_IF_NONE_MATCH:
+  case COAP_OPTION_OBSERVE:
+  case COAP_OPTION_URI_PORT:
+  case COAP_OPTION_OSCORE:
+  case COAP_OPTION_CONTENT_FORMAT:
+  case COAP_OPTION_MAXAGE:
+  case COAP_OPTION_HOP_LIMIT:
+  case COAP_OPTION_ACCEPT:
+  case COAP_OPTION_BLOCK2:
+  case COAP_OPTION_BLOCK1:
+  case COAP_OPTION_SIZE2:
+  case COAP_OPTION_PROXY_URI:
+  case COAP_OPTION_PROXY_SCHEME:
+  case COAP_OPTION_SIZE1:
+  case COAP_OPTION_ECHO:
+  case COAP_OPTION_NORESPONSE:
+    coap_log_info("Option number %d is not defined as repeatable - dropped\n",
+                  number);
+    return 0;
+  default:
+    coap_log_info("Option number %d is not defined as repeatable\n",
+                  number);
+    /* Accepting it after warning as there may be user defineable options */
+    break;
+  }
+  return 1;
+}
+
+size_t
+coap_insert_option(coap_pdu_t *pdu, coap_option_num_t number, size_t len,
+                   const uint8_t *data) {
+  coap_opt_iterator_t opt_iter;
+  coap_opt_t *option;
+  uint16_t prev_number = 0;
+  size_t shift;
+  size_t opt_delta;
+  coap_option_t decode;
+  size_t shrink = 0;
+
+  if (number >= pdu->max_opt)
+    return coap_add_option_internal(pdu, number, len, data);
+
+  /* Need to locate where in current options to insert this one */
+  coap_option_iterator_init(pdu, &opt_iter, COAP_OPT_ALL);
+  while ((option = coap_option_next(&opt_iter))) {
+    if (opt_iter.number > number) {
+      /* Found where to insert */
+      break;
+    }
+    prev_number = opt_iter.number;
+  }
+  assert(option != NULL);
+  /* size of option inc header to insert */
+  shift = coap_opt_encode_size(number - prev_number, len);
+
+  /* size of next option (header may shrink in size as delta changes */
+  if (!coap_opt_parse(option, pdu->used_size - (option - pdu->token), &decode))
+    return 0;
+  opt_delta = opt_iter.number - number;
+  if (opt_delta == 0) {
+    if (!coap_option_check_repeatable(number))
+      return 0;
+  }
+
+  if (!coap_pdu_check_resize(pdu,
+                             pdu->used_size + shift - shrink))
+    return 0;
+
+  /* Possible a re-size took place with a realloc() */
+  /* Need to locate where in current options to insert this one */
+  coap_option_iterator_init(pdu, &opt_iter, COAP_OPT_ALL);
+  while ((option = coap_option_next(&opt_iter))) {
+    if (opt_iter.number > number) {
+      /* Found where to insert */
+      break;
+    }
+  }
+  assert(option != NULL);
+
+  if (decode.delta < 13) {
+    /* can simply patch in the new delta of next option */
+    option[0] = (option[0] & 0x0f) + (coap_opt_t)(opt_delta << 4);
+  } else if (decode.delta < 269 && opt_delta < 13) {
+    /* option header is going to shrink by one byte */
+    option[1] = (option[0] & 0x0f) + (coap_opt_t)(opt_delta << 4);
+    shrink = 1;
+  } else if (decode.delta < 269 && opt_delta < 269) {
+    /* can simply patch in the new delta of next option */
+    option[1] = (coap_opt_t)(opt_delta - 13);
+  } else if (opt_delta < 13) {
+    /* option header is going to shrink by two bytes */
+    option[2] = (option[0] & 0x0f) + (coap_opt_t)(opt_delta << 4);
+    shrink = 2;
+  } else if (opt_delta < 269) {
+    /* option header is going to shrink by one bytes */
+    option[1] = (option[0] & 0x0f) + 0xd0;
+    option[2] = (coap_opt_t)(opt_delta - 13);
+    shrink = 1;
+  } else {
+    /* can simply patch in the new delta of next option */
+    option[1] = (coap_opt_t)((opt_delta - 269) >> 8);
+    option[2] = (opt_delta - 269) & 0xff;
+  }
+
+  memmove(&option[shift], &option[shrink],
+          pdu->used_size - (option - pdu->token) - shrink);
+  if (!coap_opt_encode(option, pdu->alloc_size - pdu->used_size,
+                       number - prev_number, data, len))
+    return 0;
+
+  if (shift >= shrink) {
+    pdu->used_size += shift - shrink;
+    if (pdu->data)
+      pdu->data += shift - shrink;
+  } else {
+    pdu->used_size -= shrink - shift;
+    if (pdu->data)
+      pdu->data -= shrink - shift;
+  }
+  return shift;
+}
+
+size_t
+coap_update_option(coap_pdu_t *pdu, coap_option_num_t number, size_t len,
+                   const uint8_t *data) {
+  coap_opt_iterator_t opt_iter;
+  coap_opt_t *option;
+  coap_option_t decode;
+  size_t new_length = 0;
+  size_t old_length = 0;
+
+  option = coap_check_option(pdu, number, &opt_iter);
+  if (!option)
+    return coap_insert_option(pdu, number, len, data);
+
+  old_length = coap_opt_parse(option, (size_t)-1, &decode);
+  if (old_length == 0)
+    return 0;
+  new_length = coap_opt_encode_size(decode.delta, len);
+
+  if (new_length > old_length) {
+    if (!coap_pdu_check_resize(pdu,
+                               pdu->used_size + new_length - old_length))
+      return 0;
+    /* Possible a re-size took place with a realloc() */
+    option = coap_check_option(pdu, number, &opt_iter);
+  }
+
+  if (new_length != old_length)
+    memmove(&option[new_length], &option[old_length],
+            pdu->used_size - (option - pdu->token) - old_length);
+
+  if (!coap_opt_encode(option, new_length,
+                       decode.delta, data, len))
+    return 0;
+
+  if (new_length >= old_length) {
+    pdu->used_size += new_length - old_length;
+    if (pdu->data)
+      pdu->data += new_length - old_length;
+  } else {
+    pdu->used_size -= old_length - new_length;
+    if (pdu->data)
+      pdu->data -= old_length - new_length;
+  }
+  return 1;
+}
+
+size_t
+coap_add_option(coap_pdu_t *pdu, coap_option_num_t number, size_t len,
+                const uint8_t *data) {
+  if (pdu->data) {
+    coap_log_warn("coap_add_optlist_pdu: PDU already contains data\n");
+    return 0;
+  }
+  return coap_add_option_internal(pdu, number, len, data);
+}
+
+size_t
+coap_add_option_internal(coap_pdu_t *pdu, coap_option_num_t number, size_t len,
+                         const uint8_t *data) {
+  size_t optsize;
+  coap_opt_t *opt;
+
+  assert(pdu);
+
+  if (number == pdu->max_opt) {
+    if (!coap_option_check_repeatable(number))
+      return 0;
+  }
+
+  if (COAP_PDU_IS_REQUEST(pdu) &&
+      (number == COAP_OPTION_PROXY_URI ||
+       number == COAP_OPTION_PROXY_SCHEME)) {
+    /*
+     * Need to check whether there is a hop-limit option.  If not, it needs
+     * to be inserted by default (RFC 8768).
+     */
+    coap_opt_iterator_t opt_iter;
+
+    if (coap_check_option(pdu, COAP_OPTION_HOP_LIMIT, &opt_iter) == NULL) {
+      size_t hop_limit = COAP_OPTION_HOP_LIMIT;
+
+      coap_insert_option(pdu, COAP_OPTION_HOP_LIMIT, 1, (uint8_t *)&hop_limit);
+    }
+  }
+
+  if (number < pdu->max_opt) {
+    coap_log_debug("coap_add_option: options are not in correct order\n");
+    return coap_insert_option(pdu, number, len, data);
+  }
+
+  optsize = coap_opt_encode_size(number - pdu->max_opt, len);
+  if (!coap_pdu_check_resize(pdu,
+                             pdu->used_size + optsize))
+    return 0;
+
+  if (pdu->data) {
+    /* include option delimiter */
+    memmove(&pdu->data[optsize-1], &pdu->data[-1],
+            pdu->used_size - (pdu->data - pdu->token) + 1);
+    opt = pdu->data -1;
+    pdu->data += optsize;
+  } else {
+    opt = pdu->token + pdu->used_size;
+  }
+
+  /* encode option and check length */
+  optsize = coap_opt_encode(opt, pdu->alloc_size - pdu->used_size,
+                            number - pdu->max_opt, data, len);
+
+  if (!optsize) {
+    coap_log_warn("coap_add_option: cannot add option\n");
+    /* error */
+    return 0;
+  } else {
+    pdu->max_opt = number;
+    pdu->used_size += optsize;
+  }
+
+  return optsize;
+}
+
+int
+coap_add_data(coap_pdu_t *pdu, size_t len, const uint8_t *data) {
+  if (len == 0) {
+    return 1;
+  } else {
+    uint8_t *payload = coap_add_data_after(pdu, len);
+    if (payload != NULL)
+      memcpy(payload, data, len);
+    return payload != NULL;
+  }
+}
+
+uint8_t *
+coap_add_data_after(coap_pdu_t *pdu, size_t len) {
+  assert(pdu);
+  if (pdu->data) {
+    coap_log_warn("coap_add_data: PDU already contains data\n");
+    return 0;
+  }
+
+  if (len == 0)
+    return NULL;
+
+  if (!coap_pdu_resize(pdu, pdu->used_size + len + 1))
+    return 0;
+  pdu->token[pdu->used_size++] = COAP_PAYLOAD_START;
+  pdu->data = pdu->token + pdu->used_size;
+  pdu->used_size += len;
+  return pdu->data;
+}
+
+int
+coap_get_data(const coap_pdu_t *pdu, size_t *len, const uint8_t **data) {
+  size_t offset;
+  size_t total;
+
+  return coap_get_data_large(pdu, len, data, &offset, &total);
+}
+
+int
+coap_get_data_large(const coap_pdu_t *pdu, size_t *len, const uint8_t **data,
+                    size_t *offset, size_t *total) {
+  assert(pdu);
+  assert(len);
+  assert(data);
+
+  *offset = pdu->body_offset;
+  *total = pdu->body_total;
+  if (pdu->body_data) {
+    *data = pdu->body_data;
+    *len = pdu->body_length;
+    return 1;
+  }
+  *data = pdu->data;
+  if (pdu->data == NULL) {
+    *len = 0;
+    *total = 0;
+    return 0;
+  }
+
+  *len = pdu->used_size - (pdu->data - pdu->token);
+  if (*total == 0)
+    *total = *len;
+
+  return 1;
+}
+
+#ifndef SHORT_ERROR_RESPONSE
+typedef struct {
+  unsigned char code;
+  const char *phrase;
+} error_desc_t;
+
+/* if you change anything here, make sure, that the longest string does not
+ * exceed COAP_ERROR_PHRASE_LENGTH. */
+error_desc_t coap_error[] = {
+  { COAP_RESPONSE_CODE(201), "Created" },
+  { COAP_RESPONSE_CODE(202), "Deleted" },
+  { COAP_RESPONSE_CODE(203), "Valid" },
+  { COAP_RESPONSE_CODE(204), "Changed" },
+  { COAP_RESPONSE_CODE(205), "Content" },
+  { COAP_RESPONSE_CODE(231), "Continue" },
+  { COAP_RESPONSE_CODE(400), "Bad Request" },
+  { COAP_RESPONSE_CODE(401), "Unauthorized" },
+  { COAP_RESPONSE_CODE(402), "Bad Option" },
+  { COAP_RESPONSE_CODE(403), "Forbidden" },
+  { COAP_RESPONSE_CODE(404), "Not Found" },
+  { COAP_RESPONSE_CODE(405), "Method Not Allowed" },
+  { COAP_RESPONSE_CODE(406), "Not Acceptable" },
+  { COAP_RESPONSE_CODE(408), "Request Entity Incomplete" },
+  { COAP_RESPONSE_CODE(409), "Conflict" },
+  { COAP_RESPONSE_CODE(412), "Precondition Failed" },
+  { COAP_RESPONSE_CODE(413), "Request Entity Too Large" },
+  { COAP_RESPONSE_CODE(415), "Unsupported Content-Format" },
+  { COAP_RESPONSE_CODE(422), "Unprocessable" },
+  { COAP_RESPONSE_CODE(429), "Too Many Requests" },
+  { COAP_RESPONSE_CODE(500), "Internal Server Error" },
+  { COAP_RESPONSE_CODE(501), "Not Implemented" },
+  { COAP_RESPONSE_CODE(502), "Bad Gateway" },
+  { COAP_RESPONSE_CODE(503), "Service Unavailable" },
+  { COAP_RESPONSE_CODE(504), "Gateway Timeout" },
+  { COAP_RESPONSE_CODE(505), "Proxying Not Supported" },
+  { COAP_RESPONSE_CODE(508), "Hop Limit Reached" },
+  { 0, NULL }                        /* end marker */
+};
+
+const char *
+coap_response_phrase(unsigned char code) {
+  int i;
+  for (i = 0; coap_error[i].code; ++i) {
+    if (coap_error[i].code == code)
+      return coap_error[i].phrase;
+  }
+  return NULL;
+}
+#endif
+
+/**
+ * Advances *optp to next option if still in PDU. This function
+ * returns the number of bytes opt has been advanced or @c 0
+ * on error.
+ */
+static size_t
+next_option_safe(coap_opt_t **optp, size_t *length, uint16_t *max_opt) {
+  coap_option_t option;
+  size_t optsize;
+
+  assert(optp);
+  assert(*optp);
+  assert(length);
+
+  optsize = coap_opt_parse(*optp, *length, &option);
+  if (optsize) {
+    assert(optsize <= *length);
+
+    /* signal an error if this option would exceed the
+     * allowed number space */
+    if (*max_opt + option.delta > COAP_MAX_OPT) {
+      return 0;
+    }
+    *max_opt += option.delta;
+    *optp += optsize;
+    *length -= optsize;
+  }
+
+  return optsize;
+}
+
+size_t
+coap_pdu_parse_header_size(coap_proto_t proto,
+                           const uint8_t *data) {
+  assert(data);
+  size_t header_size = 0;
+
+  if (proto == COAP_PROTO_TCP || proto==COAP_PROTO_TLS) {
+    uint8_t len = *data >> 4;
+    if (len < 13)
+      header_size = 2;
+    else if (len==13)
+      header_size = 3;
+    else if (len==14)
+      header_size = 4;
+    else
+      header_size = 6;
+  } else if (proto == COAP_PROTO_WS || proto==COAP_PROTO_WSS) {
+    header_size = 2;
+  } else if (proto == COAP_PROTO_UDP || proto==COAP_PROTO_DTLS) {
+    header_size = 4;
+  }
+
+  return header_size;
+}
+
+#if !COAP_DISABLE_TCP
+/*
+ * strm
+ * return +ve  PDU size including token
+ *          0  PDU does not parse
+ */
+size_t
+coap_pdu_parse_size(coap_proto_t proto,
+                    const uint8_t *data,
+                    size_t length) {
+  assert(data);
+  assert(proto == COAP_PROTO_TCP || proto == COAP_PROTO_TLS ||
+         proto == COAP_PROTO_WS || proto == COAP_PROTO_WSS);
+  assert(coap_pdu_parse_header_size(proto, data) <= length);
+
+  size_t size = 0;
+  const uint8_t *token_start = NULL;
+
+  if ((proto == COAP_PROTO_TCP || proto == COAP_PROTO_TLS) && length >= 1) {
+    uint8_t len = *data >> 4;
+    uint8_t tkl = *data & 0x0f;
+
+    if (len < 13) {
+      size = len;
+      token_start = &data[2];
+    } else if (length >= 2) {
+      if (len==13) {
+        size = (size_t)data[1] + COAP_MESSAGE_SIZE_OFFSET_TCP8;
+        token_start = &data[3];
+      } else if (length >= 3) {
+        if (len==14) {
+          size = ((size_t)data[1] << 8) + data[2] + COAP_MESSAGE_SIZE_OFFSET_TCP16;
+          token_start = &data[4];
+        } else if (length >= 5) {
+          size = ((size_t)data[1] << 24) + ((size_t)data[2] << 16)
+                 + ((size_t)data[3] << 8) + data[4] + COAP_MESSAGE_SIZE_OFFSET_TCP32;
+          token_start = &data[6];
+        }
+      }
+    }
+    if (token_start) {
+      /* account for the token length */
+      if (tkl < COAP_TOKEN_EXT_1B_TKL) {
+        size += tkl;
+      } else if (tkl == COAP_TOKEN_EXT_1B_TKL) {
+        size += token_start[0] + COAP_TOKEN_EXT_1B_BIAS + 1;
+      } else if (tkl == COAP_TOKEN_EXT_2B_TKL) {
+        size += ((uint16_t)token_start[0] << 8) + token_start[1] +
+                COAP_TOKEN_EXT_2B_BIAS + 2;
+      } else {
+        /* Invalid at this point - caught later as undersized */
+      }
+    }
+  }
+
+  return size;
+}
+#endif /* ! COAP_DISABLE_TCP */
+
+int
+coap_pdu_parse_header(coap_pdu_t *pdu, coap_proto_t proto) {
+  uint8_t *hdr = pdu->token - pdu->hdr_size;
+  uint8_t e_token_length;
+
+  if (proto == COAP_PROTO_UDP || proto == COAP_PROTO_DTLS) {
+    assert(pdu->hdr_size == 4);
+    if ((hdr[0] >> 6) != COAP_DEFAULT_VERSION) {
+      coap_log_debug("coap_pdu_parse: UDP version not supported\n");
+      return 0;
+    }
+    pdu->type = (hdr[0] >> 4) & 0x03;
+    pdu->code = hdr[1];
+    pdu->mid = (uint16_t)hdr[2] << 8 | hdr[3];
+  } else if (proto == COAP_PROTO_TCP || proto == COAP_PROTO_TLS) {
+    assert(pdu->hdr_size >= 2 && pdu->hdr_size <= 6);
+    pdu->type = COAP_MESSAGE_CON;
+    pdu->code = hdr[pdu->hdr_size-1];
+    pdu->mid = 0;
+  } else if (proto == COAP_PROTO_WS || proto == COAP_PROTO_WSS) {
+    assert(pdu->hdr_size == 2);
+    pdu->type = COAP_MESSAGE_CON;
+    pdu->code = hdr[pdu->hdr_size-1];
+    pdu->mid = 0;
+  } else {
+    coap_log_debug("coap_pdu_parse: unsupported protocol\n");
+    return 0;
+  }
+
+  e_token_length = hdr[0] & 0x0f;
+  if (e_token_length < COAP_TOKEN_EXT_1B_TKL) {
+    pdu->e_token_length = e_token_length;
+    pdu->actual_token.length = pdu->e_token_length;
+    pdu->actual_token.s = &pdu->token[0];
+  } else if (e_token_length == COAP_TOKEN_EXT_1B_TKL) {
+    pdu->e_token_length = pdu->token[0] + COAP_TOKEN_EXT_1B_BIAS + 1;
+    pdu->actual_token.length = pdu->e_token_length - 1;
+    pdu->actual_token.s = &pdu->token[1];
+  } else if (e_token_length == COAP_TOKEN_EXT_2B_TKL) {
+    pdu->e_token_length = ((uint16_t)pdu->token[0] << 8) + pdu->token[1] +
+                          COAP_TOKEN_EXT_2B_BIAS + 2;
+    pdu->actual_token.length = pdu->e_token_length - 2;
+    pdu->actual_token.s = &pdu->token[2];
+  }
+  if (pdu->e_token_length > pdu->alloc_size || e_token_length == 15) {
+    /* Invalid PDU provided - not wise to assert here though */
+    coap_log_debug("coap_pdu_parse: PDU header token size broken\n");
+    pdu->e_token_length = 0;
+    pdu->actual_token.length = 0;
+    return 0;
+  }
+  return 1;
+}
+
+static int
+coap_pdu_parse_opt_csm(coap_pdu_t *pdu, uint16_t len) {
+  switch ((coap_pdu_signaling_proto_t)pdu->code) {
+  case COAP_SIGNALING_CSM:
+    switch (pdu->max_opt) {
+    case COAP_SIGNALING_OPTION_MAX_MESSAGE_SIZE:
+      if (len > 4)
+        goto bad;
+      break;
+    case COAP_SIGNALING_OPTION_BLOCK_WISE_TRANSFER:
+      if (len > 0)
+        goto bad;
+      break;
+    case COAP_SIGNALING_OPTION_EXTENDED_TOKEN_LENGTH:
+      if (len > 3)
+        goto bad;
+      break;
+    default:
+      if (pdu->max_opt & 0x01)
+        goto bad; /* Critical */
+    }
+    break;
+  case COAP_SIGNALING_PING:
+  case COAP_SIGNALING_PONG:
+    switch (pdu->max_opt) {
+    case COAP_SIGNALING_OPTION_CUSTODY:
+      if (len > 0)
+        goto bad;
+      break;
+    default:
+      if (pdu->max_opt & 0x01)
+        goto bad; /* Critical */
+    }
+    break;
+  case COAP_SIGNALING_RELEASE:
+    switch (pdu->max_opt) {
+    case COAP_SIGNALING_OPTION_ALTERNATIVE_ADDRESS:
+      if (len < 1 || len > 255)
+        goto bad;
+      break;
+    case COAP_SIGNALING_OPTION_HOLD_OFF:
+      if (len > 3)
+        goto bad;
+      break;
+    default:
+      if (pdu->max_opt & 0x01)
+        goto bad; /* Critical */
+    }
+    break;
+  case COAP_SIGNALING_ABORT:
+    switch (pdu->max_opt) {
+    case COAP_SIGNALING_OPTION_BAD_CSM_OPTION:
+      if (len > 2)
+        goto bad;
+      break;
+    default:
+      if (pdu->max_opt & 0x01)
+        goto bad; /* Critical */
+    }
+    break;
+  default:
+    ;
+  }
+  return 1;
+bad:
+  return 0;
+}
+
+static int
+coap_pdu_parse_opt_base(coap_pdu_t *pdu, uint16_t len) {
+  int res = 1;
+
+  switch (pdu->max_opt) {
+  case COAP_OPTION_IF_MATCH:
+    if (len > 8)
+      res = 0;
+    break;
+  case COAP_OPTION_URI_HOST:
+    if (len < 1 || len > 255)
+      res = 0;
+    break;
+  case COAP_OPTION_ETAG:
+    if (len < 1 || len > 8)
+      res = 0;
+    break;
+  case COAP_OPTION_IF_NONE_MATCH:
+    if (len != 0)
+      res = 0;
+    break;
+  case COAP_OPTION_OBSERVE:
+    if (len > 3)
+      res = 0;
+    break;
+  case COAP_OPTION_URI_PORT:
+    if (len > 2)
+      res = 0;
+    break;
+  case COAP_OPTION_LOCATION_PATH:
+    if (len > 255)
+      res = 0;
+    break;
+  case COAP_OPTION_OSCORE:
+    if (len > 255)
+      res = 0;
+    break;
+  case COAP_OPTION_URI_PATH:
+    if (len > 255)
+      res = 0;
+    break;
+  case COAP_OPTION_CONTENT_FORMAT:
+    if (len > 2)
+      res = 0;
+    break;
+  case COAP_OPTION_MAXAGE:
+    if (len > 4)
+      res = 0;
+    break;
+  case COAP_OPTION_URI_QUERY:
+    if (len < 1 || len > 255)
+      res = 0;
+    break;
+  case COAP_OPTION_HOP_LIMIT:
+    if (len != 1)
+      res = 0;
+    break;
+  case COAP_OPTION_ACCEPT:
+    if (len > 2)
+      res = 0;
+    break;
+  case COAP_OPTION_LOCATION_QUERY:
+    if (len > 255)
+      res = 0;
+    break;
+  case COAP_OPTION_BLOCK2:
+    if (len > 3)
+      res = 0;
+    break;
+  case COAP_OPTION_BLOCK1:
+    if (len > 3)
+      res = 0;
+    break;
+  case COAP_OPTION_SIZE2:
+    if (len > 4)
+      res = 0;
+    break;
+  case COAP_OPTION_PROXY_URI:
+    if (len < 1 || len > 1034)
+      res = 0;
+    break;
+  case COAP_OPTION_PROXY_SCHEME:
+    if (len < 1 || len > 255)
+      res = 0;
+    break;
+  case COAP_OPTION_SIZE1:
+    if (len > 4)
+      res = 0;
+    break;
+  case COAP_OPTION_ECHO:
+    if (len > 40)
+      res = 0;
+    break;
+  case COAP_OPTION_NORESPONSE:
+    if (len > 1)
+      res = 0;
+    break;
+  case COAP_OPTION_RTAG:
+    if (len > 8)
+      res = 0;
+    break;
+  default:
+    ;
+  }
+  return res;
+}
+
+static int
+write_prefix(char **obp, size_t *len, const char *prf, size_t prflen) {
+  /* Make sure space for null terminating byte */
+  if (*len < prflen +1) {
+    return 0;
+  }
+
+  memcpy(*obp, prf, prflen);
+  *obp += prflen;
+  *len -= prflen;
+  return 1;
+}
+
+static int
+write_char(char **obp, size_t *len, int c, int printable) {
+  /* Make sure space for null terminating byte */
+  if (*len < 2 +1) {
+    return 0;
+  }
+
+  if (!printable) {
+    const uint8_t hex[] = "0123456789abcdef";
+    (*obp)[0] = hex[(c & 0xf0) >> 4];
+    (*obp)[1] = hex[c & 0x0f];
+  } else {
+    (*obp)[0] = isprint(c) ? c : '.';
+    (*obp)[1] = ' ';
+  }
+  *obp += 2;
+  *len -= 2;
+  return 1;
+}
+
+int
+coap_pdu_parse_opt(coap_pdu_t *pdu) {
+  int good = 1;
+
+  /* sanity checks */
+  if (pdu->code == 0) {
+    if (pdu->used_size != 0 || pdu->e_token_length) {
+      coap_log_debug("coap_pdu_parse: empty message is not empty\n");
+      return 0;
+    }
+  }
+
+  if (pdu->e_token_length > pdu->used_size) {
+    coap_log_debug("coap_pdu_parse: invalid Token\n");
+    return 0;
+  }
+
+  pdu->max_opt = 0;
+  if (pdu->code == 0) {
+    /* empty packet */
+    pdu->used_size = 0;
+    pdu->data = NULL;
+  } else {
+    /* skip header + token */
+    coap_opt_t *opt = pdu->token + pdu->e_token_length;
+    size_t length = pdu->used_size - pdu->e_token_length;
+
+    while (length > 0 && *opt != COAP_PAYLOAD_START) {
+#if (COAP_MAX_LOGGING_LEVEL >= _COAP_LOG_WARN)
+      coap_opt_t *opt_last = opt;
+#endif
+      size_t optsize = next_option_safe(&opt, &length, &pdu->max_opt);
+      const uint32_t len =
+          optsize ? coap_opt_length((const uint8_t *)opt - optsize) : 0;
+      if (optsize == 0) {
+        coap_log_debug("coap_pdu_parse: %d.%02d: offset %u malformed option\n",
+                       pdu->code >> 5, pdu->code & 0x1F,
+                       (int)(opt_last - pdu->token - pdu->e_token_length));
+        good = 0;
+        break;
+      }
+      if (COAP_PDU_IS_SIGNALING(pdu) ?
+          !coap_pdu_parse_opt_csm(pdu, len) :
+          !coap_pdu_parse_opt_base(pdu, len)) {
+        coap_log_warn("coap_pdu_parse: %d.%02d: offset %u option %u has bad length %" PRIu32 "\n",
+                      pdu->code >> 5, pdu->code & 0x1F,
+                      (int)(opt_last - pdu->token - pdu->e_token_length), pdu->max_opt,
+                      len);
+        good = 0;
+      }
+    }
+
+    if (!good) {
+      /*
+       * Dump the options in the PDU for analysis, space separated except
+       * error options which are prefixed by *
+       * Two rows - hex and ascii (if printable)
+       */
+      static char outbuf[COAP_DEBUG_BUF_SIZE];
+      char *obp;
+      size_t tlen;
+      size_t outbuflen;
+      int i;
+      int ok;
+
+      for (i = 0; i < 2; i++) {
+        opt = pdu->token + pdu->e_token_length;
+        length = pdu->used_size - pdu->e_token_length;
+        pdu->max_opt = 0;
+
+        outbuflen = sizeof(outbuf);
+        obp = outbuf;
+        ok = write_prefix(&obp, &outbuflen, "O: ", 3);
+        /*
+         * Not safe to check for 'ok' here as a lot of variables may get
+         * partially changed due to lack of outbuflen */
+        while (length > 0 && *opt != COAP_PAYLOAD_START) {
+          coap_opt_t *opt_last = opt;
+          size_t optsize = next_option_safe(&opt, &length, &pdu->max_opt);
+          const uint32_t len =
+              optsize ? coap_opt_length((const uint8_t *)opt - optsize) : 0;
+          if (!optsize || (COAP_PDU_IS_SIGNALING(pdu) ?
+                           !coap_pdu_parse_opt_csm(pdu, len) :
+                           !coap_pdu_parse_opt_base(pdu, len))) {
+            ok = ok && write_prefix(&obp, &outbuflen, "*", 1);
+            if (!optsize) {
+              /* Skip to end of options to output all data */
+              opt = pdu->token + pdu->used_size;
+              length = 0;
+            }
+          } else {
+            ok = ok && write_prefix(&obp, &outbuflen, " ", 1);
+          }
+          tlen = opt - opt_last;
+          while (tlen--) {
+            ok = ok && write_char(&obp, &outbuflen, *opt_last, i);
+            opt_last++;
+          }
+        }
+        if (length && *opt == COAP_PAYLOAD_START) {
+          write_char(&obp, &outbuflen, *opt, i);
+        }
+        /* write_*() always leaves a spare byte to null terminate */
+        *obp = '\000';
+        coap_log_debug("%s\n", outbuf);
+      }
+    }
+
+    if (length > 0) {
+      assert(*opt == COAP_PAYLOAD_START);
+      opt++;
+      length--;
+
+      if (length == 0) {
+        coap_log_debug("coap_pdu_parse: message ending in payload start marker\n");
+        return 0;
+      }
+    }
+    if (length > 0)
+      pdu->data = (uint8_t *)opt;
+    else
+      pdu->data = NULL;
+  }
+
+  return good;
+}
+
+int
+coap_pdu_parse(coap_proto_t proto,
+               const uint8_t *data,
+               size_t length,
+               coap_pdu_t *pdu) {
+  size_t hdr_size;
+
+  if (length == 0)
+    return 0;
+  hdr_size = coap_pdu_parse_header_size(proto, data);
+  if (!hdr_size || hdr_size > length)
+    return 0;
+  if (hdr_size > pdu->max_hdr_size)
+    return 0;
+  if (!coap_pdu_resize(pdu, length - hdr_size))
+    return 0;
+  if (pdu->token - hdr_size != data)
+    memcpy(pdu->token - hdr_size, data, length);
+  pdu->hdr_size = (uint8_t)hdr_size;
+  pdu->used_size = length - hdr_size;
+  return coap_pdu_parse_header(pdu, proto) && coap_pdu_parse_opt(pdu);
+}
+
+size_t
+coap_pdu_encode_header(coap_pdu_t *pdu, coap_proto_t proto) {
+  uint8_t e_token_length;
+
+  if (pdu->actual_token.length < COAP_TOKEN_EXT_1B_BIAS) {
+    e_token_length = (uint8_t)pdu->actual_token.length;
+  } else if (pdu->actual_token.length < COAP_TOKEN_EXT_2B_BIAS) {
+    e_token_length = COAP_TOKEN_EXT_1B_TKL;
+  } else if (pdu->actual_token.length <= COAP_TOKEN_EXT_MAX) {
+    e_token_length = COAP_TOKEN_EXT_2B_TKL;
+  } else {
+    coap_log_warn("coap_add_token: Token size too large. PDU ignored\n");
+    return 0;
+  }
+  if (COAP_PROTO_NOT_RELIABLE(proto)) {
+    assert(pdu->max_hdr_size >= 4);
+    if (pdu->max_hdr_size < 4) {
+      coap_log_warn("coap_pdu_encode_header: not enough space for UDP-style header\n");
+      return 0;
+    }
+    pdu->token[-4] = COAP_DEFAULT_VERSION << 6
+                     | pdu->type << 4
+                     | e_token_length;
+    pdu->token[-3] = pdu->code;
+    pdu->token[-2] = (uint8_t)(pdu->mid >> 8);
+    pdu->token[-1] = (uint8_t)(pdu->mid);
+    pdu->hdr_size = 4;
+#if !COAP_DISABLE_TCP
+  } else if (COAP_PROTO_RELIABLE(proto)) {
+    size_t len;
+    assert(pdu->used_size >= pdu->e_token_length);
+    if (pdu->used_size < pdu->e_token_length) {
+      coap_log_warn("coap_pdu_encode_header: corrupted PDU\n");
+      return 0;
+    }
+
+    /* A lot of the reliable code assumes type is CON */
+    if (pdu->type != COAP_MESSAGE_CON)
+      pdu->type = COAP_MESSAGE_CON;
+
+    if (proto == COAP_PROTO_WS || proto == COAP_PROTO_WSS)
+      len = 0;
+    else
+      len = pdu->used_size - pdu->e_token_length;
+    if (len <= COAP_MAX_MESSAGE_SIZE_TCP0) {
+      assert(pdu->max_hdr_size >= 2);
+      if (pdu->max_hdr_size < 2) {
+        coap_log_warn("coap_pdu_encode_header: not enough space for TCP0 header\n");
+        return 0;
+      }
+      pdu->token[-2] = (uint8_t)len << 4
+                       | e_token_length;
+      pdu->token[-1] = pdu->code;
+      pdu->hdr_size = 2;
+    } else if (len <= COAP_MAX_MESSAGE_SIZE_TCP8) {
+      assert(pdu->max_hdr_size >= 3);
+      if (pdu->max_hdr_size < 3) {
+        coap_log_warn("coap_pdu_encode_header: not enough space for TCP8 header\n");
+        return 0;
+      }
+      pdu->token[-3] = 13 << 4 | e_token_length;
+      pdu->token[-2] = (uint8_t)(len - COAP_MESSAGE_SIZE_OFFSET_TCP8);
+      pdu->token[-1] = pdu->code;
+      pdu->hdr_size = 3;
+    } else if (len <= COAP_MAX_MESSAGE_SIZE_TCP16) {
+      assert(pdu->max_hdr_size >= 4);
+      if (pdu->max_hdr_size < 4) {
+        coap_log_warn("coap_pdu_encode_header: not enough space for TCP16 header\n");
+        return 0;
+      }
+      pdu->token[-4] = 14 << 4 | e_token_length;
+      pdu->token[-3] = (uint8_t)((len - COAP_MESSAGE_SIZE_OFFSET_TCP16) >> 8);
+      pdu->token[-2] = (uint8_t)(len - COAP_MESSAGE_SIZE_OFFSET_TCP16);
+      pdu->token[-1] = pdu->code;
+      pdu->hdr_size = 4;
+    } else {
+      assert(pdu->max_hdr_size >= 6);
+      if (pdu->max_hdr_size < 6) {
+        coap_log_warn("coap_pdu_encode_header: not enough space for TCP32 header\n");
+        return 0;
+      }
+      pdu->token[-6] = 15 << 4 | e_token_length;
+      pdu->token[-5] = (uint8_t)((len - COAP_MESSAGE_SIZE_OFFSET_TCP32) >> 24);
+      pdu->token[-4] = (uint8_t)((len - COAP_MESSAGE_SIZE_OFFSET_TCP32) >> 16);
+      pdu->token[-3] = (uint8_t)((len - COAP_MESSAGE_SIZE_OFFSET_TCP32) >> 8);
+      pdu->token[-2] = (uint8_t)(len - COAP_MESSAGE_SIZE_OFFSET_TCP32);
+      pdu->token[-1] = pdu->code;
+      pdu->hdr_size = 6;
+    }
+#endif /* ! COAP_DISABLE_TCP */
+  } else {
+    coap_log_warn("coap_pdu_encode_header: unsupported protocol\n");
+  }
+  return pdu->hdr_size;
+}
+
+coap_pdu_code_t
+coap_pdu_get_code(const coap_pdu_t *pdu) {
+  return pdu->code;
+}
+
+void
+coap_pdu_set_code(coap_pdu_t *pdu, coap_pdu_code_t code) {
+#ifndef RIOT_VERSION
+  assert(code <= 0xff);
+#endif /* RIOT_VERSION */
+  pdu->code = code;
+}
+
+coap_pdu_type_t
+coap_pdu_get_type(const coap_pdu_t *pdu) {
+  return pdu->type;
+}
+
+void
+coap_pdu_set_type(coap_pdu_t *pdu, coap_pdu_type_t type) {
+  assert(type <= 0x3);
+  pdu->type = type;
+}
+
+coap_bin_const_t
+coap_pdu_get_token(const coap_pdu_t *pdu) {
+  return pdu->actual_token;
+}
+
+coap_mid_t
+coap_pdu_get_mid(const coap_pdu_t *pdu) {
+  return pdu->mid;
+}
+
+void
+coap_pdu_set_mid(coap_pdu_t *pdu, coap_mid_t mid) {
+#if (UINT_MAX > 65535)
+  assert(mid >= 0 && mid <= 0xffff);
+#endif /* UINT_MAX > 65535 */
+  pdu->mid = mid;
+}
+
+
+==== src/coap_proxy.c ====
+/* coap_proxy.c -- helper functions for proxy handling
+ *
+ * Copyright (C) 2024 Jon Shallow <supjps-libcoap@jpshallow.com>
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *
+ * This file is part of the CoAP library libcoap. Please see
+ * README for terms of use.
+ */
+
+/**
+ * @file coap_proxy.c
+ * @brief Proxy handling functions
+ */
+
+#include "coap3/coap_libcoap_build.h"
+
+#if COAP_PROXY_SUPPORT
+#include <stdio.h>
+
+#ifdef _WIN32
+#define strcasecmp _stricmp
+#define strncasecmp _strnicmp
+#endif
+
+int
+coap_proxy_is_supported(void) {
+  return 1;
+}
+
+void
+coap_proxy_cleanup(coap_context_t *context) {
+  size_t i;
+  size_t j;
+
+  for (i = 0; i < context->proxy_list_count; i++) {
+    for (j = 0; j < context->proxy_list[i].req_count; j++) {
+      coap_delete_pdu(context->proxy_list[i].req_list[j].pdu);
+      coap_delete_cache_key(context->proxy_list[i].req_list[j].cache_key);
+    }
+    coap_free_type(COAP_STRING, context->proxy_list[i].req_list);
+  }
+  coap_free_type(COAP_STRING, context->proxy_list);
+}
+
+/*
+ * return 1 if there is a future expire time, else 0.
+ * update tim_rem with remaining value if return is 1.
+ */
+int
+coap_proxy_check_timeouts(coap_context_t *context, coap_tick_t now,
+                          coap_tick_t *tim_rem) {
+  size_t i;
+  int ret = 0;
+
+  *tim_rem = -1;
+  for (i = 0; i < context->proxy_list_count; i++) {
+    coap_proxy_list_t *proxy_list = &context->proxy_list[i];
+
+    if (proxy_list->ongoing && proxy_list->idle_timeout_ticks) {
+      if (proxy_list->last_used + proxy_list->idle_timeout_ticks <= now) {
+        /* Drop session to upstream server */
+        coap_session_release_lkd(proxy_list->ongoing);
+        proxy_list->ongoing = NULL;
+      } else {
+        if (*tim_rem > proxy_list->last_used + proxy_list->idle_timeout_ticks - now) {
+          *tim_rem = proxy_list->last_used + proxy_list->idle_timeout_ticks - now;
+        }
+        ret = 1;
+      }
+    }
+  }
+  return ret;
+}
+
+static int
+coap_get_uri_proxy_scheme_info(const coap_pdu_t *request,
+                               coap_opt_t *opt,
+                               coap_uri_t *uri,
+                               coap_string_t **uri_path,
+                               coap_string_t **uri_query) {
+
+  const char *opt_val = (const char *)coap_opt_value(opt);
+  int opt_len = coap_opt_length(opt);
+  coap_opt_iterator_t opt_iter;
+
+  if (opt_len == 9 &&
+      strncasecmp(opt_val, "coaps+tcp", 9) == 0) {
+    uri->scheme = COAP_URI_SCHEME_COAPS_TCP;
+    uri->port = COAPS_DEFAULT_PORT;
+  } else if (opt_len == 8 &&
+             strncasecmp(opt_val, "coap+tcp", 8) == 0) {
+    uri->scheme = COAP_URI_SCHEME_COAP_TCP;
+    uri->port = COAP_DEFAULT_PORT;
+  } else if (opt_len == 5 &&
+             strncasecmp(opt_val, "coaps", 5) == 0) {
+    uri->scheme = COAP_URI_SCHEME_COAPS;
+    uri->port = COAPS_DEFAULT_PORT;
+  } else if (opt_len == 4 &&
+             strncasecmp(opt_val, "coap", 4) == 0) {
+    uri->scheme = COAP_URI_SCHEME_COAP;
+    uri->port = COAP_DEFAULT_PORT;
+  } else if (opt_len == 7 &&
+             strncasecmp(opt_val, "coap+ws", 7) == 0) {
+    uri->scheme = COAP_URI_SCHEME_COAP_WS;
+    uri->port = 80;
+  } else if (opt_len == 8 &&
+             strncasecmp(opt_val, "coaps+ws", 8) == 0) {
+    uri->scheme = COAP_URI_SCHEME_COAPS_WS;
+    uri->port = 443;
+  } else {
+    coap_log_warn("Unsupported Proxy Scheme '%*.*s'\n",
+                  opt_len, opt_len, opt_val);
+    return 0;
+  }
+
+  opt = coap_check_option(request, COAP_OPTION_URI_HOST, &opt_iter);
+  if (opt) {
+    uri->host.length = coap_opt_length(opt);
+    uri->host.s = coap_opt_value(opt);
+  } else {
+    coap_log_warn("Proxy Scheme requires Uri-Host\n");
+    return 0;
+  }
+  opt = coap_check_option(request, COAP_OPTION_URI_PORT, &opt_iter);
+  if (opt) {
+    uri->port =
+        coap_decode_var_bytes(coap_opt_value(opt),
+                              coap_opt_length(opt));
+  }
+  *uri_path = coap_get_uri_path(request);
+  if (*uri_path) {
+    uri->path.s = (*uri_path)->s;
+    uri->path.length = (*uri_path)->length;
+  } else {
+    uri->path.s = NULL;
+    uri->path.length = 0;
+  }
+  *uri_query = coap_get_query(request);
+  if (*uri_query) {
+    uri->query.s = (*uri_query)->s;
+    uri->query.length = (*uri_query)->length;
+  } else {
+    uri->query.s = NULL;
+    uri->query.length = 0;
+  }
+  return 1;
+}
+
+int
+coap_verify_proxy_scheme_supported(coap_uri_scheme_t scheme) {
+
+  /* Sanity check that the connection can be forwarded on */
+  switch (scheme) {
+  case COAP_URI_SCHEME_HTTP:
+  case COAP_URI_SCHEME_HTTPS:
+    coap_log_warn("Proxy URI http or https not supported\n");
+    return 0;
+  case COAP_URI_SCHEME_COAP:
+    break;
+  case COAP_URI_SCHEME_COAPS:
+    if (!coap_dtls_is_supported()) {
+      coap_log_warn("coaps URI scheme not supported for proxy\n");
+      return 0;
+    }
+    break;
+  case COAP_URI_SCHEME_COAP_TCP:
+    if (!coap_tcp_is_supported()) {
+      coap_log_warn("coap+tcp URI scheme not supported for proxy\n");
+      return 0;
+    }
+    break;
+  case COAP_URI_SCHEME_COAPS_TCP:
+    if (!coap_tls_is_supported()) {
+      coap_log_warn("coaps+tcp URI scheme not supported for proxy\n");
+      return 0;
+    }
+    break;
+  case COAP_URI_SCHEME_COAP_WS:
+    if (!coap_ws_is_supported()) {
+      coap_log_warn("coap+ws URI scheme not supported for proxy\n");
+      return 0;
+    }
+    break;
+  case COAP_URI_SCHEME_COAPS_WS:
+    if (!coap_wss_is_supported()) {
+      coap_log_warn("coaps+ws URI scheme not supported for proxy\n");
+      return 0;
+    }
+    break;
+  case COAP_URI_SCHEME_LAST:
+  default:
+    coap_log_warn("%d URI scheme not supported\n", scheme);
+    return 0;
+  }
+  return 1;
+}
+
+static coap_proxy_list_t *
+coap_proxy_get_session(coap_session_t *session, const coap_pdu_t *request,
+                       coap_pdu_t *response,
+                       coap_proxy_server_list_t *server_list,
+                       coap_proxy_server_t *server_use) {
+  size_t i;
+  coap_proxy_list_t *new_proxy_list;
+  coap_proxy_list_t *proxy_list = session->context->proxy_list;
+  size_t proxy_list_count = session->context->proxy_list_count;
+
+  coap_opt_iterator_t opt_iter;
+  coap_opt_t *proxy_scheme;
+  coap_opt_t *proxy_uri;
+  coap_string_t *uri_path = NULL;
+  coap_string_t *uri_query = NULL;
+
+  /* Round robin the defined next server list (which usually is just one */
+  server_list->next_entry++;
+  if (server_list->next_entry >= server_list->entry_count)
+    server_list->next_entry = 0;
+
+  memcpy(server_use, &server_list->entry[server_list->next_entry], sizeof(*server_use));
+
+  switch (server_list->type) {
+  case COAP_PROXY_REVERSE:
+  case COAP_PROXY_FORWARD:
+  case COAP_PROXY_DIRECT:
+    /* Nothing else needs to be done */
+    break;
+  case COAP_PROXY_REVERSE_STRIP:
+  case COAP_PROXY_FORWARD_STRIP:
+  case COAP_PROXY_DIRECT_STRIP:
+    /* Need to get actual server from CoAP options */
+    /*
+     * See if Proxy-Scheme
+     */
+    proxy_scheme = coap_check_option(request, COAP_OPTION_PROXY_SCHEME, &opt_iter);
+    if (proxy_scheme) {
+      if (!coap_get_uri_proxy_scheme_info(request, proxy_scheme, &server_use->uri, &uri_path,
+                                          &uri_query)) {
+        response->code = COAP_RESPONSE_CODE(505);
+        return NULL;
+      }
+    }
+    /*
+     * See if Proxy-Uri
+     */
+    proxy_uri = coap_check_option(request, COAP_OPTION_PROXY_URI, &opt_iter);
+    if (proxy_uri) {
+      coap_log_info("Proxy URI '%.*s'\n",
+                    (int)coap_opt_length(proxy_uri),
+                    (const char *)coap_opt_value(proxy_uri));
+      if (coap_split_proxy_uri(coap_opt_value(proxy_uri),
+                               coap_opt_length(proxy_uri),
+                               &server_use->uri) < 0) {
+        /* Need to return a 5.05 RFC7252 Section 5.7.2 */
+        coap_log_warn("Proxy URI not decodable\n");
+        response->code = COAP_RESPONSE_CODE(505);
+        return NULL;
+      }
+    }
+
+    if (!(proxy_scheme || proxy_uri)) {
+      response->code = COAP_RESPONSE_CODE(404);
+      return NULL;
+    }
+
+    if (server_use->uri.host.length == 0) {
+      /* Ongoing connection not well formed */
+      response->code = COAP_RESPONSE_CODE(505);
+      return NULL;
+    }
+
+    if (!coap_verify_proxy_scheme_supported(server_use->uri.scheme)) {
+      response->code = COAP_RESPONSE_CODE(505);
+      return NULL;
+    }
+    break;
+  default:
+    assert(0);
+    return NULL;
+  }
+
+  /* See if we are already connected to the Server */
+  for (i = 0; i < proxy_list_count; i++) {
+    if (coap_string_equal(&proxy_list[i].uri.host, &server_use->uri.host) &&
+        proxy_list[i].uri.port == server_use->uri.port &&
+        proxy_list[i].uri.scheme == server_use->uri.scheme) {
+      if (!server_list->track_client_session) {
+        coap_ticks(&proxy_list[i].last_used);
+        return &proxy_list[i];
+      } else {
+        if (proxy_list[i].incoming == session) {
+          coap_ticks(&proxy_list[i].last_used);
+          return &proxy_list[i];
+        }
+      }
+    }
+  }
+
+  /* Need to create a new forwarding mapping */
+  new_proxy_list = coap_realloc_type(COAP_STRING, proxy_list, (i+1)*sizeof(proxy_list[0]));
+
+  if (new_proxy_list == NULL) {
+    response->code = COAP_RESPONSE_CODE(500);
+    return NULL;
+  }
+  session->context->proxy_list = proxy_list = new_proxy_list;
+  memset(&proxy_list[i], 0, sizeof(proxy_list[i]));
+
+  proxy_list[i].uri = server_use->uri;
+  if (server_list->track_client_session) {
+    proxy_list[i].incoming = session;
+  }
+  session->context->proxy_list_count++;
+  proxy_list[i].idle_timeout_ticks = server_list->idle_timeout_secs * COAP_TICKS_PER_SECOND;
+  coap_ticks(&proxy_list[i].last_used);
+  return &proxy_list[i];
+}
+
+void
+coap_proxy_remove_association(coap_session_t *session, int send_failure) {
+
+  size_t i;
+  size_t j;
+  coap_proxy_list_t *proxy_list = session->context->proxy_list;
+  size_t proxy_list_count = session->context->proxy_list_count;
+
+  for (i = 0; i < proxy_list_count; i++) {
+    /* Check for incoming match */
+    for (j = 0; j < proxy_list[i].req_count; j++) {
+      if (proxy_list[i].req_list[j].incoming == session) {
+        coap_delete_pdu(proxy_list[i].req_list[j].pdu);
+        coap_delete_bin_const(proxy_list[i].req_list[j].token_used);
+        coap_delete_cache_key(proxy_list[i].req_list[j].cache_key);
+        if (proxy_list[i].req_count-j > 1) {
+          memmove(&proxy_list[i].req_list[j], &proxy_list[i].req_list[j+1],
+                  (proxy_list[i].req_count-j-1) * sizeof(proxy_list[i].req_list[0]));
+        }
+        proxy_list[i].req_count--;
+        break;
+      }
+    }
+    if (proxy_list[i].incoming == session) {
+      /* Only if there is a one-to-one tracking */
+      coap_session_release_lkd(proxy_list[i].ongoing);
+      break;
+    }
+
+    /* Check for outgoing match */
+    if (proxy_list[i].ongoing == session) {
+      coap_session_t *ongoing;
+
+      for (j = 0; j < proxy_list[i].req_count; j++) {
+        if (send_failure) {
+          coap_pdu_t *response;
+          coap_bin_const_t l_token;
+
+          /* Need to send back a gateway failure */
+          response = coap_pdu_init(proxy_list[i].req_list[j].pdu->type,
+                                   COAP_RESPONSE_CODE(502),
+                                   coap_new_message_id_lkd(proxy_list[i].incoming),
+                                   coap_session_max_pdu_size_lkd(proxy_list[i].incoming));
+          if (!response) {
+            coap_log_info("PDU creation issue\n");
+            goto cleanup;
+          }
+
+          l_token = coap_pdu_get_token(proxy_list[i].req_list[j].pdu);
+          if (!coap_add_token(response, l_token.length,
+                              l_token.s)) {
+            coap_log_debug("Cannot add token to incoming proxy response PDU\n");
+          }
+
+          if (coap_send_lkd(proxy_list[i].incoming, response) == COAP_INVALID_MID) {
+            coap_log_info("Failed to send PDU with 5.02 gateway issue\n");
+          }
+cleanup:
+          coap_delete_pdu(proxy_list[i].req_list[j].pdu);
+          coap_delete_bin_const(proxy_list[i].req_list[j].token_used);
+          coap_delete_cache_key(proxy_list[i].req_list[j].cache_key);
+        }
+      }
+      ongoing = proxy_list[i].ongoing;
+      coap_free_type(COAP_STRING, proxy_list[i].req_list);
+      if (proxy_list_count-i > 1) {
+        memmove(&proxy_list[i],
+                &proxy_list[i+1],
+                (proxy_list_count-i-1) * sizeof(proxy_list[0]));
+      }
+      session->context->proxy_list_count--;
+      coap_session_release_lkd(ongoing);
+      break;
+    }
+  }
+}
+
+static coap_proxy_list_t *
+coap_proxy_get_ongoing_session(coap_session_t *session,
+                               const coap_pdu_t *request,
+                               coap_pdu_t *response,
+                               coap_proxy_server_list_t *server_list,
+                               coap_proxy_server_t *server_use) {
+
+  coap_address_t dst;
+  coap_proto_t proto;
+  coap_addr_info_t *info_list = NULL;
+  coap_proxy_list_t *proxy_entry;
+  coap_context_t *context = session->context;
+  static char client_sni[256];
+
+  proxy_entry = coap_proxy_get_session(session, request, response, server_list, server_use);
+  if (!proxy_entry) {
+    /* Response code should be set */
+    return NULL;
+  }
+
+  if (!proxy_entry->ongoing) {
+    /* Need to create a new session */
+
+    /* resolve destination address where data should be sent */
+    info_list = coap_resolve_address_info(&server_use->uri.host,
+                                          server_use->uri.port,
+                                          server_use->uri.port,
+                                          server_use->uri.port,
+                                          server_use->uri.port,
+                                          0,
+                                          1 << server_use->uri.scheme,
+                                          COAP_RESOLVE_TYPE_REMOTE);
+
+    if (info_list == NULL) {
+      response->code = COAP_RESPONSE_CODE(502);
+      coap_proxy_remove_association(session, 0);
+      return NULL;
+    }
+    proto = info_list->proto;
+    memcpy(&dst, &info_list->addr, sizeof(dst));
+    coap_free_address_info(info_list);
+
+    snprintf(client_sni, sizeof(client_sni), "%*.*s", (int)server_use->uri.host.length,
+             (int)server_use->uri.host.length, server_use->uri.host.s);
+
+    switch (server_use->uri.scheme) {
+    case COAP_URI_SCHEME_COAP:
+    case COAP_URI_SCHEME_COAP_TCP:
+    case COAP_URI_SCHEME_COAP_WS:
+#if COAP_OSCORE_SUPPORT
+      if (server_use->oscore_conf) {
+        proxy_entry->ongoing =
+            coap_new_client_session_oscore_lkd(context, NULL, &dst,
+                                               proto, server_use->oscore_conf);
+      } else {
+#endif /* COAP_OSCORE_SUPPORT */
+        proxy_entry->ongoing =
+            coap_new_client_session_lkd(context, NULL, &dst, proto);
+#if COAP_OSCORE_SUPPORT
+      }
+#endif /* COAP_OSCORE_SUPPORT */
+      break;
+    case COAP_URI_SCHEME_COAPS:
+    case COAP_URI_SCHEME_COAPS_TCP:
+    case COAP_URI_SCHEME_COAPS_WS:
+#if COAP_OSCORE_SUPPORT
+      if (server_use->oscore_conf) {
+        if (server_use->dtls_pki) {
+          server_use->dtls_pki->client_sni = client_sni;
+          proxy_entry->ongoing =
+              coap_new_client_session_oscore_pki_lkd(context, NULL, &dst,
+                                                     proto, server_use->dtls_pki, server_use->oscore_conf);
+        } else if (server_use->dtls_cpsk) {
+          server_use->dtls_cpsk->client_sni = client_sni;
+          proxy_entry->ongoing =
+              coap_new_client_session_oscore_psk_lkd(context, NULL, &dst,
+                                                     proto, server_use->dtls_cpsk, server_use->oscore_conf);
+        } else {
+          coap_log_warn("Proxy: (D)TLS not configured for secure session\n");
+        }
+      } else {
+#endif /* COAP_OSCORE_SUPPORT */
+        /* Not doing OSCORE */
+        if (server_use->dtls_pki) {
+          server_use->dtls_pki->client_sni = client_sni;
+          proxy_entry->ongoing =
+              coap_new_client_session_pki_lkd(context, NULL, &dst,
+                                              proto, server_use->dtls_pki);
+        } else if (server_use->dtls_cpsk) {
+          server_use->dtls_cpsk->client_sni = client_sni;
+          proxy_entry->ongoing =
+              coap_new_client_session_psk2_lkd(context, NULL, &dst,
+                                               proto, server_use->dtls_cpsk);
+        } else {
+          coap_log_warn("Proxy: (D)TLS not configured for secure session\n");
+        }
+#if COAP_OSCORE_SUPPORT
+      }
+#endif /* COAP_OSCORE_SUPPORT */
+      break;
+    case COAP_URI_SCHEME_HTTP:
+    case COAP_URI_SCHEME_HTTPS:
+    case COAP_URI_SCHEME_LAST:
+    default:
+      assert(0);
+      break;
+    }
+    if (proxy_entry->ongoing == NULL) {
+      response->code = COAP_RESPONSE_CODE(505);
+      coap_proxy_remove_association(session, 0);
+      return NULL;
+    }
+  }
+
+  return proxy_entry;
+}
+
+static void
+coap_proxy_release_body_data(coap_session_t *session COAP_UNUSED,
+                             void *app_ptr) {
+  coap_delete_binary(app_ptr);
+}
+
+int COAP_API
+coap_proxy_forward_request(coap_session_t *session,
+                           const coap_pdu_t *request,
+                           coap_pdu_t *response,
+                           coap_resource_t *resource,
+                           coap_cache_key_t *cache_key,
+                           coap_proxy_server_list_t *server_list) {
+  int ret;
+
+  coap_lock_lock(session->context, return 0);
+  ret = coap_proxy_forward_request_lkd(session,
+                                       request,
+                                       response,
+                                       resource,
+                                       cache_key,
+                                       server_list);
+  coap_lock_unlock(session->context);
+  return ret;
+}
+
+int
+coap_proxy_forward_request_lkd(coap_session_t *session,
+                               const coap_pdu_t *request,
+                               coap_pdu_t *response,
+                               coap_resource_t *resource,
+                               coap_cache_key_t *cache_key,
+                               coap_proxy_server_list_t *server_list) {
+  coap_proxy_list_t *proxy_entry;
+  size_t size;
+  size_t offset;
+  size_t total;
+  coap_binary_t *body_data = NULL;
+  const uint8_t *data;
+  coap_pdu_t *pdu = NULL;
+  coap_bin_const_t r_token = coap_pdu_get_token(request);
+  uint8_t token[8];
+  size_t token_len;
+  coap_proxy_req_t *new_req_list;
+  coap_optlist_t *optlist = NULL;
+  coap_opt_t *option;
+  coap_opt_iterator_t opt_iter;
+  coap_proxy_server_t server_use;
+
+  /* Set up ongoing session (if not already done) */
+
+  proxy_entry = coap_proxy_get_ongoing_session(session, request, response,
+                                               server_list, &server_use);
+  if (!proxy_entry)
+    /* response code already set */
+    return 0;
+
+  /* Need to save the request pdu entry */
+  new_req_list = coap_realloc_type(COAP_STRING, proxy_entry->req_list,
+                                   (proxy_entry->req_count + 1)*sizeof(coap_proxy_req_t));
+
+  if (new_req_list == NULL) {
+    goto failed;
+  }
+  proxy_entry->req_list = new_req_list;
+  /* Get a new token for ongoing session */
+  coap_session_new_token(proxy_entry->ongoing, &token_len, token);
+  new_req_list[proxy_entry->req_count].token_used = coap_new_bin_const(token, token_len);
+  if (new_req_list[proxy_entry->req_count].token_used == NULL) {
+    goto failed;
+  }
+  new_req_list[proxy_entry->req_count].pdu = coap_pdu_duplicate_lkd(request, session,
+                                             r_token.length, r_token.s, NULL);
+  if (new_req_list[proxy_entry->req_count].pdu == NULL) {
+    coap_delete_bin_const(new_req_list[proxy_entry->req_count].token_used);
+    new_req_list[proxy_entry->req_count].token_used = NULL;
+    goto failed;
+  }
+  new_req_list[proxy_entry->req_count].resource = resource;
+  new_req_list[proxy_entry->req_count].incoming = session;
+  new_req_list[proxy_entry->req_count].cache_key = cache_key;
+  proxy_entry->req_count++;
+
+  switch (server_list->type) {
+  case COAP_PROXY_REVERSE_STRIP:
+  case COAP_PROXY_FORWARD_STRIP:
+  case COAP_PROXY_DIRECT_STRIP:
+    /*
+     * Need to replace Proxy-Uri with Uri-Host (and Uri-Port)
+     * or strip out Proxy-Scheme.
+     */
+
+    /*
+     * Build up the ongoing PDU that we are going to send
+     */
+    pdu = coap_pdu_init(request->type, request->code,
+                        coap_new_message_id_lkd(proxy_entry->ongoing),
+                        coap_session_max_pdu_size_lkd(proxy_entry->ongoing));
+    if (!pdu) {
+      goto failed;
+    }
+
+    if (!coap_add_token(pdu, token_len, token)) {
+      goto failed;
+    }
+
+    if (!coap_uri_into_optlist(&server_use.uri,
+                               &proxy_entry->ongoing->addr_info.remote,
+                               &optlist, 1)) {
+      coap_log_err("Failed to create options for URI\n");
+      goto failed;
+    }
+
+    /* Copy the remaining options across */
+    coap_option_iterator_init(request, &opt_iter, COAP_OPT_ALL);
+    while ((option = coap_option_next(&opt_iter))) {
+      switch (opt_iter.number) {
+      case COAP_OPTION_PROXY_URI:
+        break;
+      case COAP_OPTION_PROXY_SCHEME:
+        break;
+      case COAP_OPTION_BLOCK1:
+      case COAP_OPTION_BLOCK2:
+      case COAP_OPTION_Q_BLOCK1:
+      case COAP_OPTION_Q_BLOCK2:
+        /* These are not passed on */
+        break;
+      default:
+        coap_insert_optlist(&optlist,
+                            coap_new_optlist(opt_iter.number,
+                                             coap_opt_length(option),
+                                             coap_opt_value(option)));
+        break;
+      }
+    }
+
+    /* Update pdu with options */
+    coap_add_optlist_pdu(pdu, &optlist);
+    coap_delete_optlist(optlist);
+    break;
+  case COAP_PROXY_REVERSE:
+  case COAP_PROXY_FORWARD:
+  case COAP_PROXY_DIRECT:
+  default:
+    /*
+     * Duplicate request PDU for onward transmission (with new token).
+     */
+    pdu = coap_pdu_duplicate_lkd(request, proxy_entry->ongoing, token_len, token, NULL);
+    if (!pdu) {
+      coap_log_debug("proxy: PDU generation error\n");
+      goto failed;
+    }
+    break;
+  }
+
+  if (coap_get_data_large(request, &size, &data, &offset, &total)) {
+    /* COAP_BLOCK_SINGLE_BODY is set, so single body should be given */
+    assert(size == total);
+    /*
+     * Need to take a copy of the data as request PDU may go away before
+     * all data is transmitted.
+     */
+    body_data = coap_new_binary(total);
+    if (!body_data) {
+      coap_log_debug("proxy: body build memory error\n");
+      goto failed;
+    }
+    memcpy(body_data->s, data, size);
+    if (!coap_add_data_large_request_lkd(proxy_entry->ongoing, pdu, total, data,
+                                         coap_proxy_release_body_data, body_data)) {
+      coap_log_debug("proxy: add data error\n");
+      goto failed;
+    }
+  }
+
+  if (coap_send_lkd(proxy_entry->ongoing, pdu) == COAP_INVALID_MID) {
+    pdu = NULL;
+    coap_log_debug("proxy: upstream PDU send error\n");
+    goto failed;
+  }
+
+  /*
+   * Do not update the response code (hence empty ACK) as will be sending
+   * separate response when response comes back from upstream server
+   */
+
+  return 1;
+
+failed:
+  response->code = COAP_RESPONSE_CODE(500);
+  coap_delete_pdu(pdu);
+  return 0;
+}
+
+coap_response_t COAP_API
+coap_proxy_forward_response(coap_session_t *session,
+                            const coap_pdu_t *received,
+                            coap_cache_key_t **cache_key) {
+  int ret;
+
+  coap_lock_lock(session->context, return 0);
+  ret = coap_proxy_forward_response_lkd(session,
+                                        received,
+                                        cache_key);
+  coap_lock_unlock(session->context);
+  return ret;
+}
+
+coap_response_t
+coap_proxy_forward_response_lkd(coap_session_t *session,
+                                const coap_pdu_t *received,
+                                coap_cache_key_t **cache_key) {
+  coap_pdu_t *pdu = NULL;
+  coap_session_t *incoming = NULL;
+  size_t i;
+  size_t j = 0;
+  size_t size;
+  const uint8_t *data;
+  coap_optlist_t *optlist = NULL;
+  coap_opt_t *option;
+  coap_opt_iterator_t opt_iter;
+  size_t offset;
+  size_t total;
+  coap_proxy_list_t *proxy_entry = NULL;
+  uint16_t media_type = COAP_MEDIATYPE_TEXT_PLAIN;
+  int maxage = -1;
+  uint64_t etag = 0;
+  coap_pdu_code_t rcv_code = coap_pdu_get_code(received);
+  coap_bin_const_t rcv_token = coap_pdu_get_token(received);
+  coap_bin_const_t req_token;
+  coap_binary_t *body_data = NULL;
+  coap_pdu_t *req_pdu;
+  coap_proxy_list_t *proxy_list = session->context->proxy_list;
+  size_t proxy_list_count = session->context->proxy_list_count;
+  coap_resource_t *resource;
+  struct coap_proxy_req_t *proxy_req = NULL;
+
+  for (i = 0; i < proxy_list_count; i++) {
+    proxy_entry = &proxy_list[i];
+    for (j = 0; j < proxy_entry->req_count; j++) {
+      if (coap_binary_equal(&rcv_token, proxy_entry->req_list[j].token_used)) {
+        proxy_req = &proxy_entry->req_list[j];
+        break;
+      }
+    }
+    if (j != proxy_entry->req_count) {
+      break;
+    }
+  }
+  if (i == proxy_list_count) {
+    coap_log_warn("Unknown proxy ongoing session response received\n");
+    return COAP_RESPONSE_OK;
+  }
+
+  req_pdu = proxy_req->pdu;
+  req_token = coap_pdu_get_token(req_pdu);
+  resource = proxy_req->resource;
+  incoming = proxy_req->incoming;
+
+  coap_log_debug("** process upstream incoming %d.%02d response:\n",
+                 COAP_RESPONSE_CLASS(rcv_code), rcv_code & 0x1F);
+
+  if (coap_get_data_large(received, &size, &data, &offset, &total)) {
+    /* COAP_BLOCK_SINGLE_BODY is set, so single body should be given */
+    assert(size == total);
+    body_data = coap_new_binary(total);
+    if (!body_data) {
+      coap_log_debug("body build memory error\n");
+      goto remove_match;
+    }
+    memcpy(body_data->s, data, size);
+    data = body_data->s;
+  }
+
+  /*
+   * Build up the ongoing PDU that we are going to send to proxy originator
+   * as separate response
+   */
+  pdu = coap_pdu_init(req_pdu->type, rcv_code,
+                      coap_new_message_id_lkd(incoming),
+                      coap_session_max_pdu_size_lkd(incoming));
+  if (!pdu) {
+    coap_log_debug("Failed to create ongoing proxy response PDU\n");
+    goto remove_match;
+  }
+
+  if (!coap_add_token(pdu, req_token.length, req_token.s)) {
+    coap_log_debug("cannot add token to ongoing proxy response PDU\n");
+  }
+
+  /*
+   * Copy the options across, skipping those needed for
+   * coap_add_data_response_large()
+   */
+  coap_option_iterator_init(received, &opt_iter, COAP_OPT_ALL);
+  while ((option = coap_option_next(&opt_iter))) {
+    switch (opt_iter.number) {
+    case COAP_OPTION_CONTENT_FORMAT:
+      media_type = coap_decode_var_bytes(coap_opt_value(option),
+                                         coap_opt_length(option));
+      break;
+    case COAP_OPTION_MAXAGE:
+      maxage = coap_decode_var_bytes(coap_opt_value(option),
+                                     coap_opt_length(option));
+      break;
+    case COAP_OPTION_ETAG:
+      etag = coap_decode_var_bytes8(coap_opt_value(option),
+                                    coap_opt_length(option));
+      break;
+    case COAP_OPTION_BLOCK2:
+    case COAP_OPTION_Q_BLOCK2:
+    case COAP_OPTION_SIZE2:
+      break;
+    default:
+      coap_insert_optlist(&optlist,
+                          coap_new_optlist(opt_iter.number,
+                                           coap_opt_length(option),
+                                           coap_opt_value(option)));
+      break;
+    }
+  }
+  coap_add_optlist_pdu(pdu, &optlist);
+  coap_delete_optlist(optlist);
+
+  if (size > 0) {
+    coap_string_t *l_query = coap_get_query(req_pdu);
+
+    coap_add_data_large_response_lkd(resource, incoming, req_pdu, pdu,
+                                     l_query,
+                                     media_type, maxage, etag, size, data,
+                                     coap_proxy_release_body_data,
+                                     body_data);
+    body_data = NULL;
+    coap_delete_string(l_query);
+  }
+
+  if (cache_key)
+    *cache_key = proxy_req->cache_key;
+
+  coap_send_lkd(incoming, pdu);
+
+remove_match:
+  option = coap_check_option(received, COAP_OPTION_OBSERVE, &opt_iter);
+  /* Need to remove matching token entry (apart from on Observe response) */
+  if (option == NULL && proxy_entry->req_count) {
+    coap_delete_pdu(proxy_entry->req_list[j].pdu);
+    coap_delete_bin_const(proxy_entry->req_list[j].token_used);
+    /* Do not delete cache key here - caller's responsibility */
+    proxy_entry->req_count--;
+    if (proxy_entry->req_count-j > 0) {
+      memmove(&proxy_entry->req_list[j], &proxy_entry->req_list[j+1],
+              (proxy_entry->req_count-j) * sizeof(proxy_entry->req_list[0]));
+    }
+  }
+  coap_delete_binary(body_data);
+  return COAP_RESPONSE_OK;
+}
+
+#else /* ! COAP_PROXY_SUPPORT */
+
+int
+coap_proxy_is_supported(void) {
+  return 0;
+}
+
+COAP_API int
+coap_proxy_forward_request(coap_session_t *session,
+                           const coap_pdu_t *request,
+                           coap_pdu_t *response,
+                           coap_resource_t *resource,
+                           coap_cache_key_t *cache_key,
+                           coap_proxy_server_list_t *server_list) {
+  (void)session;
+  (void)request;
+  (void)resource;
+  (void)cache_key;
+  (void)server_list;
+  response->code = COAP_RESPONSE_CODE(500);
+  return 0;
+}
+
+COAP_API coap_response_t
+coap_proxy_forward_response(coap_session_t *session,
+                            const coap_pdu_t *received,
+                            coap_cache_key_t **cache_key) {
+  (void)session;
+  (void)received;
+  (void)cache_key;
+  return COAP_RESPONSE_OK;
+}
+
+int
+coap_verify_proxy_scheme_supported(coap_uri_scheme_t scheme) {
+  (void)scheme;
+  return 0;
+}
+#endif /* ! COAP_PROXY_SUPPORT */
+
+
+==== src/coap_encode.c ====
+/* coap_encode.c -- encoding and decoding of CoAP data types
+ *
+ * Copyright (C) 2010-2024 Olaf Bergmann <bergmann@tzi.org>
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *
+ * This file is part of the CoAP library libcoap. Please see
+ * README for terms of use.
+ */
+
+/**
+ * @file coap_encode.c
+ * @brief Encoding and decoding Coap data types functions
+ */
+
+#include "coap3/coap_libcoap_build.h"
+
+/* Carsten suggested this when fls() is not available: */
+#ifndef HAVE_FLS
+int
+coap_fls(unsigned int i) {
+  return coap_flsll(i);
+}
+#endif
+
+#ifndef HAVE_FLSLL
+int
+coap_flsll(long long j) {
+  unsigned long long i = (unsigned long long)j;
+  int n;
+  for (n = 0; i; n++)
+    i >>= 1;
+  return n;
+}
+#endif
+
+unsigned int
+coap_decode_var_bytes(const uint8_t *buf, size_t len) {
+  unsigned int i, n = 0;
+  for (i = 0; i < len; ++i)
+    n = (n << 8) + buf[i];
+
+  return n;
+}
+
+unsigned int
+coap_encode_var_safe(uint8_t *buf, size_t length, unsigned int val) {
+  unsigned int n, i;
+
+  for (n = 0, i = val; i && n < sizeof(val); ++n)
+    i >>= 8;
+
+  if (n > length) {
+    assert(n <= length);
+    return 0;
+  }
+  i = n;
+  while (i--) {
+    buf[i] = val & 0xff;
+    val >>= 8;
+  }
+
+  return n;
+}
+
+uint64_t
+coap_decode_var_bytes8(const uint8_t *buf, size_t len) {
+  unsigned int i;
+  uint64_t n = 0;
+  for (i = 0; i < len && i < sizeof(uint64_t); ++i)
+    n = (n << 8) + buf[i];
+
+  return n;
+}
+
+unsigned int
+coap_encode_var_safe8(uint8_t *buf, size_t length, uint64_t val) {
+  unsigned int n, i;
+  uint64_t tval = val;
+
+  for (n = 0; tval && n < sizeof(val); ++n)
+    tval >>= 8;
+
+  if (n > length) {
+    assert(n <= length);
+    return 0;
+  }
+  i = n;
+  while (i--) {
+    buf[i] = val & 0xff;
+    val >>= 8;
+  }
+
+  return n;
+}
+
+
+==== src/coap_address.c ====
+/* coap_address.c -- representation of network addresses
+ *
+ * Copyright (C) 2015-2016,2019-2024 Olaf Bergmann <bergmann@tzi.org>
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *
+ * This file is part of the CoAP library libcoap. Please see
+ * README for terms of use.
+ */
+
+/**
+ * @file coap_address.c
+ * @brief Handling of network addresses
+ */
+
+#include "coap3/coap_libcoap_build.h"
+
+#if !defined(WITH_CONTIKI) && !defined(WITH_LWIP) && !defined(RIOT_VERSION)
+#ifdef HAVE_ARPA_INET_H
+#include <arpa/inet.h>
+#endif
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
+#ifdef HAVE_SYS_SOCKET_H
+#include <sys/socket.h>
+#endif
+#ifdef HAVE_NET_IF_H
+#include <net/if.h>
+#endif
+#ifdef HAVE_IFADDRS_H
+#include <ifaddrs.h>
+#endif
+#ifdef HAVE_WS2TCPIP_H
+#include <ws2tcpip.h>
+#endif
+
+#ifdef RIOT_VERSION
+/* FIXME */
+#define IN_MULTICAST(Address) (0)
+#endif /* RIOT_VERSION */
+
+uint16_t
+coap_address_get_port(const coap_address_t *addr) {
+  assert(addr != NULL);
+  switch (addr->addr.sa.sa_family) {
+#if COAP_IPV4_SUPPORT
+  case AF_INET:
+    return ntohs(addr->addr.sin.sin_port);
+#endif /* COAP_IPV4_SUPPORT */
+#if COAP_IPV6_SUPPORT
+  case AF_INET6:
+    return ntohs(addr->addr.sin6.sin6_port);
+#endif /* COAP_IPV6_SUPPORT */
+  default: /* undefined */
+    ;
+  }
+  return 0;
+}
+
+void
+coap_address_set_port(coap_address_t *addr, uint16_t port) {
+  assert(addr != NULL);
+  switch (addr->addr.sa.sa_family) {
+#if COAP_IPV4_SUPPORT
+  case AF_INET:
+    addr->addr.sin.sin_port = htons(port);
+    break;
+#endif /* COAP_IPV4_SUPPORT */
+#if COAP_IPV6_SUPPORT
+  case AF_INET6:
+    addr->addr.sin6.sin6_port = htons(port);
+    break;
+#endif /* COAP_IPV6_SUPPORT */
+  default: /* undefined */
+    ;
+  }
+}
+
+int
+coap_address_equals(const coap_address_t *a, const coap_address_t *b) {
+  assert(a);
+  assert(b);
+
+  if (a->size != b->size || a->addr.sa.sa_family != b->addr.sa.sa_family)
+    return 0;
+
+  /* need to compare only relevant parts of sockaddr_in6 */
+  switch (a->addr.sa.sa_family) {
+#if COAP_IPV4_SUPPORT
+  case AF_INET:
+    return a->addr.sin.sin_port == b->addr.sin.sin_port &&
+           memcmp(&a->addr.sin.sin_addr, &b->addr.sin.sin_addr,
+                  sizeof(struct in_addr)) == 0;
+#endif /* COAP_IPV4_SUPPORT */
+#if COAP_IPV6_SUPPORT
+  case AF_INET6:
+    return a->addr.sin6.sin6_port == b->addr.sin6.sin6_port &&
+           memcmp(&a->addr.sin6.sin6_addr, &b->addr.sin6.sin6_addr,
+                  sizeof(struct in6_addr)) == 0;
+#endif /* COAP_IPV6_SUPPORT */
+  default: /* fall through and signal error */
+    ;
+  }
+  return 0;
+}
+
+int
+coap_is_af_unix(const coap_address_t *a) {
+#if COAP_AF_UNIX_SUPPORT
+  return a->addr.sa.sa_family == AF_UNIX;
+#else /* ! COAP_AF_UNIX_SUPPORT */
+  (void)a;
+  return 0;
+#endif /* ! COAP_AF_UNIX_SUPPORT */
+}
+
+int
+coap_is_mcast(const coap_address_t *a) {
+  if (!a)
+    return 0;
+
+  /* Treat broadcast in same way as multicast */
+  if (coap_is_bcast(a))
+    return 1;
+
+  switch (a->addr.sa.sa_family) {
+#if COAP_IPV4_SUPPORT
+  case AF_INET:
+    return IN_MULTICAST(ntohl(a->addr.sin.sin_addr.s_addr));
+#endif /* COAP_IPV4_SUPPORT */
+#if COAP_IPV6_SUPPORT
+  case  AF_INET6:
+#if COAP_IPV4_SUPPORT
+    return IN6_IS_ADDR_MULTICAST(&a->addr.sin6.sin6_addr) ||
+           (IN6_IS_ADDR_V4MAPPED(&a->addr.sin6.sin6_addr) &&
+            IN_MULTICAST(ntohl(a->addr.sin6.sin6_addr.s6_addr[12])));
+#else /* ! COAP_IPV4_SUPPORT */
+    return a->addr.sin6.sin6_addr.s6_addr[0] == 0xff;
+#endif /* ! COAP_IPV4_SUPPORT */
+#endif /* COAP_IPV6_SUPPORT */
+  default:  /* fall through and signal not multicast */
+    ;
+  }
+  return 0;
+}
+
+#ifndef COAP_BCST_CNT
+#define COAP_BCST_CNT 15
+#endif /* COAP_BCST_CNT */
+
+/* How frequently to refresh the list of valid IPv4 broadcast addresses */
+#ifndef COAP_BCST_REFRESH_SECS
+#define COAP_BCST_REFRESH_SECS 30
+#endif /* COAP_BCST_REFRESH_SECS */
+
+#if COAP_IPV4_SUPPORT && defined(HAVE_IFADDRS_H)
+static int bcst_cnt = -1;
+static coap_tick_t last_refresh;
+static struct in_addr b_ipv4[COAP_BCST_CNT];
+#endif /* COAP_IPV4_SUPPORT && HAVE_IFADDRS_H */
+
+int
+coap_is_bcast(const coap_address_t *a) {
+#if COAP_IPV4_SUPPORT
+  struct in_addr ipv4;
+#if defined(HAVE_IFADDRS_H)
+  int i;
+  coap_tick_t now;
+#endif /* HAVE_IFADDRS_H */
+#endif /* COAP_IPV4_SUPPORT */
+
+  if (!a)
+    return 0;
+
+  switch (a->addr.sa.sa_family) {
+#if COAP_IPV4_SUPPORT
+  case AF_INET:
+    ipv4.s_addr = a->addr.sin.sin_addr.s_addr;
+    break;
+#endif /* COAP_IPV4_SUPPORT */
+#if COAP_IPV6_SUPPORT
+  case  AF_INET6:
+#if COAP_IPV4_SUPPORT
+    if (IN6_IS_ADDR_V4MAPPED(&a->addr.sin6.sin6_addr)) {
+      memcpy(&ipv4, &a->addr.sin6.sin6_addr.s6_addr[12], sizeof(ipv4));
+      break;
+    }
+#endif /* COAP_IPV4_SUPPORT */
+    /* IPv6 does not support broadcast */
+    return 0;
+#endif /* COAP_IPV6_SUPPORT */
+  default:
+    return 0;
+  }
+#if COAP_IPV4_SUPPORT
+#ifndef INADDR_BROADCAST
+#define INADDR_BROADCAST ((uint32_t)0xffffffffUL)
+#endif /* !INADDR_BROADCAST */
+  if (ipv4.s_addr == INADDR_BROADCAST)
+    return 1;
+
+#if defined(HAVE_IFADDRS_H)
+  coap_ticks(&now);
+  if (bcst_cnt == -1 ||
+      (now - last_refresh) > (COAP_BCST_REFRESH_SECS * COAP_TICKS_PER_SECOND)) {
+    /* Determine the list of broadcast interfaces */
+    struct ifaddrs *ifa = NULL;
+    struct ifaddrs *ife;
+
+    if (getifaddrs(&ifa) != 0) {
+      coap_log_warn("coap_is_bcst: Cannot determine any broadcast addresses\n");
+      return 0;
+    }
+    bcst_cnt = 0;
+    last_refresh = now;
+    ife = ifa;
+    while (ife && bcst_cnt < COAP_BCST_CNT) {
+      if (ife->ifa_addr && ife->ifa_addr->sa_family == AF_INET &&
+          ife->ifa_flags & IFF_BROADCAST) {
+        struct in_addr netmask;
+
+        /*
+         * Sometimes the broadcast IP is set to the IP address, even though
+         * netmask is not set to 0xffffffff, so unsafe to use ifa_broadaddr.
+         */
+        netmask.s_addr = ((struct sockaddr_in *)ife->ifa_netmask)->sin_addr.s_addr;
+        if (netmask.s_addr != 0xffffffff) {
+          b_ipv4[bcst_cnt].s_addr = ((struct sockaddr_in *)ife->ifa_addr)->sin_addr.s_addr |
+                                    ~netmask.s_addr;
+          bcst_cnt++;
+        }
+      }
+      ife = ife->ifa_next;
+    }
+    if (ife) {
+      coap_log_warn("coap_is_bcst: Insufficient space for broadcast addresses\n");
+    }
+    freeifaddrs(ifa);
+  }
+  for (i = 0; i < bcst_cnt; i++) {
+    if (ipv4.s_addr == b_ipv4[i].s_addr)
+      return 1;
+  }
+#endif /* HAVE_IFADDRS_H */
+  return 0;
+#endif /* COAP_IPV4_SUPPORT */
+}
+
+#endif /* !defined(WITH_CONTIKI) && !defined(WITH_LWIP) */
+
+void
+coap_address_init(coap_address_t *addr) {
+  assert(addr);
+  memset(addr, 0, sizeof(coap_address_t));
+#if !defined(WITH_LWIP) && !defined(WITH_CONTIKI) && !defined(RIOT_VERSION)
+  /* lwip and Contiki have constant address sizes and don't need the .size part */
+  addr->size = sizeof(addr->addr);
+#endif
+}
+
+int
+coap_address_set_unix_domain(coap_address_t *addr,
+                             const uint8_t *host, size_t host_len) {
+#if COAP_AF_UNIX_SUPPORT
+  size_t i;
+  size_t ofs = 0;
+
+  coap_address_init(addr);
+  addr->addr.cun.sun_family = AF_UNIX;
+  for (i = 0; i < host_len; i++) {
+    if ((host_len - i) >= 3 && host[i] == '%' && host[i+1] == '2' &&
+        (host[i+2] == 'F' || host[i+2] == 'f')) {
+      addr->addr.cun.sun_path[ofs++] = '/';
+      i += 2;
+    } else {
+      addr->addr.cun.sun_path[ofs++] = host[i];
+    }
+    if (ofs == COAP_UNIX_PATH_MAX)
+      break;
+  }
+  if (ofs < COAP_UNIX_PATH_MAX)
+    addr->addr.cun.sun_path[ofs] = '\000';
+  else
+    addr->addr.cun.sun_path[ofs-1] = '\000';
+  return 1;
+#else /* ! COAP_AF_UNIX_SUPPORT */
+  (void)addr;
+  (void)host;
+  (void)host_len;
+  return 0;
+#endif /* ! COAP_AF_UNIX_SUPPORT */
+}
+
+static void
+update_port(coap_address_t *addr, uint16_t port, uint16_t default_port,
+            int update_port0) {
+  /* Client target port must be set if default of 0 */
+  if (port == 0 && update_port0)
+    port = default_port;
+
+  coap_address_set_port(addr, port);
+  return;
+}
+
+#ifdef HAVE_NETDB_H
+#include <netdb.h>
+#endif
+
+uint32_t
+coap_get_available_scheme_hint_bits(int have_pki_psk, int ws_check,
+                                    coap_proto_t use_unix_proto) {
+  uint32_t scheme_hint_bits = 0;
+  coap_uri_scheme_t scheme;
+
+  for (scheme = 0; scheme < COAP_URI_SCHEME_LAST; scheme++) {
+    switch (scheme) {
+    case COAP_URI_SCHEME_COAP:
+      scheme_hint_bits |= 1 << scheme;
+      break;
+    case COAP_URI_SCHEME_COAPS:
+      if (!(coap_dtls_is_supported() && have_pki_psk))
+        continue;
+      scheme_hint_bits |= 1 << scheme;
+      break;
+    case COAP_URI_SCHEME_COAP_TCP:
+      if (!coap_tcp_is_supported())
+        continue;
+      scheme_hint_bits |= 1 << scheme;
+      break;
+    case COAP_URI_SCHEME_COAPS_TCP:
+      if (!(coap_tls_is_supported() && have_pki_psk))
+        continue;
+      scheme_hint_bits |= 1 << scheme;
+      break;
+    case COAP_URI_SCHEME_COAP_WS:
+      if (!ws_check || !coap_ws_is_supported())
+        continue;
+      scheme_hint_bits |= 1 << scheme;
+      break;
+    case COAP_URI_SCHEME_COAPS_WS:
+      if (!ws_check || !(coap_wss_is_supported() && have_pki_psk))
+        continue;
+      scheme_hint_bits |= 1 << scheme;
+      break;
+    case COAP_URI_SCHEME_HTTP:
+    case COAP_URI_SCHEME_HTTPS:
+    case COAP_URI_SCHEME_LAST:
+    default:
+      continue;
+    }
+  }
+
+  switch (use_unix_proto) {
+  /* For AF_UNIX, can only listen on a single endpoint */
+  case COAP_PROTO_UDP:
+    scheme_hint_bits = 1 << COAP_URI_SCHEME_COAP;
+    break;
+  case COAP_PROTO_TCP:
+    scheme_hint_bits = 1 << COAP_URI_SCHEME_COAP_TCP;
+    break;
+  case COAP_PROTO_DTLS:
+    scheme_hint_bits = 1 << COAP_URI_SCHEME_COAPS;
+    break;
+  case COAP_PROTO_TLS:
+    scheme_hint_bits = 1 << COAP_URI_SCHEME_COAPS_TCP;
+    break;
+  case COAP_PROTO_WS:
+    scheme_hint_bits = 1 << COAP_URI_SCHEME_COAP_WS;
+    break;
+  case COAP_PROTO_WSS:
+    scheme_hint_bits = 1 << COAP_URI_SCHEME_COAPS_WS;
+    break;
+  case COAP_PROTO_NONE: /* If use_unix_proto was not defined */
+  case COAP_PROTO_LAST:
+  default:
+    break;
+  }
+  return scheme_hint_bits;
+}
+
+static coap_addr_info_t *
+get_coap_addr_info(coap_uri_scheme_t scheme) {
+  coap_addr_info_t *info = NULL;
+  coap_proto_t proto = 0;
+
+  switch (scheme) {
+  case COAP_URI_SCHEME_COAP:
+    proto = COAP_PROTO_UDP;
+    break;
+  case COAP_URI_SCHEME_COAPS:
+    if (!coap_dtls_is_supported())
+      return NULL;
+    proto = COAP_PROTO_DTLS;
+    break;
+  case COAP_URI_SCHEME_COAP_TCP:
+    if (!coap_tcp_is_supported())
+      return NULL;
+    proto = COAP_PROTO_TCP;
+    break;
+  case COAP_URI_SCHEME_COAPS_TCP:
+    if (!coap_tls_is_supported())
+      return NULL;
+    proto = COAP_PROTO_TLS;
+    break;
+  case COAP_URI_SCHEME_HTTP:
+    if (!coap_tcp_is_supported())
+      return NULL;
+    proto = COAP_PROTO_NONE;
+    break;
+  case COAP_URI_SCHEME_HTTPS:
+    if (!coap_tls_is_supported())
+      return NULL;
+    proto = COAP_PROTO_NONE;
+    break;
+  case COAP_URI_SCHEME_COAP_WS:
+    if (!coap_ws_is_supported())
+      return NULL;
+    proto = COAP_PROTO_WS;
+    break;
+  case COAP_URI_SCHEME_COAPS_WS:
+    if (!coap_wss_is_supported())
+      return NULL;
+    proto = COAP_PROTO_WSS;
+    break;
+  case COAP_URI_SCHEME_LAST:
+  default:
+    return NULL;
+  }
+  info = coap_malloc_type(COAP_STRING, sizeof(coap_addr_info_t));
+  if (info == NULL)
+    return NULL;
+  info->next = NULL;
+  info->proto = proto;
+  info->scheme = scheme;
+
+  coap_address_init(&info->addr);
+  return info;
+}
+
+static void
+update_coap_addr_port(coap_uri_scheme_t scheme, coap_addr_info_t *info,
+                      uint16_t port, uint16_t secure_port, uint16_t ws_port,
+                      uint16_t ws_secure_port,
+                      coap_resolve_type_t type) {
+  switch (scheme) {
+  case COAP_URI_SCHEME_COAP:
+    update_port(&info->addr, port, COAP_DEFAULT_PORT,
+                type == COAP_RESOLVE_TYPE_LOCAL);
+    break;
+  case COAP_URI_SCHEME_COAPS:
+    update_port(&info->addr, secure_port, COAPS_DEFAULT_PORT,
+                type == COAP_RESOLVE_TYPE_LOCAL);
+    break;
+  case COAP_URI_SCHEME_COAP_TCP:
+    update_port(&info->addr, port, COAP_DEFAULT_PORT,
+                type == COAP_RESOLVE_TYPE_LOCAL);
+    break;
+  case COAP_URI_SCHEME_COAPS_TCP:
+    update_port(&info->addr, secure_port, COAPS_DEFAULT_PORT,
+                type == COAP_RESOLVE_TYPE_LOCAL);
+    break;
+  case COAP_URI_SCHEME_HTTP:
+    update_port(&info->addr, port, 80,
+                type == COAP_RESOLVE_TYPE_LOCAL);
+    break;
+  case COAP_URI_SCHEME_HTTPS:
+    update_port(&info->addr, secure_port, 443,
+                type == COAP_RESOLVE_TYPE_LOCAL);
+    break;
+  case COAP_URI_SCHEME_COAP_WS:
+    update_port(&info->addr, ws_port, 80,
+                type == COAP_RESOLVE_TYPE_LOCAL);
+    break;
+  case COAP_URI_SCHEME_COAPS_WS:
+    update_port(&info->addr, ws_secure_port, 443,
+                type == COAP_RESOLVE_TYPE_LOCAL);
+    break;
+  case COAP_URI_SCHEME_LAST:
+  default:
+    break;
+  }
+}
+
+coap_addr_info_t *
+coap_resolve_address_info(const coap_str_const_t *address,
+                          uint16_t port,
+                          uint16_t secure_port,
+                          uint16_t ws_port,
+                          uint16_t ws_secure_port,
+                          int ai_hints_flags,
+                          int scheme_hint_bits,
+                          coap_resolve_type_t type) {
+#if !defined(RIOT_VERSION) && !defined(WITH_CONTIKI)
+
+  struct addrinfo *res, *ainfo;
+  struct addrinfo hints;
+  static char addrstr[256];
+  int error;
+  coap_addr_info_t *info = NULL;
+  coap_addr_info_t *info_prev = NULL;
+  coap_addr_info_t *info_list = NULL;
+  coap_addr_info_t *info_tmp;
+  coap_uri_scheme_t scheme;
+
+#if COAP_AF_UNIX_SUPPORT
+  if (address && coap_host_is_unix_domain(address)) {
+    /* There can only be one unique filename entry for AF_UNIX */
+    if (address->length >= COAP_UNIX_PATH_MAX) {
+      coap_log_err("Unix Domain host too long\n");
+      return NULL;
+    }
+    /* Need to chose the first defined one  in scheme_hint_bits */
+    for (scheme = 0; scheme < COAP_URI_SCHEME_LAST; scheme++) {
+      if (scheme_hint_bits & (1 << scheme)) {
+        break;
+      }
+    }
+    if (scheme == COAP_URI_SCHEME_LAST) {
+      return NULL;
+    }
+    info = get_coap_addr_info(scheme);
+    if (info == NULL) {
+      return NULL;
+    }
+
+    if (!coap_address_set_unix_domain(&info->addr, address->s,
+                                      address->length)) {
+      coap_free_type(COAP_STRING, info);
+      return NULL;
+    }
+    return info;
+  }
+#endif /* COAP_AF_UNIX_SUPPORT */
+
+  memset(addrstr, 0, sizeof(addrstr));
+  if (address && address->length)
+    memcpy(addrstr, address->s, address->length);
+  else
+    memcpy(addrstr, "localhost", 9);
+
+  memset((char *)&hints, 0, sizeof(hints));
+  hints.ai_socktype = 0;
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_flags = ai_hints_flags;
+
+  error = getaddrinfo(addrstr, NULL, &hints, &res);
+
+  if (error != 0) {
+    coap_log_warn("getaddrinfo: %s\n", gai_strerror(error));
+    return NULL;
+  }
+
+  for (ainfo = res; ainfo != NULL; ainfo = ainfo->ai_next) {
+#if !defined(WITH_LWIP)
+    if (ainfo->ai_addrlen > (socklen_t)sizeof(info->addr.addr))
+      continue;
+#endif /* ! WITH_LWIP */
+
+    switch (ainfo->ai_family) {
+#if COAP_IPV4_SUPPORT
+    case AF_INET:
+#endif /* COAP_IPV4_SUPPORT */
+#if COAP_IPV6_SUPPORT
+    case AF_INET6:
+#endif /* COAP_IPV6_SUPPORT */
+      for (scheme = 0; scheme < COAP_URI_SCHEME_LAST; scheme++) {
+        if (scheme_hint_bits & (1 << scheme)) {
+          info = get_coap_addr_info(scheme);
+          if (info == NULL) {
+            continue;
+          }
+
+#if !defined(WITH_LWIP)
+          info->addr.size = (socklen_t)ainfo->ai_addrlen;
+          memcpy(&info->addr.addr, ainfo->ai_addr, ainfo->ai_addrlen);
+#else /* WITH_LWIP */
+          memset(&info->addr, 0, sizeof(info->addr));
+          switch (ainfo->ai_family) {
+#if COAP_IPV6_SUPPORT
+            struct sockaddr_in6 *sock6;
+#endif /* COAP_IPV6_SUPPORT */
+#if COAP_IPV4_SUPPORT
+            struct sockaddr_in *sock4;
+          case AF_INET:
+            sock4 = (struct sockaddr_in *)ainfo->ai_addr;
+            info->addr.port = ntohs(sock4->sin_port);
+            memcpy(&info->addr.addr, &sock4->sin_addr, 4);
+#if LWIP_IPV6
+            info->addr.addr.type = IPADDR_TYPE_V4;
+#endif /* LWIP_IPV6 */
+            break;
+#endif /* COAP_IPV4_SUPPORT */
+#if COAP_IPV6_SUPPORT
+          case AF_INET6:
+            sock6 = (struct sockaddr_in6 *)ainfo->ai_addr;
+            info->addr.port = ntohs(sock6->sin6_port);
+            memcpy(&info->addr.addr, &sock6->sin6_addr, 16);
+#if LWIP_IPV6 && LWIP_IPV4
+            info->addr.addr.type = IPADDR_TYPE_V6;
+#endif /* LWIP_IPV6 && LWIP_IPV4 */
+            break;
+#endif /* COAP_IPV6_SUPPORT */
+          default:
+            ;
+          }
+#endif /* WITH_LWIP */
+          update_coap_addr_port(scheme, info, port, secure_port, ws_port,
+                                ws_secure_port, type);
+
+          /* Check there are no duplications */
+          info_tmp = info_list;
+          while (info_tmp) {
+            if (info_tmp->proto == info->proto &&
+                info_tmp->scheme == info->scheme &&
+                coap_address_equals(&info_tmp->addr, &info->addr)) {
+              break;
+            }
+            info_tmp = info_tmp->next;
+          }
+
+          if (info_tmp) {
+            /* Duplicate */
+            coap_free_type(COAP_STRING, info);
+          } else {
+            /* Need to return in same order as getaddrinfo() */
+            if (!info_prev) {
+              info_list = info;
+              info_prev = info;
+            } else {
+              info_prev->next = info;
+              info_prev = info;
+            }
+          }
+        }
+      }
+      break;
+    default:
+      break;
+    }
+  }
+
+  freeaddrinfo(res);
+  return info_list;
+
+#elif defined(RIOT_VERSION)
+
+#include "net/utils.h"
+#if COAP_IPV6_SUPPORT
+  ipv6_addr_t addr_ipv6;
+#endif /* COAP_IPV6_SUPPORT */
+#if COAP_IPV4_SUPPORT
+  ipv4_addr_t addr_ipv4;
+#endif /* COAP_IPV4_SUPPORT */
+  netif_t *netif = NULL;
+  coap_addr_info_t *info = NULL;
+  coap_addr_info_t *info_prev = NULL;
+  coap_addr_info_t *info_list = NULL;
+  coap_uri_scheme_t scheme;
+  (void)ai_hints_flags;
+  int family = AF_UNSPEC;
+
+  if (address == NULL || address->length == 0) {
+    memset(&addr_ipv6, 0, sizeof(addr_ipv6));
+#if COAP_IPV6_SUPPORT
+    family = AF_INET6;
+#else /* ! COAP_IPV6_SUPPORT */
+    family = AF_INET;
+#endif /* ! COAP_IPV6_SUPPORT */
+  } else {
+#if COAP_IPV6_SUPPORT
+    if (netutils_get_ipv6(&addr_ipv6, &netif, (const char *)address->s) >= 0) {
+      family = AF_INET6;
+    }
+#endif /* COAP_IPV6_SUPPORT */
+#if COAP_IPV4_SUPPORT
+    if (family == AF_UNSPEC &&
+        netutils_get_ipv4(&addr_ipv4, (const char *)address->s) >= 0) {
+      family = AF_INET;
+    }
+#endif /* COAP_IPV4_SUPPORT */
+    if (family == AF_UNSPEC) {
+      coap_log_err("coap_resolve_address_info: Unable to parse '%s'\n", address->s);
+      return NULL;
+    }
+  }
+  for (scheme = 0; scheme < COAP_URI_SCHEME_LAST; scheme++) {
+    if (scheme_hint_bits & (1 << scheme)) {
+      info = get_coap_addr_info(scheme);
+      if (info == NULL) {
+        continue;
+      }
+
+      /* Need to return in same order as getaddrinfo() */
+      if (!info_prev) {
+        info_list = info;
+        info_prev = info;
+      } else {
+        info_prev->next = info;
+        info_prev = info;
+      }
+
+      switch (family) {
+#if COAP_IPV6_SUPPORT
+      case AF_INET6:
+        info->addr.riot.family = AF_INET6;
+        memcpy(&info->addr.riot.addr.ipv6, &addr_ipv6,
+               sizeof(info->addr.riot.addr.ipv6));
+        info->addr.riot.netif = netif ? (uint32_t)netif_get_id(netif) : 0;
+        break;
+#endif /* ! COAP_IPV6_SUPPORT */
+#if COAP_IPV4_SUPPORT
+      case AF_INET:
+        info->addr.riot.family = AF_INET;
+        memcpy(&info->addr.riot.addr.ipv4, &addr_ipv4,
+               sizeof(info->addr.riot.addr.ipv4));
+        break;
+#endif /* ! COAP_IPV4_SUPPORT */
+      default:
+        break;
+      }
+
+      update_coap_addr_port(scheme, info, port, secure_port, ws_port,
+                            ws_secure_port, type);
+    }
+  }
+  return info_list;
+
+#elif defined(WITH_CONTIKI)
+
+#include <os/net/ipv6/uiplib.h>
+  uip_ipaddr_t addr_ip;
+  coap_addr_info_t *info = NULL;
+  coap_addr_info_t *info_prev = NULL;
+  coap_addr_info_t *info_list = NULL;
+  coap_uri_scheme_t scheme;
+  int parsed_ip = 0;
+
+  (void)ai_hints_flags;
+
+  if (address == NULL || address->length == 0) {
+    memset(&addr_ip, 0, sizeof(addr_ip));
+  } else {
+#if COAP_IPV6_SUPPORT
+    if (uiplib_ip6addrconv((const char *)address->s, (uip_ip6addr_t *)&addr_ip) > 0) {
+      parsed_ip = 1;
+    }
+#endif /* COAP_IPV6_SUPPORT */
+#if COAP_IPV4_SUPPORT
+    if (family == AF_UNSPEC &&
+        uiplib_ip4addrconv((const char *)address->s, (uip_ip4addr_t *)&addr_ip) > 0) {
+      parsed_ip = 1;
+    }
+#endif /* COAP_IPV4_SUPPORT */
+    if (!parsed_ip) {
+      coap_log_err("coap_resolve_address_info: Unable to parse '%s'\n", address->s);
+      return NULL;
+    }
+  }
+  for (scheme = 0; scheme < COAP_URI_SCHEME_LAST; scheme++) {
+    if (scheme_hint_bits & (1 << scheme)) {
+      info = get_coap_addr_info(scheme);
+      if (info == NULL) {
+        continue;
+      }
+
+      /* Need to return in same order as getaddrinfo() */
+      if (!info_prev) {
+        info_list = info;
+        info_prev = info;
+      } else {
+        info_prev->next = info;
+        info_prev = info;
+      }
+
+      memcpy(&info->addr.addr, &addr_ip, sizeof(info->addr.addr));
+
+      update_coap_addr_port(scheme, info, port, secure_port, ws_port,
+                            ws_secure_port, type);
+    }
+  }
+  return info_list;
+#else
+#bad OS type not supported
+  return NULL;
+#endif
+}
+
+void
+coap_free_address_info(coap_addr_info_t *info) {
+  while (info) {
+    coap_addr_info_t *info_next = info->next;
+
+    coap_free_type(COAP_STRING, info);
+    info = info_next;
+  }
+}
+
+#if !defined(WITH_LWIP) && !defined(WITH_CONTIKI) && !defined(RIOT_VERSION)
+void
+coap_address_copy(coap_address_t *dst, const coap_address_t *src) {
+#if defined(WITH_LWIP) || defined(WITH_CONTIKI)
+  memcpy(dst, src, sizeof(coap_address_t));
+#else
+  memset(dst, 0, sizeof(coap_address_t));
+  dst->size = src->size;
+#if COAP_IPV6_SUPPORT
+  if (src->addr.sa.sa_family == AF_INET6) {
+    dst->addr.sin6.sin6_family = src->addr.sin6.sin6_family;
+    dst->addr.sin6.sin6_addr = src->addr.sin6.sin6_addr;
+    dst->addr.sin6.sin6_port = src->addr.sin6.sin6_port;
+    dst->addr.sin6.sin6_scope_id = src->addr.sin6.sin6_scope_id;
+  }
+#endif /* COAP_IPV6_SUPPORT */
+#if COAP_IPV4_SUPPORT && COAP_IPV6_SUPPORT
+  else
+#endif /* COAP_IPV4_SUPPORT && COAP_IPV6_SUPPORT */
+#if COAP_IPV4_SUPPORT
+    if (src->addr.sa.sa_family == AF_INET) {
+      dst->addr.sin = src->addr.sin;
+    }
+#endif /* COAP_IPV4_SUPPORT */
+    else {
+      memcpy(&dst->addr, &src->addr, src->size);
+    }
+#endif
+}
+
+int
+_coap_address_isany_impl(const coap_address_t *a) {
+  /* need to compare only relevant parts of sockaddr_in6 */
+  switch (a->addr.sa.sa_family) {
+#if COAP_IPV4_SUPPORT
+  case AF_INET:
+    return a->addr.sin.sin_addr.s_addr == INADDR_ANY;
+#endif /* COAP_IPV4_SUPPORT */
+#if COAP_IPV6_SUPPORT
+  case AF_INET6:
+    return memcmp(&in6addr_any,
+                  &a->addr.sin6.sin6_addr,
+                  sizeof(in6addr_any)) == 0;
+#endif /* COAP_IPV6_SUPPORT */
+  default:
+    ;
+  }
+
+  return 0;
+}
+#endif /* ! WITH_LWIP && ! WITH_CONTIKI */
+
+
+==== src/coap_uri.c ====
+/* coap_uri.c -- helper functions for URI treatment
+ *
+ * Copyright (C) 2010--2012,2015-2016,2022-2024 Olaf Bergmann <bergmann@tzi.org>
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *
+ * This file is part of the CoAP library libcoap. Please see
+ * README for terms of use.
+ */
+
+/**
+ * @file coap_uri.c
+ * @brief URI handling functions
+ */
+
+#include "coap3/coap_libcoap_build.h"
+
+#if defined(HAVE_LIMITS_H)
+#include <limits.h>
+#endif
+
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+
+/**
+ * A length-safe version of strchr(). This function returns a pointer
+ * to the first occurrence of @p c  in @p s, or @c NULL if not found.
+ *
+ * @param s   The string to search for @p c.
+ * @param len The length of @p s.
+ * @param c   The character to search.
+ *
+ * @return A pointer to the first occurence of @p c, or @c NULL
+ * if not found.
+ */
+COAP_STATIC_INLINE const uint8_t *
+strnchr(const uint8_t *s, size_t len, unsigned char c) {
+  while (len && *s++ != c)
+    --len;
+
+  return len ? s : NULL;
+}
+
+typedef enum coap_uri_check_t {
+  COAP_URI_CHECK_URI,
+  COAP_URI_CHECK_PROXY
+} coap_uri_check_t;
+
+coap_uri_info_t coap_uri_scheme[COAP_URI_SCHEME_LAST] = {
+  { "coap",       COAP_DEFAULT_PORT,  0, COAP_URI_SCHEME_COAP },
+  { "coaps",      COAPS_DEFAULT_PORT, 0, COAP_URI_SCHEME_COAPS },
+  { "coap+tcp",   COAP_DEFAULT_PORT,  0, COAP_URI_SCHEME_COAP_TCP },
+  { "coaps+tcp",  COAPS_DEFAULT_PORT, 0, COAP_URI_SCHEME_COAPS_TCP },
+  { "http",         80,               1, COAP_URI_SCHEME_HTTP },
+  { "https",       443,               1, COAP_URI_SCHEME_HTTPS },
+  { "coap+ws",      80,               0, COAP_URI_SCHEME_COAP_WS },
+  { "coaps+ws",    443,               0, COAP_URI_SCHEME_COAPS_WS }
+};
+
+static int
+coap_split_uri_sub(const uint8_t *str_var,
+                   size_t len,
+                   coap_uri_t *uri,
+                   coap_uri_check_t check_proxy) {
+  const uint8_t *p, *q;
+  int res = 0;
+  size_t i;
+  int is_unix_domain = 0;
+
+  if (!str_var || !uri || len == 0)
+    return -1;
+
+  memset(uri, 0, sizeof(coap_uri_t));
+  uri->port = COAP_DEFAULT_PORT;
+
+  /* search for scheme */
+  p = str_var;
+  if (*p == '/') {
+    /* no scheme, host or port */
+    if (check_proxy == COAP_URI_CHECK_PROXY) {
+      /* Must have ongoing host if proxy definition */
+      return -1;
+    }
+    q = p;
+    goto path;
+  }
+
+  /* find scheme terminating :// */
+  while (len >= 3 && !(p[0] == ':' && p[1] == '/' && p[2] == '/')) {
+    ++p;
+    --len;
+  }
+  if (len < 3) {
+    /* scheme not defined with a :// terminator */
+    res = -2;
+    goto error;
+  }
+  for (i = 0; i < COAP_URI_SCHEME_LAST; i++) {
+    if ((p - str_var) == (int)strlen(coap_uri_scheme[i].name) &&
+        memcmp(str_var, coap_uri_scheme[i].name, p - str_var) == 0) {
+      if (check_proxy != COAP_URI_CHECK_PROXY && coap_uri_scheme[i].proxy_only) {
+        coap_log_err("%.*s URI scheme not enabled (not a proxy)\n",
+                     (int)(p - str_var), str_var);
+        return -1;
+      }
+      uri->scheme = coap_uri_scheme[i].scheme;
+      uri->port = coap_uri_scheme[i].port;
+      break;
+    }
+  }
+  if (i == COAP_URI_SCHEME_LAST) {
+    /* scheme unknown */
+    coap_log_err("%.*s URI scheme unknown\n", (int)(p - str_var), str_var);
+    res = -1;
+    goto error;
+  }
+  switch (uri->scheme) {
+  case COAP_URI_SCHEME_COAP:
+    break;
+  case COAP_URI_SCHEME_COAPS:
+    if (!coap_dtls_is_supported()) {
+      coap_log_err("coaps URI scheme not supported in this version of libcoap\n");
+      return -1;
+    }
+    break;
+  case COAP_URI_SCHEME_COAP_TCP:
+    if (!coap_tcp_is_supported()) {
+      coap_log_err("coap+tcp URI scheme not supported in this version of libcoap\n");
+      return -1;
+    }
+    break;
+  case COAP_URI_SCHEME_COAPS_TCP:
+    if (!coap_tls_is_supported()) {
+      coap_log_err("coaps+tcp URI scheme not supported in this version of libcoap\n");
+      return -1;
+    }
+    break;
+  case COAP_URI_SCHEME_COAP_WS:
+    if (!coap_ws_is_supported()) {
+      coap_log_err("coap+ws URI scheme not supported in this version of libcoap\n");
+      return -1;
+    }
+    break;
+  case COAP_URI_SCHEME_COAPS_WS:
+    if (!coap_wss_is_supported()) {
+      coap_log_err("coaps+ws URI scheme not supported in this version of libcoap\n");
+      return -1;
+    }
+    break;
+  case COAP_URI_SCHEME_HTTP:
+  case COAP_URI_SCHEME_HTTPS:
+    /* Not proxy, caught above.  For proxy, assume app is doing CoAP <> HTTP mapping. */
+    break;
+  case COAP_URI_SCHEME_LAST:
+  default:
+    coap_log_warn("Unsupported URI type %d\n", uri->scheme);
+    return -1;
+  }
+  /* skip :// */
+  p += 3;
+  len -= 3;
+
+  /* p points to beginning of Uri-Host */
+  q = p;
+  if (len && *p == '[') {
+    /* IPv6 address reference */
+    ++p;
+
+    while (len && *q != ']') {
+      ++q;
+      --len;
+    }
+
+    if (!len || *q != ']' || p == q) {
+      res = -3;
+      goto error;
+    }
+
+    COAP_SET_STR(&uri->host, q - p, p);
+    ++q;
+    --len;
+  } else {
+    /* IPv4 address, FQDN or Unix domain socket */
+    if (len >= 3 && p[0] == '%' && p[1] == '2' &&
+        (p[2] == 'F' || p[2] == 'f')) {
+      /* Unix domain definition */
+      uri->port = 0;
+      is_unix_domain = 1;
+    }
+    while (len && *q != ':' && *q != '/' && *q != '?') {
+      ++q;
+      --len;
+    }
+
+    if (p == q) {
+      res = -3;
+      goto error;
+    }
+
+    COAP_SET_STR(&uri->host, q - p, p);
+  }
+
+  /* check for Uri-Port (invalid for Unix) */
+  if (len && *q == ':') {
+    if (is_unix_domain) {
+      res = -5;
+      goto error;
+    }
+    p = ++q;
+    --len;
+
+    while (len && isdigit(*q)) {
+      ++q;
+      --len;
+    }
+
+    if (p < q) {                /* explicit port number given */
+      long uri_port = 0;
+
+      while ((p < q) && (uri_port <= UINT16_MAX))
+        uri_port = uri_port * 10 + (*p++ - '0');
+
+      /* check if port number is in allowed range */
+      if (uri_port > UINT16_MAX) {
+        res = -4;
+        goto error;
+      }
+
+      uri->port = (uint16_t)uri_port;
+    }
+  }
+
+path:                 /* at this point, p must point to an absolute path */
+
+  if (!len)
+    goto end;
+
+  if (*q == '/') {
+    p = ++q;
+    --len;
+
+    while (len && *q != '?') {
+      ++q;
+      --len;
+    }
+
+    if (p < q) {
+      COAP_SET_STR(&uri->path, q - p, p);
+      p = q;
+    }
+  }
+
+  /* Uri_Query */
+  if (len && *p == '?') {
+    ++p;
+    --len;
+    COAP_SET_STR(&uri->query, len, p);
+    len = 0;
+  }
+
+end:
+  return len ? -1 : 0;
+
+error:
+  return res;
+}
+
+int
+coap_split_uri(const uint8_t *str_var, size_t len, coap_uri_t *uri) {
+  return coap_split_uri_sub(str_var, len, uri, COAP_URI_CHECK_URI);
+}
+
+int
+coap_split_proxy_uri(const uint8_t *str_var, size_t len, coap_uri_t *uri) {
+  return coap_split_uri_sub(str_var, len, uri, COAP_URI_CHECK_PROXY);
+}
+
+static void
+coap_replace_upper_lower(coap_optlist_t *optlist) {
+  size_t i;
+
+  for (i = 0; i < optlist->length; i++) {
+    if (optlist->data[i] >= 'A' && optlist->data[i] <= 'Z') {
+      optlist->data[i] += 'a' - 'A';
+    }
+  }
+}
+
+int
+coap_uri_into_options(const coap_uri_t *uri, const coap_address_t *dst,
+                      coap_optlist_t **optlist_chain, int create_port_host_opt,
+                      uint8_t *_buf COAP_UNUSED, size_t buflen COAP_UNUSED) {
+  return !coap_uri_into_optlist(uri, dst, optlist_chain, create_port_host_opt) ? -1 : 0;
+}
+
+int
+coap_uri_into_optlist(const coap_uri_t *uri, const coap_address_t *dst,
+                      coap_optlist_t **optlist_chain, int create_port_host_opt) {
+  if (create_port_host_opt && !coap_host_is_unix_domain(&uri->host)) {
+    int add_option = 0;
+
+    if (dst && uri->host.length) {
+#if !defined(WITH_LWIP) && !defined(WITH_CONTIKI)
+      char addr[INET6_ADDRSTRLEN];
+#else /* WITH_LWIP || WITH_CONTIKI */
+      char addr[40];
+#endif /* WITH_LWIP || WITH_CONTIKI */
+      coap_optlist_t *optlist;
+
+      /* Add in Uri-Host if not match (need to strip off %iface) */
+      size_t uri_host_len = uri->host.length;
+      const uint8_t *cp = uri->host.s;
+
+      /* Unfortunately not null terminated */
+      for (size_t i = 0; i < uri_host_len; i++) {
+        if (cp[i] == '%') {
+          /* %iface specified in host name */
+          uri_host_len = i;
+          break;
+        }
+      }
+
+      if (coap_print_ip_addr(dst, addr, sizeof(addr)) &&
+          (strlen(addr) != uri_host_len ||
+           memcmp(addr, uri->host.s, uri_host_len) != 0)) {
+        /* add Uri-Host */
+        optlist = coap_new_optlist(COAP_OPTION_URI_HOST, uri->host.length,
+                                   uri->host.s);
+        if (!coap_host_is_unix_domain(&uri->host)) {
+          coap_replace_percents(optlist);
+          coap_replace_upper_lower(optlist);
+        }
+        if (!coap_insert_optlist(optlist_chain, optlist)) {
+          return 0;
+        }
+      }
+    }
+    /* Add in UriPort if not default */
+    switch ((int)uri->scheme) {
+    case COAP_URI_SCHEME_HTTP:
+    case COAP_URI_SCHEME_COAP_WS:
+      if (uri->port != 80)
+        add_option = 1;
+      break;
+    case COAP_URI_SCHEME_HTTPS:
+    case COAP_URI_SCHEME_COAPS_WS:
+      if (uri->port != 443)
+        add_option = 1;
+      break;
+    default:
+      if (uri->port != (coap_uri_scheme_is_secure(uri) ? COAPS_DEFAULT_PORT :
+                        COAP_DEFAULT_PORT))
+        add_option = 1;
+      break;
+    }
+    if (add_option) {
+      uint8_t tbuf[4];
+
+      coap_insert_optlist(optlist_chain,
+                          coap_new_optlist(COAP_OPTION_URI_PORT,
+                                           coap_encode_var_safe(tbuf, 4,
+                                                                (uri->port & 0xffff)),
+                                           tbuf));
+    }
+  }
+
+  if (uri->path.length) {
+    if (!coap_path_into_optlist(uri->path.s, uri->path.length, COAP_OPTION_URI_PATH,
+                                optlist_chain))
+      return 0;
+  }
+
+  if (uri->query.length) {
+    if (!coap_query_into_optlist(uri->query.s, uri->query.length, COAP_OPTION_URI_QUERY,
+                                 optlist_chain))
+      return 0;
+  }
+  return 1;
+}
+
+int
+coap_host_is_unix_domain(const coap_str_const_t *host) {
+  if (host->length >= 3 && host->s[0] == '%' &&
+      host->s[1] == '2' &&
+      (host->s[2] == 'F' || host->s[2] == 'f')) {
+    return 1;
+  }
+  if (host->length >= 1 && host->s[0] == '/')
+    return 1;
+  return 0;
+}
+
+/**
+ * Calculates decimal value from hexadecimal ASCII character given in
+ * @p c. The caller must ensure that @p c actually represents a valid
+ * heaxdecimal character, e.g. with isxdigit(3).
+ *
+ * @hideinitializer
+ */
+#define hexchar_to_dec(c) ((c) & 0x40 ? ((c) & 0x0F) + 9 : ((c) & 0x0F))
+
+/**
+ * Decodes percent-encoded characters while copying the string @p seg
+ * of size @p length to @p buf. The caller of this function must
+ * ensure that the percent-encodings are correct (i.e. the character
+ * '%' is always followed by two hex digits. and that @p buf provides
+ * sufficient space to hold the result. This function is supposed to
+ * be called by make_decoded_option() only.
+ *
+ * @param seg     The segment to decode and copy.
+ * @param length  Length of @p seg.
+ * @param buf     The result buffer.
+ */
+static void
+decode_segment(const uint8_t *seg, size_t length, unsigned char *buf) {
+
+  while (length--) {
+
+    if (*seg == '%') {
+      *buf = (hexchar_to_dec(seg[1]) << 4) + hexchar_to_dec(seg[2]);
+
+      seg += 2;
+      length -= 2;
+    } else {
+      *buf = *seg;
+    }
+
+    ++buf;
+    ++seg;
+  }
+}
+
+/**
+ * Runs through the given path (or query) segment and checks if
+ * percent-encodings are correct. This function returns @c 0 on success
+ * and @c -1 on error.
+ */
+static int
+check_segment(const uint8_t *s, size_t length, size_t *segment_size) {
+  size_t n = 0;
+
+  while (length) {
+    if (*s == '%') {
+      if (length < 2 || !(isxdigit(s[1]) && isxdigit(s[2])))
+        return -1;
+
+      s += 2;
+      length -= 2;
+    }
+
+    ++s;
+    ++n;
+    --length;
+  }
+
+  *segment_size = n;
+
+  return 0;
+}
+
+/**
+ * Writes a coap option from given string @p s to @p buf. @p s should
+ * point to a (percent-encoded) path or query segment of a coap_uri_t
+ * object.  The created option will have type @c 0, and the length
+ * parameter will be set according to the size of the decoded string.
+ * On success, this function returns @c 0 and sets @p optionsize to the option's
+ * size. On error the function returns a value less than zero. This function
+ * must be called from coap_split_path_impl() only.
+ *
+ * @param s           The string to decode.
+ * @param length      The size of the percent-encoded string @p s.
+ * @param buf         The buffer to store the new coap option.
+ * @param buflen      The maximum size of @p buf.
+ * @param optionsize  The option's size.
+ *
+ * @return @c 0 on success and @c -1 on error.
+ *
+ * @bug This function does not split segments that are bigger than 270
+ * bytes.
+ */
+static int
+make_decoded_option(const uint8_t *s, size_t length,
+                    unsigned char *buf, size_t buflen, size_t *optionsize) {
+  int res;
+  size_t segmentlen;
+  size_t written;
+
+  if (!buflen) {
+    coap_log_debug("make_decoded_option(): buflen is 0!\n");
+    return -1;
+  }
+
+  res = check_segment(s, length, &segmentlen);
+  if (res < 0)
+    return -1;
+
+  /* write option header using delta 0 and length res */
+  written = coap_opt_setheader(buf, buflen, 0, segmentlen);
+
+  assert(written <= buflen);
+
+  if (!written)                        /* encoding error */
+    return -1;
+
+  buf += written;                /* advance past option type/length */
+  buflen -= written;
+
+  if (buflen < segmentlen) {
+    coap_log_debug("buffer too small for option\n");
+    return -1;
+  }
+
+  decode_segment(s, length, buf);
+
+  *optionsize = written + segmentlen;
+
+  return 0;
+}
+
+
+#ifndef min
+#define min(a,b) ((a) < (b) ? (a) : (b))
+#endif
+
+typedef void (*segment_handler_t)(const uint8_t *, size_t, void *);
+
+/**
+ * Checks if path segment @p s consists of one or two dots.
+ *
+ * returns 1 if . , 2 if .. else 0.
+ */
+static int
+dots(const uint8_t *s, size_t len) {
+  uint8_t p;
+
+  if (!len)
+    return 0;
+
+  p = *s;
+
+  /* Check 'first' char */
+  if (p == '%' && len >=3) {
+    if (s[1] == '2' && (s[2] == 'E' || s[2] == 'e')) {
+      s += 2;
+      len -= 2;
+    }
+    p = '.';
+  }
+  if (p != '.')
+    return 0;
+  if (len == 1)
+    return 1;
+
+  /* Check 'second' char, first is '.' */
+  s++;
+  len--;
+  assert(len);
+  p = *s;
+  if (p == '%' && len >=3) {
+    if (s[1] == '2' && (s[2] == 'E' || s[2] == 'e')) {
+      len -= 2;
+    }
+    p = '.';
+  }
+  if (p != '.')
+    return 0;
+  if (len == 1)
+    return 2;
+
+  return 0;
+}
+
+struct cnt_str {
+  coap_string_t base_buf;
+  coap_string_t buf;
+  int n;
+};
+
+static void
+backup_segment(void *data) {
+  struct cnt_str *state = (struct cnt_str *)data;
+  int i;
+  uint8_t *buf;
+
+  if (state->n == 0)
+    return;
+
+  state->n--;
+  buf = state->base_buf.s;
+  for (i = 0; i < state->n; i++) {
+    buf += coap_opt_size(buf);
+  }
+  state->buf.s = buf;
+  state->buf.length = state->base_buf.length - (buf - state->base_buf.s);
+}
+
+/**
+ * Splits the given string into segments. You should call one of the
+ * functions coap_split_path() or coap_split_query() instead.
+ *
+ * @param path   The URI path string to be tokenized.
+ * @param len    The length of @p path.
+ * @param h      A handler that is called with every token.
+ * @param data   Opaque data that is passed to @p h when called.
+ *
+ * @return The number of characters that have been parsed from @p s.
+ */
+static size_t
+coap_split_path_impl(const uint8_t *path, size_t len,
+                     segment_handler_t h, void *data) {
+  const uint8_t *p, *q;
+  size_t length = len;
+  int num_dots;
+
+  p = q = path;
+  while (length > 0 && !strnchr((const uint8_t *)"?#", 2, *q)) {
+    if (*q == '/') {
+      /* start new segment */
+      num_dots = dots(p, q - p);
+      switch (num_dots) {
+      case 1:
+        /* drop segment */
+        break;
+      case 2:
+        /* backup segment */
+        backup_segment(data);
+        break;
+      case 0:
+      default:
+        /* add segment */
+        h(p, q - p, data);
+        break;
+      }
+
+      p = q + 1;
+    }
+
+    q++;
+    length--;
+  }
+
+  /* write last segment */
+  num_dots = dots(p, q - p);
+  switch (num_dots) {
+  case 1:
+    /* drop segment */
+    break;
+  case 2:
+    /* backup segment */
+    backup_segment(data);
+    break;
+  case 0:
+  default:
+    /* add segment */
+    h(p, q - p, data);
+    break;
+  }
+
+  return q - path;
+}
+
+static void
+write_option(const uint8_t *s, size_t len, void *data) {
+  struct cnt_str *state = (struct cnt_str *)data;
+  int res;
+  size_t optionsize;
+  assert(state);
+
+  res = make_decoded_option(s, len, state->buf.s, state->buf.length, &optionsize);
+  if (res == 0) {
+    state->buf.s += optionsize;
+    state->buf.length -= optionsize;
+    state->n++;
+  }
+}
+
+int
+coap_split_path(const uint8_t *s, size_t length,
+                unsigned char *buf, size_t *buflen) {
+  struct cnt_str tmp = { { *buflen, buf }, { *buflen, buf }, 0 };
+
+  coap_split_path_impl(s, length, write_option, &tmp);
+
+  *buflen = *buflen - tmp.buf.length;
+
+  return tmp.n;
+}
+
+void
+coap_replace_percents(coap_optlist_t *optlist) {
+  size_t i;
+  size_t o = 0;
+
+  for (i = 0; i < optlist->length; i++) {
+    if (optlist->data[i] == '%' && optlist->length - i >= 3) {
+      optlist->data[o] = (hexchar_to_dec(optlist->data[i+1]) << 4) +
+                         hexchar_to_dec(optlist->data[i+2]);
+      i+= 2;
+    } else if (o != i) {
+      optlist->data[o] = optlist->data[i];
+    }
+    o++;
+  }
+  optlist->length = o;
+}
+
+static void
+backup_optlist(coap_optlist_t **optlist_begin) {
+  coap_optlist_t *last = NULL;
+  coap_optlist_t *cur = *optlist_begin;
+
+  if (!cur)
+    return;
+
+  while (cur) {
+    if (!cur->next)
+      break;
+    last = cur;
+    cur = cur->next;
+  }
+  coap_delete_optlist(cur);
+  if (last) {
+    last->next = NULL;
+  } else {
+    *optlist_begin = NULL;
+  }
+}
+
+int
+coap_path_into_optlist(const uint8_t *s, size_t length, coap_option_num_t optnum,
+                       coap_optlist_t **optlist_chain) {
+  const uint8_t *p = s;
+  coap_optlist_t *optlist;
+  int num_dots;
+  coap_optlist_t **optlist_start;
+
+  if (*optlist_chain) {
+    /* Something previously in optlist_chain. Need to make that the start */
+    optlist_start = &((*optlist_chain)->next);
+  } else {
+    optlist_start = optlist_chain;
+  }
+
+  while (length > 0 && !strnchr((const uint8_t *)"?#", 2, *s)) {
+    if (*s == '/') {                /* start of new path element */
+      /* start new segment */
+      num_dots = dots(p, s - p);
+      switch (num_dots) {
+      case 1:
+        /* drop segment */
+        break;
+      case 2:
+        /* backup segment */
+        backup_optlist(optlist_start);
+        break;
+      case 0:
+      default:
+        /* add segment */
+        optlist = coap_new_optlist(optnum, s - p, p);
+        coap_replace_percents(optlist);
+        if (!coap_insert_optlist(optlist_chain, optlist)) {
+          return 0;
+        }
+        break;
+      }
+      p = s + 1;
+    }
+    s++;
+    length--;
+
+  }
+  /* add last path element */
+  num_dots = dots(p, s - p);
+  switch (num_dots) {
+  case 1:
+    /* drop segment */
+    break;
+  case 2:
+    /* backup segment */
+    backup_optlist(optlist_start);
+    break;
+  case 0:
+  default:
+    /* add segment */
+    optlist = coap_new_optlist(optnum, s - p, p);
+    coap_replace_percents(optlist);
+    if (!coap_insert_optlist(optlist_chain, optlist)) {
+      return 0;
+    }
+    break;
+  }
+  return 1;
+}
+
+int
+coap_split_query(const uint8_t *s, size_t length,
+                 unsigned char *buf, size_t *buflen) {
+  struct cnt_str tmp = { { *buflen, buf }, { *buflen, buf }, 0 };
+  const uint8_t *p;
+
+  p = s;
+  while (length > 0 && *s != '#') {
+    if (*s == '&') {                /* start new query element */
+      write_option(p, s - p, &tmp);
+      p = s + 1;
+    }
+
+    s++;
+    length--;
+  }
+
+  /* write last query element */
+  write_option(p, s - p, &tmp);
+
+  *buflen = *buflen - tmp.buf.length;
+  return tmp.n;
+}
+
+int
+coap_query_into_optlist(const uint8_t *s, size_t length, coap_option_num_t optnum,
+                        coap_optlist_t **optlist_chain) {
+  const uint8_t *p = s;
+  coap_optlist_t *optlist;
+
+  while (length > 0 && *s != '#') {
+    if (*s == '&') {                /* start of new query element */
+      /* add previous query element */
+      optlist = coap_new_optlist(optnum, s - p, p);
+      coap_replace_percents(optlist);
+      if (!coap_insert_optlist(optlist_chain, optlist)) {
+        return 0;
+      }
+      p = s + 1;
+    }
+    s++;
+    length--;
+  }
+  /* add last query element */
+  optlist = coap_new_optlist(optnum, s - p, p);
+  coap_replace_percents(optlist);
+  if (!coap_insert_optlist(optlist_chain, optlist)) {
+    return 0;
+  }
+  return 1;
+}
+
+#define URI_DATA(uriobj) ((unsigned char *)(uriobj) + sizeof(coap_uri_t))
+
+coap_uri_t *
+coap_new_uri(const uint8_t *uri, unsigned int length) {
+  uint8_t *result;
+  coap_uri_t *out_uri;
+
+  out_uri = (coap_uri_t *)coap_malloc_type(COAP_STRING, length + 1 + sizeof(coap_uri_t));
+
+  if (!out_uri)
+    return NULL;
+
+  result = (uint8_t *)out_uri;
+  memcpy(URI_DATA(result), uri, length);
+  URI_DATA(result)[length] = '\0'; /* make it zero-terminated */
+
+  if (coap_split_uri(URI_DATA(result), length, out_uri) < 0) {
+    coap_free_type(COAP_STRING, out_uri);
+    return NULL;
+  }
+  return out_uri;
+}
+
+coap_uri_t *
+coap_clone_uri(const coap_uri_t *uri) {
+  coap_uri_t *result;
+  uint8_t *p;
+
+  if (!uri)
+    return  NULL;
+
+  result = (coap_uri_t *)coap_malloc_type(COAP_STRING,  uri->query.length + uri->host.length +
+                                          uri->path.length + sizeof(coap_uri_t) + 1);
+
+  if (!result)
+    return NULL;
+
+  memset(result, 0, sizeof(coap_uri_t));
+
+  result->port = uri->port;
+
+  if (uri->host.length) {
+    result->host.s = p = URI_DATA(result);
+    result->host.length = uri->host.length;
+
+    memcpy(p, uri->host.s, uri->host.length);
+  }
+
+  if (uri->path.length) {
+    result->path.s = p = URI_DATA(result) + uri->host.length;
+    result->path.length = uri->path.length;
+
+    memcpy(p, uri->path.s, uri->path.length);
+  }
+
+  if (uri->query.length) {
+    result->query.s = p = URI_DATA(result) + uri->host.length + uri->path.length;
+    result->query.length = uri->query.length;
+
+    memcpy(p, uri->query.s, uri->query.length);
+  }
+
+  return result;
+}
+
+void
+coap_delete_uri(coap_uri_t *uri) {
+  coap_free_type(COAP_STRING, uri);
+}
+
+static int
+is_unescaped_in_path(const uint8_t c) {
+  return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+         (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '_' ||
+         c == '~' || c == '!' || c == '$' || c == '\'' || c == '(' ||
+         c == ')' || c == '*' || c == '+' || c == ',' || c == ';' ||
+         c=='=' || c==':' || c=='@' || c == '&';
+}
+
+static int
+is_unescaped_in_query(const uint8_t c) {
+  return is_unescaped_in_path(c) || c=='/' || c=='?';
+}
+
+coap_string_t *
+coap_get_query(const coap_pdu_t *request) {
+  coap_opt_iterator_t opt_iter;
+  coap_opt_filter_t f;
+  coap_opt_t *q;
+  coap_string_t *query = NULL;
+  size_t length = 0;
+  static const uint8_t hex[] = "0123456789ABCDEF";
+
+  coap_option_filter_clear(&f);
+  coap_option_filter_set(&f, COAP_OPTION_URI_QUERY);
+  coap_option_iterator_init(request, &opt_iter, &f);
+  while ((q = coap_option_next(&opt_iter))) {
+    uint16_t seg_len = coap_opt_length(q), i;
+    const uint8_t *seg= coap_opt_value(q);
+    for (i = 0; i < seg_len; i++) {
+      if (is_unescaped_in_query(seg[i]))
+        length += 1;
+      else
+        length += 3;
+    }
+    length += 1;
+  }
+  if (length > 0)
+    length -= 1;
+  if (length > 0) {
+    query = coap_new_string(length);
+    if (query) {
+      query->length = length;
+      unsigned char *s = query->s;
+      coap_option_iterator_init(request, &opt_iter, &f);
+      while ((q = coap_option_next(&opt_iter))) {
+        if (s != query->s)
+          *s++ = '&';
+        uint16_t seg_len = coap_opt_length(q), i;
+        const uint8_t *seg= coap_opt_value(q);
+        for (i = 0; i < seg_len; i++) {
+          if (is_unescaped_in_query(seg[i])) {
+            *s++ = seg[i];
+          } else {
+            *s++ = '%';
+            *s++ = hex[seg[i]>>4];
+            *s++ = hex[seg[i]&0x0F];
+          }
+        }
+      }
+    }
+  }
+  return query;
+}
+
+coap_string_t *
+coap_get_uri_path(const coap_pdu_t *request) {
+  coap_opt_iterator_t opt_iter;
+  coap_opt_filter_t f;
+  coap_opt_t *q;
+  coap_string_t *uri_path = NULL;
+  size_t length = 0;
+  static const uint8_t hex[] = "0123456789ABCDEF";
+
+  q = coap_check_option(request, COAP_OPTION_PROXY_URI, &opt_iter);
+  if (q) {
+    coap_uri_t uri;
+
+    if (coap_split_proxy_uri(coap_opt_value(q),
+                             coap_opt_length(q), &uri) < 0) {
+      return NULL;
+    }
+    uri_path = coap_new_string(uri.path.length);
+    if (uri_path) {
+      memcpy(uri_path->s, uri.path.s, uri.path.length);
+    }
+    return uri_path;
+  }
+
+  coap_option_filter_clear(&f);
+  coap_option_filter_set(&f, COAP_OPTION_URI_PATH);
+  coap_option_iterator_init(request, &opt_iter, &f);
+  while ((q = coap_option_next(&opt_iter))) {
+    uint16_t seg_len = coap_opt_length(q), i;
+    const uint8_t *seg= coap_opt_value(q);
+    for (i = 0; i < seg_len; i++) {
+      if (is_unescaped_in_path(seg[i]))
+        length += 1;
+      else
+        length += 3;
+    }
+    /* bump for the leading "/" */
+    length += 1;
+  }
+  /* The first entry does not have a leading "/" */
+  if (length > 0)
+    length -= 1;
+
+  /* if 0, either no URI_PATH Option, or the first one was empty */
+  uri_path = coap_new_string(length);
+  if (uri_path) {
+    uri_path->length = length;
+    unsigned char *s = uri_path->s;
+    int n = 0;
+    coap_option_iterator_init(request, &opt_iter, &f);
+    while ((q = coap_option_next(&opt_iter))) {
+      if (n++) {
+        *s++ = '/';
+      }
+      uint16_t seg_len = coap_opt_length(q), i;
+      const uint8_t *seg= coap_opt_value(q);
+      for (i = 0; i < seg_len; i++) {
+        if (is_unescaped_in_path(seg[i])) {
+          *s++ = seg[i];
+        } else {
+          *s++ = '%';
+          *s++ = hex[seg[i]>>4];
+          *s++ = hex[seg[i]&0x0F];
+        }
+      }
+    }
+  }
+  return uri_path;
+}
+
+
+==== src/coap_option.c ====
+/*
+ * coap_option.c -- helpers for handling options in CoAP PDUs
+ *
+ * Copyright (C) 2010-2013,2022-2024 Olaf Bergmann <bergmann@tzi.org>
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *
+ * This file is part of the CoAP library libcoap. Please see
+ * README for terms of use.
+ */
+
+/**
+ * @file coap_option.c
+ * @brief CoAP option handling functions
+ */
+
+#include "coap3/coap_libcoap_build.h"
+
+#include <stdio.h>
+#include <string.h>
+
+#define ADVANCE_OPT(o,e,step) if ((e) < step) {           \
+    coap_log_debug("cannot advance opt past end\n"); \
+    return 0;                                             \
+  } else {                                                \
+    (e) -= step;                                          \
+    (o) = ((o)) + step;                                   \
+  }
+
+/*
+ * Used to prevent access to *opt when pointing to after end of buffer
+ * after doing a ADVANCE_OPT()
+ */
+#define ADVANCE_OPT_CHECK(o,e,step) do { \
+    ADVANCE_OPT(o,e,step);               \
+    if ((e) < 1)                         \
+      return 0;                          \
+  } while (0)
+
+size_t
+coap_opt_parse(const coap_opt_t *opt, size_t length, coap_option_t *result) {
+
+  const coap_opt_t *opt_start = opt; /* store where parsing starts  */
+
+  assert(opt);
+  assert(result);
+
+  if (length < 1)
+    return 0;
+
+  result->delta = (*opt & 0xf0) >> 4;
+  result->length = *opt & 0x0f;
+
+  switch (result->delta) {
+  case 15:
+    if (*opt != COAP_PAYLOAD_START) {
+      coap_log_debug("ignored reserved option delta 15\n");
+    }
+    return 0;
+  case 14:
+    /* Handle two-byte value: First, the MSB + 269 is stored as delta value.
+     * After that, the option pointer is advanced to the LSB which is handled
+     * just like case delta == 13. */
+    ADVANCE_OPT_CHECK(opt,length,1);
+    result->delta = ((*opt & 0xff) << 8) + 269;
+    if (result->delta < 269) {
+      coap_log_debug("delta too large\n");
+      return 0;
+    }
+  /* fall through */
+  case 13:
+    ADVANCE_OPT_CHECK(opt,length,1);
+    result->delta += *opt & 0xff;
+    break;
+
+  default:
+    ;
+  }
+
+  switch (result->length) {
+  case 15:
+    coap_log_debug("found reserved option length 15\n");
+    return 0;
+  case 14:
+    /* Handle two-byte value: First, the MSB + 269 is stored as delta value.
+     * After that, the option pointer is advanced to the LSB which is handled
+     * just like case delta == 13. */
+    ADVANCE_OPT_CHECK(opt,length,1);
+    result->length = ((*opt & 0xff) << 8) + 269;
+  /* fall through */
+  case 13:
+    ADVANCE_OPT_CHECK(opt,length,1);
+    result->length += *opt & 0xff;
+    break;
+
+  default:
+    ;
+  }
+
+  /* ADVANCE_OPT() is correct here */
+  ADVANCE_OPT(opt,length,1);
+  /* opt now points to value, if present */
+
+  result->value = opt;
+  if (length < result->length) {
+    coap_log_debug("invalid option length\n");
+    return 0;
+  }
+
+#undef ADVANCE_OPT
+#undef ADVANCE_OPT_CHECK
+
+  return (opt + result->length) - opt_start;
+}
+
+coap_opt_iterator_t *
+coap_option_iterator_init(const coap_pdu_t *pdu, coap_opt_iterator_t *oi,
+                          const coap_opt_filter_t *filter) {
+  assert(pdu);
+  assert(pdu->token);
+  assert(oi);
+
+  memset(oi, 0, sizeof(coap_opt_iterator_t));
+
+  oi->next_option = pdu->token + pdu->e_token_length;
+  if (pdu->token + pdu->used_size <= oi->next_option) {
+    oi->bad = 1;
+    return NULL;
+  }
+
+  oi->length = pdu->used_size - pdu->e_token_length;
+
+  if (filter) {
+    memcpy(&oi->filter, filter, sizeof(coap_opt_filter_t));
+    oi->filtered = 1;
+  }
+  return oi;
+}
+
+COAP_STATIC_INLINE int
+opt_finished(coap_opt_iterator_t *oi) {
+  assert(oi);
+
+  if (oi->bad || oi->length == 0 ||
+      !oi->next_option || *oi->next_option == COAP_PAYLOAD_START) {
+    oi->bad = 1;
+  }
+
+  return oi->bad;
+}
+
+coap_opt_t *
+coap_option_next(coap_opt_iterator_t *oi) {
+  coap_option_t option;
+  coap_opt_t *current_opt = NULL;
+  size_t optsize;
+
+  assert(oi);
+
+  if (opt_finished(oi))
+    return NULL;
+
+  while (1) {
+    /* oi->next_option always points to the next option to deliver; as
+     * opt_finished() filters out any bad conditions, we can assume that
+     * oi->next_option is valid. */
+    current_opt = oi->next_option;
+
+    /*
+     * Advance internal pointer to next option.
+     * optsize will be 0 when no more options
+     */
+    optsize = coap_opt_parse(oi->next_option, oi->length, &option);
+    if (optsize) {
+      assert(optsize <= oi->length);
+
+      oi->next_option += optsize;
+      oi->length -= optsize;
+
+      oi->number += option.delta;
+    } else {                        /* current option is malformed */
+      oi->bad = 1;
+      return NULL;
+    }
+
+    /* Exit the while loop when:
+     *   - no filtering is done at all
+     *   - the filter matches for the current option
+     */
+    if (!oi->filtered ||
+        coap_option_filter_get(&oi->filter, oi->number) > 0)
+      break;
+  }
+
+  return current_opt;
+}
+
+coap_opt_t *
+coap_check_option(const coap_pdu_t *pdu, coap_option_num_t number,
+                  coap_opt_iterator_t *oi) {
+  coap_opt_filter_t f;
+
+  coap_option_filter_clear(&f);
+  coap_option_filter_set(&f, number);
+
+  coap_option_iterator_init(pdu, oi, &f);
+
+  return coap_option_next(oi);
+}
+
+uint32_t
+coap_opt_length(const coap_opt_t *opt) {
+  uint32_t length;
+
+  length = *opt & 0x0f;
+  switch (*opt & 0xf0) {
+  case 0xf0:
+    coap_log_debug("illegal option delta\n");
+    return 0;
+  case 0xe0:
+    ++opt;
+  /* fall through */
+  /* to skip another byte */
+  case 0xd0:
+    ++opt;
+  /* fall through */
+  /* to skip another byte */
+  default:
+    ++opt;
+  }
+
+  switch (length) {
+  case 0x0f:
+    coap_log_debug("illegal option length\n");
+    return 0;
+  case 0x0e:
+    length = (*opt++ << 8) + 269;
+  /* fall through */
+  case 0x0d:
+    length += *opt++;
+    break;
+  default:
+    ;
+  }
+  return length;
+}
+
+const uint8_t *
+coap_opt_value(const coap_opt_t *opt) {
+  size_t ofs = 1;
+
+  switch (*opt & 0xf0) {
+  case 0xf0:
+    coap_log_debug("illegal option delta\n");
+    return 0;
+  case 0xe0:
+    ++ofs;
+  /* fall through */
+  case 0xd0:
+    ++ofs;
+    break;
+  default:
+    ;
+  }
+
+  switch (*opt & 0x0f) {
+  case 0x0f:
+    coap_log_debug("illegal option length\n");
+    return 0;
+  case 0x0e:
+    ++ofs;
+  /* fall through */
+  case 0x0d:
+    ++ofs;
+    break;
+  default:
+    ;
+  }
+
+  return (const uint8_t *)opt + ofs;
+}
+
+size_t
+coap_opt_size(const coap_opt_t *opt) {
+  coap_option_t option;
+
+  /* we must assume that opt is encoded correctly */
+  return coap_opt_parse(opt, (size_t)-1, &option);
+}
+
+size_t
+coap_opt_setheader(coap_opt_t *opt, size_t maxlen,
+                   uint16_t delta, size_t length) {
+  size_t skip = 0;
+
+  assert(opt);
+
+  if (maxlen == 0)                /* need at least one byte */
+    return 0;
+
+  if (delta < 13) {
+    opt[0] = (coap_opt_t)(delta << 4);
+  } else if (delta < 269) {
+    if (maxlen < 2) {
+      coap_log_debug("insufficient space to encode option delta %d\n",
+                     delta);
+      return 0;
+    }
+
+    opt[0] = 0xd0;
+    opt[++skip] = (coap_opt_t)(delta - 13);
+  } else {
+    if (maxlen < 3) {
+      coap_log_debug("insufficient space to encode option delta %d\n",
+                     delta);
+      return 0;
+    }
+
+    opt[0] = 0xe0;
+    opt[++skip] = ((delta - 269) >> 8) & 0xff;
+    opt[++skip] = (delta - 269) & 0xff;
+  }
+
+  if (length < 13) {
+    opt[0] |= length & 0x0f;
+  } else if (length < 269) {
+    if (maxlen < skip + 2) {
+      coap_log_debug("insufficient space to encode option length %zu\n",
+                     length);
+      return 0;
+    }
+
+    opt[0] |= 0x0d;
+    opt[++skip] = (coap_opt_t)(length - 13);
+  } else {
+    if (maxlen < skip + 3) {
+      coap_log_debug("insufficient space to encode option delta %d\n",
+                     delta);
+      return 0;
+    }
+
+    opt[0] |= 0x0e;
+    opt[++skip] = ((length - 269) >> 8) & 0xff;
+    opt[++skip] = (length - 269) & 0xff;
+  }
+
+  return skip + 1;
+}
+
+size_t
+coap_opt_encode_size(uint16_t delta, size_t length) {
+  size_t n = 1;
+
+  if (delta >= 13) {
+    if (delta < 269)
+      n += 1;
+    else
+      n += 2;
+  }
+
+  if (length >= 13) {
+    if (length < 269)
+      n += 1;
+    else
+      n += 2;
+  }
+
+  return n + length;
+}
+
+size_t
+coap_opt_encode(coap_opt_t *opt, size_t maxlen, uint16_t delta,
+                const uint8_t *val, size_t length) {
+  size_t l = 1;
+
+  l = coap_opt_setheader(opt, maxlen, delta, length);
+  assert(l <= maxlen);
+
+  if (!l) {
+    coap_log_debug("coap_opt_encode: cannot set option header\n");
+    return 0;
+  }
+
+  maxlen -= l;
+  opt += l;
+
+  if (maxlen < length) {
+    coap_log_debug("coap_opt_encode: option too large for buffer\n");
+    return 0;
+  }
+
+  if (val)                        /* better be safe here */
+    memcpy(opt, val, length);
+
+  return l + length;
+}
+
+#define LONG_MASK ((1 << COAP_OPT_FILTER_LONG) - 1)
+#define SHORT_MASK \
+  (~LONG_MASK & ((1 << (COAP_OPT_FILTER_LONG + COAP_OPT_FILTER_SHORT)) - 1))
+
+/** Returns true iff @p number denotes an option number larger than 255. */
+COAP_STATIC_INLINE int
+is_long_option(coap_option_num_t number) {
+  return number > 255;
+}
+
+/** Operation specifiers for coap_filter_op(). */
+enum filter_op_t { FILTER_SET, FILTER_CLEAR, FILTER_GET };
+
+/**
+ * Applies @p op on @p filter with respect to @p number. The following
+ * operations are defined:
+ *
+ * FILTER_SET: Store @p number into an empty slot in @p filter. Returns
+ * @c 1 on success, or @c 0 if no spare slot was available.
+ *
+ * FILTER_CLEAR: Remove @p number from filter if it exists.
+ *
+ * FILTER_GET: Search for @p number in @p filter. Returns @c 1 if found,
+ * or @c 0 if not found.
+ *
+ * @param filter The filter object.
+ * @param number The option number to set, get or clear in @p filter.
+ * @param op     The operation to apply to @p filter and @p number.
+ *
+ * @return 1 on success, and 0 when FILTER_GET yields no
+ * hit or no free slot is available to store @p number with FILTER_SET.
+ */
+static int
+coap_option_filter_op(coap_opt_filter_t *filter,
+                      coap_option_num_t number,
+                      enum filter_op_t op) {
+  size_t lindex = 0;
+  coap_opt_filter_t *of = filter;
+  uint16_t nr, mask = 0;
+
+  if (is_long_option(number)) {
+    mask = LONG_MASK;
+
+    for (nr = 1; lindex < COAP_OPT_FILTER_LONG; nr <<= 1, lindex++) {
+
+      if (((of->mask & nr) > 0) && (of->long_opts[lindex] == number)) {
+        if (op == FILTER_CLEAR) {
+          of->mask &= ~nr;
+        }
+
+        return 1;
+      }
+    }
+  } else {
+    mask = SHORT_MASK;
+
+    for (nr = 1 << COAP_OPT_FILTER_LONG; lindex < COAP_OPT_FILTER_SHORT;
+         nr <<= 1, lindex++) {
+
+      if (((of->mask & nr) > 0) && (of->short_opts[lindex] == (number & 0xff))) {
+        if (op == FILTER_CLEAR) {
+          of->mask &= ~nr;
+        }
+
+        return 1;
+      }
+    }
+  }
+
+  /* number was not found, so there is nothing to do if op is CLEAR or GET */
+  if ((op == FILTER_CLEAR) || (op == FILTER_GET)) {
+    return 0;
+  }
+
+  /* handle FILTER_SET: */
+
+  lindex = coap_fls(~of->mask & mask);
+  if (!lindex) {
+    return 0;
+  }
+
+  if (is_long_option(number)) {
+    of->long_opts[lindex - 1] = number;
+  } else {
+    of->short_opts[lindex - COAP_OPT_FILTER_LONG - 1] = (uint8_t)number;
+  }
+
+  of->mask |= 1 << (lindex - 1);
+
+  return 1;
+}
+
+void
+coap_option_filter_clear(coap_opt_filter_t *filter) {
+  memset(filter, 0, sizeof(coap_opt_filter_t));
+}
+
+int
+coap_option_filter_set(coap_opt_filter_t *filter, coap_option_num_t option) {
+  return coap_option_filter_op(filter, option, FILTER_SET);
+}
+
+int
+coap_option_filter_unset(coap_opt_filter_t *filter, coap_option_num_t option) {
+  return coap_option_filter_op(filter, option, FILTER_CLEAR);
+}
+
+int
+coap_option_filter_get(coap_opt_filter_t *filter, coap_option_num_t option) {
+  return coap_option_filter_op(filter, option, FILTER_GET);
+}
+
+coap_optlist_t *
+coap_new_optlist(uint16_t number,
+                 size_t length,
+                 const uint8_t *data
+                ) {
+  coap_optlist_t *node;
+
+#ifdef WITH_LWIP
+  if (length > MEMP_LEN_COAPOPTLIST) {
+    coap_log_crit("coap_new_optlist: size too large (%zu > MEMP_LEN_COAPOPTLIST)\n",
+                  length);
+    return NULL;
+  }
+#endif /* WITH_LWIP */
+  node = coap_malloc_type(COAP_OPTLIST, sizeof(coap_optlist_t) + length);
+
+  if (node) {
+    memset(node, 0, (sizeof(coap_optlist_t) + length));
+    node->number = number;
+    node->length = length;
+    node->data = (uint8_t *)&node[1];
+    memcpy(node->data, data, length);
+  } else {
+    coap_log_warn("coap_new_optlist: malloc failure\n");
+  }
+
+  return node;
+}
+
+static int
+order_opts(void *a, void *b) {
+  coap_optlist_t *o1 = (coap_optlist_t *)a;
+  coap_optlist_t *o2 = (coap_optlist_t *)b;
+
+  if (!a || !b)
+    return a < b ? -1 : 1;
+
+  return (int)(o1->number - o2->number);
+}
+
+int
+coap_add_optlist_pdu(coap_pdu_t *pdu, coap_optlist_t **options) {
+  coap_optlist_t *opt;
+
+  if (options && *options) {
+    if (pdu->data) {
+      coap_log_warn("coap_add_optlist_pdu: PDU already contains data\n");
+      return 0;
+    }
+    /* sort options for delta encoding */
+    LL_SORT((*options), order_opts);
+
+    LL_FOREACH((*options), opt) {
+      if (!coap_add_option_internal(pdu, opt->number, opt->length, opt->data))
+        return 0;
+    }
+  }
+  return 1;
+}
+
+int
+coap_insert_optlist(coap_optlist_t **head, coap_optlist_t *node) {
+  if (!node) {
+    coap_log_debug("optlist not provided\n");
+  } else {
+    /* must append at the list end to avoid re-ordering of
+     * options during sort */
+    LL_APPEND((*head), node);
+  }
+
+  return node != NULL;
+}
+
+static int
+coap_internal_delete(coap_optlist_t *node) {
+  if (node) {
+    coap_free_type(COAP_OPTLIST, node);
+  }
+  return 1;
+}
+
+void
+coap_delete_optlist(coap_optlist_t *queue) {
+  coap_optlist_t *elt, *tmp;
+
+  if (!queue)
+    return;
+
+  LL_FOREACH_SAFE(queue, elt, tmp) {
+    coap_internal_delete(elt);
+  }
+}
+
+

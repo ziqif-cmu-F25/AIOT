@@ -1,0 +1,5 @@
+sha256: 2c487d038d95e43aa23421a1e5a8c83fd179471b173e42b260b037c2bd104b3f
+source: cesanta/mongoose
+commit: b1c2ffe1a0aa13e3d94075b1a2c66b8b43ac9116
+upstream_path: src/http.c lines 990-1125
+note: Prefer stage2/vendor/mongoose/http_chunk_excerpt.c for the driver.

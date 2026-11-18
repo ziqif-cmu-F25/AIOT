@@ -1,0 +1,153 @@
+The provided code is a part of a Modbus library, which is used for communication with Modbus devices. The library includes functions for creating, manipulating, and freeing Modbus mappings, as well as setting debug flags.
+
+Here's a breakdown of the key functions and their purposes:
+
+1. **modbus_mapping_new_start_address**: This function allocates memory for a new Modbus mapping structure and initializes it with the specified number of bits, input bits, registers, and input registers. It also sets the starting addresses for each type of data. If any memory allocation fails, it returns `NULL` and sets `errno` to `ENOMEM`.
+
+2. **modbus_mapping_new**: This is a convenience function that calls `modbus_mapping_new_start_address` with default starting addresses (0 for all types of data).
+
+3. **modbus_mapping_free**: This function frees the memory allocated for a Modbus mapping structure, including all the arrays that store the data.
+
+4. **strlcpy**: This is a custom implementation of the `strlcpy` function, which is used to copy a string into a buffer with bounds checking. If the buffer is not large enough to hold the entire string, it will be truncated and null-terminated.
+
+Here is the code with comments explaining each part:
+
+```c
+// Function to set the debug flag for a Modbus context
+int modbus_set_debug(modbus_t *ctx, int flag) {
+    if (ctx == NULL) {
+        errno = EINVAL; // Set error to invalid argument if context is NULL
+        return -1;
+    }
+    ctx->debug = flag; // Set the debug flag
+    return 0; // Return success
+}
+
+// Function to allocate memory for a new Modbus mapping structure
+modbus_mapping_t* modbus_mapping_new_start_address(
+    unsigned int start_bits, unsigned int nb_bits,
+    unsigned int start_input_bits, unsigned int nb_input_bits,
+    unsigned int start_registers, unsigned int nb_registers,
+    unsigned int start_input_registers, unsigned int nb_input_registers)
+{
+    modbus_mapping_t *mb_mapping;
+
+    mb_mapping = (modbus_mapping_t *)malloc(sizeof(modbus_mapping_t));
+    if (mb_mapping == NULL) {
+        return NULL; // Return NULL if memory allocation fails
+    }
+
+    // Initialize the bit array
+    mb_mapping->nb_bits = nb_bits;
+    mb_mapping->start_bits = start_bits;
+    if (nb_bits == 0) {
+        mb_mapping->tab_bits = NULL;
+    } else {
+        mb_mapping->tab_bits = (uint8_t *) malloc(nb_bits * sizeof(uint8_t));
+        if (mb_mapping->tab_bits == NULL) {
+            free(mb_mapping); // Free allocated memory if allocation fails
+            return NULL;
+        }
+        memset(mb_mapping->tab_bits, 0, nb_bits * sizeof(uint8_t));
+    }
+
+    // Initialize the input bit array
+    mb_mapping->nb_input_bits = nb_input_bits;
+    mb_mapping->start_input_bits = start_input_bits;
+    if (nb_input_bits == 0) {
+        mb_mapping->tab_input_bits = NULL;
+    } else {
+        mb_mapping->tab_input_bits = (uint8_t *) malloc(nb_input_bits * sizeof(uint8_t));
+        if (mb_mapping->tab_input_bits == NULL) {
+            free(mb_mapping->tab_bits); // Free allocated memory if allocation fails
+            free(mb_mapping);
+            return NULL;
+        }
+        memset(mb_mapping->tab_input_bits, 0, nb_input_bits * sizeof(uint8_t));
+    }
+
+    // Initialize the register array
+    mb_mapping->nb_registers = nb_registers;
+    mb_mapping->start_registers = start_registers;
+    if (nb_registers == 0) {
+        mb_mapping->tab_registers = NULL;
+    } else {
+        mb_mapping->tab_registers = (uint16_t *) malloc(nb_registers * sizeof(uint16_t));
+        if (mb_mapping->tab_registers == NULL) {
+            free(mb_mapping->tab_input_bits); // Free allocated memory if allocation fails
+            free(mb_mapping->tab_bits);
+            free(mb_mapping);
+            return NULL;
+        }
+        memset(mb_mapping->tab_registers, 0, nb_registers * sizeof(uint16_t));
+    }
+
+    // Initialize the input register array
+    mb_mapping->nb_input_registers = nb_input_registers;
+    mb_mapping->start_input_registers = start_input_registers;
+    if (nb_input_registers == 0) {
+        mb_mapping->tab_input_registers = NULL;
+    } else {
+        mb_mapping->tab_input_registers = (uint16_t *) malloc(nb_input_registers * sizeof(uint16_t));
+        if (mb_mapping->tab_input_registers == NULL) {
+            free(mb_mapping->tab_registers); // Free allocated memory if allocation fails
+            free(mb_mapping->tab_input_bits);
+            free(mb_mapping->tab_bits);
+            free(mb_mapping);
+            return NULL;
+        }
+        memset(mb_mapping->tab_input_registers, 0, nb_input_registers * sizeof(uint16_t));
+    }
+
+    return mb_mapping; // Return the new Modbus mapping structure
+}
+
+// Convenience function to allocate memory for a new Modbus mapping structure with default starting addresses
+modbus_mapping_t* modbus_mapping_new(int nb_bits, int nb_input_bits, int nb_registers, int nb_input_registers)
+{
+    return modbus_mapping_new_start_address(
+        0, nb_bits, 0, nb_input_bits, 0, nb_registers, 0, nb_input_registers);
+}
+
+// Function to free the memory allocated for a Modbus mapping structure
+void modbus_mapping_free(modbus_mapping_t *mb_mapping)
+{
+    if (mb_mapping == NULL) {
+        return; // Return if the mapping is NULL
+    }
+
+    free(mb_mapping->tab_input_registers); // Free the input register array
+    free(mb_mapping->tab_registers); // Free the register array
+    free(mb_mapping->tab_input_bits); // Free the input bit array
+    free(mb_mapping->tab_bits); // Free the bit array
+    free(mb_mapping); // Free the Modbus mapping structure
+}
+
+// Custom implementation of strlcpy function
+size_t strlcpy(char *dest, const char *src, size_t dest_size)
+{
+    register char *d = dest;
+    register const char *s = src;
+    register size_t n = dest_size;
+
+    // Copy as many bytes as will fit
+    if (n != 0 && --n != 0) {
+        do {
+            if ((*d++ = *s++) == 0)
+                break;
+        } while (--n != 0);
+    }
+
+    // Not enough room in dest, add NUL and traverse rest of src
+    if (n == 0) {
+        if (dest_size != 0)
+            *d = '\0'; // NUL-terminate dest
+        while (*s++)
+            ;
+    }
+
+    return (s - src - 1); // Return the number of characters copied
+}
+```
+
+This code provides a basic implementation of a Modbus mapping structure and functions to manage it, including setting debug flags and allocating/deallocating memory for the data arrays.

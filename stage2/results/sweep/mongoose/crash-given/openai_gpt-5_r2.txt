@@ -1,0 +1,35 @@
+[
+  {
+    "rank": 1,
+    "root_cause": {
+      "file": "mongoose/src/http.c",
+      "function": "skip_chunk",
+      "line": 1006
+    },
+    "explanation": "When parsing the chunk-size line, the code checks only `len < i + 1` before reading `buf[i]` and `buf[i+1]`. For the 3‑byte input \"ab\\r\" (len=3), after scanning hex digits `i==2`. The condition `len < i + 1` (3 < 3) is false, so it proceeds to read `buf[i+1]` (`buf[3]`) to verify the LF, which is one byte past the allocated 3‑byte buffer, causing an out‑of‑bounds read.",
+    "fix": "Split the check into a proper completeness check first, then validation:\n- if (len < i + 2) return 0;  // need CRLF buffered\n- if (buf[i] != '\\r' || buf[i + 1] != '\\n') return -1;",
+    "confidence": 0.98
+  },
+  {
+    "rank": 2,
+    "root_cause": {
+      "file": "mongoose/src/http.c",
+      "function": "skiptorn",
+      "line": 231
+    },
+    "explanation": "The condition `if (s >= end || (s[0] == '\\r' && s[1] != '\\n'))` can read `s[1]` even when `s == end - 1` and `s[0] == '\\r'`, which is out of bounds for a buffer ending with a lone CR.",
+    "fix": "Guard the `s[1]` access: first check `if (s >= end) return NULL;` then\n- if (s[0] == '\\r') { if (s + 1 >= end) return NULL; if (s[1] != '\\n') return NULL; }\nThis ensures `s[1]` is read only when within bounds.",
+    "confidence": 0.55
+  },
+  {
+    "rank": 3,
+    "root_cause": {
+      "file": "mongoose/src/http.c",
+      "function": "mg_http_parse_headers",
+      "line": 246
+    },
+    "explanation": "The header-loop break condition `if (s[0] == '\\n' || (s[0] == '\\r' && s[1] == '\\n'))` can read `s[1]` when `s == end - 1` and `s[0] == '\\r'`, leading to an out-of-bounds read on an input ending with a lone CR.",
+    "fix": "Add a bound check around `s[1]`: for example\n- if (s[0] == '\\n' || (s[0] == '\\r' && s + 1 < end && s[1] == '\\n')) break;\n- if (s[0] == '\\r' && s + 1 >= end) return false;  // incomplete CRLF",
+    "confidence": 0.45
+  }
+]

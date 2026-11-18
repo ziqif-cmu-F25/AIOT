@@ -1,0 +1,28 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply (MODBUS_FC_WRITE_AND_READ_REGISTERS case)",
+      "line": 962
+    },
+    "vulnerability_class": "oob-write",
+    "hypothesis": "The bounds check for the write side of a Write-and-Read request tests `mapping_address` twice and never tests `mapping_address_write`. When the attacker's write address (uint16 `address_write`) is below `mb_mapping->start_registers`, `mapping_address_write` is negative. The upper-bound test `(mapping_address_write + nb_write) > nb_registers` can still pass because the sum is small or negative. The write loop at lines 978-982 then runs `mb_mapping->tab_registers[i]` with a negative `i`, which writes before the start of the heap-allocated `tab_registers` array. The attacker controls the index (via address_write) and the written values (via the request payload). This needs `start_registers > 0` so that a valid-looking address can produce a negative offset. With the default start of 0, the uint16 address cannot be negative and the bug does not trigger.",
+    "evidence": "Line 952-953:\n`int mapping_address = address - mb_mapping->start_registers;`\n`int mapping_address_write = address_write - mb_mapping->start_registers;`\nLines 962-965:\n`} else if (mapping_address < 0 ||`\n`           (mapping_address + nb) > mb_mapping->nb_registers ||`\n`           mapping_address < 0 ||`\n`           (mapping_address_write + nb_write) > mb_mapping->nb_registers) {`\nLines 978-982:\n`for (i = mapping_address_write, j = 10; i < mapping_address_write + nb_write; i++, j += 2) {`\n`    mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];`\nThe error-message ternary on line 970 also uses `mapping_address_write < 0`, which shows the intended check was missing.",
+    "confidence": 0.8
+  },
+  {
+    "rank": 2,
+    "location": {
+      "file": "libmodbus/src/modbus.c",
+      "function": "modbus_reply (MODBUS_FC_WRITE_AND_READ_REGISTERS case)",
+      "line": 985
+    },
+    "vulnerability_class": "oob-read",
+    "hypothesis": "The read-back loop uses `mapping_address`, which is checked for `< 0`, but the read upper bound `(mapping_address + nb) > nb_registers` is validated only with the same `nb` value. The same unchecked-write-side issue also means the write loop can have a corrupted state. If the write-side check is bypassed as in rank 1, the state of the mapping is inconsistent before the read loop runs. Reading `tab_registers[i]` for i in [mapping_address, mapping_address+nb) is in-bounds only when the earlier check held. This is a secondary, lower-confidence candidate that depends on the same validation gap.",
+    "evidence": "Lines 985-988:\n`for (i = mapping_address; i < mapping_address + nb; i++) {`\n`    rsp[rsp_length++] = mb_mapping->tab_registers[i] >> 8;`\n`    rsp[rsp_length++] = mb_mapping->tab_registers[i] & 0xFF;`\n}`",
+    "confidence": 0.25
+  }
+]
+```

@@ -1,0 +1,7 @@
+{
+  "raw_request": "POST / HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n1\r\nA\r\n0\r\n\r",
+  "hex_body": "310d0a410d0a300d0a0d",
+  "explanation": "The chunked body ends with '0\\r\\n\\r' (hex: 30 0d 0a 0d). When skip_chunk() processes the final CRLF after the '0' chunk, it reads the buffer containing '\\r' at position i (the 4th byte) with len == i+1. The guard 'len < i+1' fails (since len == 5, i == 4, i+1 == 5), so it checks buf[i] == '\\r' (true), then attempts to read buf[i+1] (index 5) which is out-of-bounds.",
+  "delivery_notes": "The request must be sent in one TCP segment to ensure the vulnerable buffer contains exactly the bytes '0\\r\\n\\r' at the end without the final '\\n'. If split, the server might receive the final '\\n' in a subsequent read, avoiding the bug.",
+  "confidence": 0.95
+}

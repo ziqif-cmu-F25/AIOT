@@ -1,0 +1,30 @@
+**Most likely issue:** a static buffer overflow in `coap_resolve_address_info()`. The host name is copied into a fixed 256-byte buffer without checking its length. A proxy request can supply a host much longer than 256 bytes through the Proxy-Uri option.
+
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "libcoap/src/coap_address.c", "function": "coap_resolve_address_info", "line": 538},
+    "vulnerability_class": "buffer-overflow",
+    "hypothesis": "A remote client sends a request to a proxy configured with a *_STRIP type. The request carries a Proxy-Uri option, which the parser allows up to 1034 bytes, e.g. 'coap://AAAA...(~1000 A)/x'. coap_split_proxy_uri() sets uri.host to that long host with no length limit. coap_proxy_get_ongoing_session() passes &server_use->uri.host to coap_resolve_address_info(). That function memcpy's address->length bytes into the 256-byte buffer 'static char addrstr[256]' with no bounds check, overflowing the buffer in .bss and corrupting adjacent globals. A host of exactly 256 bytes also leaves addrstr without a NUL terminator, so getaddrinfo() reads past the end.",
+    "evidence": "static char addrstr[256]; ... memset(addrstr, 0, sizeof(addrstr));\n  if (address && address->length)\n    memcpy(addrstr, address->s, address->length);   // no check address->length < sizeof(addrstr)\n...\ncoap_proxy.c: info_list = coap_resolve_address_info(&server_use->uri.host, ...); host comes from coap_split_proxy_uri(coap_opt_value(proxy_uri), coap_opt_length(proxy_uri), ...); Proxy-Uri len allowed up to 1034",
+    "confidence": 0.85
+  },
+  {
+    "rank": 2,
+    "location": {"file": "libcoap/src/coap_uri.c", "function": "check_segment", "line": 446},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "A segment that ends in '%X' (length 2 remaining at the '%') passes the 'length < 2' check. The code then reads s[2] one byte past the segment. After that, length -= 2 followed by --length underflows to a huge value, so the loop keeps scanning past the end of the buffer. decode_segment() has the same pattern and can also write past the end.",
+    "evidence": "if (length < 2 || !(isxdigit(s[1]) && isxdigit(s[2]))) return -1; s += 2; length -= 2; ... --length;",
+    "confidence": 0.3
+  },
+  {
+    "rank": 3,
+    "location": {"file": "libcoap/src/coap_proxy.c", "function": "coap_proxy_forward_response_lkd", "line": 857},
+    "vulnerability_class": "oob-read",
+    "hypothesis": "Suppose an upstream response arrives after the matching req_list entry is gone, or the error path is taken with a stale j. The remove_match code then deletes req_list[j] using a j that may equal req_count, freeing or reading out of bounds.",
+    "evidence": "if (option == NULL && proxy_entry->req_count) { coap_delete_pdu(proxy_entry->req_list[j].pdu); ...",
+    "confidence": 0.1
+  }
+]
+```

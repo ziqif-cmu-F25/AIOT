@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-010",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "For MASK_WRITE_REGISTER, if the request is shorter than header_length+7, reading the AND/OR masks at req[offset+3..+6] is out of bounds.",
+  "evidence_source": "uint16_t and = (req[offset + 3] << 8) + req[offset + 4]; uint16_t or = (req[offset + 5] << 8) + req[offset + 6]; No req_length checks.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Crash or OOB-read report on truncated mask-write requests.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "This path also memcpy\u2019s the entire request back into the response earlier in other cases, but here the direct reads are clearly unchecked.",
+  "vulnerability_class": "out-of-bounds-read",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 1054
+  },
+  "confidence": 0.84,
+  "model": "openai/gpt-5",
+  "prompt_id": "libmodbus-modbus-reply@v1",
+  "run_index": 2
+}

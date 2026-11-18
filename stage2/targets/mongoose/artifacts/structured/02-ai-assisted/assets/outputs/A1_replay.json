@@ -1,0 +1,15 @@
+{
+  "host": "target",
+  "port": 8000,
+  "request_len": 83,
+  "request_sha256": "2ff5393c68bf75413644e8fbc711e7ea2152d6fdd506f1fe222c87d2d10af8f2",
+  "timeout_s": 3.0,
+  "timed_out": false,
+  "connected": true,
+  "response_len": 0,
+  "response_sha256": "",
+  "response_preview": "",
+  "error": "",
+  "elapsed_s": 0.0021,
+  "replay_of": "/workspace/results/ai-xfer/outputs/A1_chunk_incomplete_crlf.req"
+}

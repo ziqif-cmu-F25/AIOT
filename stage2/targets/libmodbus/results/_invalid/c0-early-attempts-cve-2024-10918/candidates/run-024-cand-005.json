@@ -1,0 +1,23 @@
+{
+  "candidate_id": "CAND-005",
+  "viewpoint": "ai-source-review",
+  "property": "memory-safety",
+  "hypothesis": "In modbus_reply, for MODBUS_FC_WRITE_AND_READ_REGISTERS, the 'nb_write' and 'nb' values from the request are used to index into mb_mapping->tab_registers without sufficient bounds checking, leading to out-of-bounds write and read.",
+  "evidence_source": "Lines 1105-1108 and 1112-1115: The code writes to and reads from mb_mapping->tab_registers using attacker-controlled indices without proper bounds checks against mb_mapping->nb_registers.",
+  "input_artifact": "not_available (static source review; no input artifact)",
+  "expected_behavior": "Out-of-bounds write and read from the tab_registers array, leading to memory corruption or information disclosure.",
+  "observed_behavior": "not_available (static source review; nothing was executed)",
+  "status": "candidate",
+  "oracle_verdict": "pending",
+  "notes": "The bounds check at lines 1084-1087 only checks against MODBUS_MAX_WR_WRITE_REGISTERS and MODBUS_MAX_WR_READ_REGISTERS, but not the actual mapping sizes.",
+  "vulnerability_class": "buffer-overflow",
+  "location": {
+    "file": "modbus.c",
+    "function": "modbus_reply",
+    "line": 1107
+  },
+  "confidence": 0.9,
+  "model": "deepseek/deepseek-chat-v3.1",
+  "prompt_id": "libmodbus-modbus-reply@v1",
+  "run_index": 3
+}

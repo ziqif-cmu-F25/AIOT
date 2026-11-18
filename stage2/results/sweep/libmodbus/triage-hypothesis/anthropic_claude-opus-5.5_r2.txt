@@ -1,0 +1,22 @@
+```json
+[
+  {
+    "rank": 1,
+    "location": {"file": "src/modbus.c", "function": "modbus_reply", "line": 964},
+    "bug_class": "oob-write",
+    "hypothesis": "The address check tests `mapping_address < 0` twice and never tests `mapping_address_write < 0`, so a write address below `start_registers` passes validation and the write loop stores attacker-controlled values before the start of `tab_registers`.",
+    "vulnerable_line": "mapping_address < 0 ||   /* should be mapping_address_write < 0 */",
+    "trigger_condition": "Send a Write/Read Multiple Registers (FC 0x17) request to a server whose mb_mapping->start_registers > 0. Use a valid read address and nb, and set address_write < start_registers so mapping_address_write is negative. Use nb_write in 1..121 with byte count = 2*nb_write. The check `(mapping_address_write + nb_write) > nb_registers` passes, and line 980 writes `tab_registers[negative index]`.",
+    "confidence": 0.9
+  },
+  {
+    "rank": 2,
+    "location": {"file": "src/modbus.c", "function": "modbus_reply", "line": 980},
+    "bug_class": "buffer-overflow",
+    "hypothesis": "The write loop indexes `tab_registers` from a possibly negative `mapping_address_write`. This causes a heap underflow of up to `start_registers` 16-bit words, filled with request-controlled data. It can corrupt heap metadata or adjacent mapping tables such as `tab_input_registers`.",
+    "vulnerable_line": "mb_mapping->tab_registers[i] = (req[offset + j] << 8) + req[offset + j + 1];",
+    "trigger_condition": "Same as rank 1: FC 0x17 with address_write < start_registers. The loop runs `nb_write` times starting at a negative index.",
+    "confidence": 0.75
+  }
+]
+```

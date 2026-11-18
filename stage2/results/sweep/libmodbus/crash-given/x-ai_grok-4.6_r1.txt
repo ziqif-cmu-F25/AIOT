@@ -1,0 +1,21 @@
+{
+  "rank": 1,
+  "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 964},
+  "explanation": "FC 23 (MODBUS_FC_WRITE_AND_READ_REGISTERS) copies the write payload into mb_mapping->tab_registers[i] at line 980, with i starting at mapping_address_write = address_write - start_registers. The bounds gate at 962-965 is a copy-paste error: mapping_address < 0 is tested twice, and mapping_address_write < 0 is never tested. A crafted FC 23 request whose write address is below start_registers therefore yields a negative mapping_address_write. The remaining clause (mapping_address_write + nb_write) > nb_registers does not reject that case when the sum is still <= nb_registers (negative or small), so the loop writes before the start of tab_registers (ASan WRITE SEGV at 980). The exception-message ternary already special-cases mapping_address_write < 0, confirming the omitted check is accidental.",
+  "fix": "Replace the duplicated check with mapping_address_write < 0, i.e. } else if (mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers || mapping_address_write < 0 || (mapping_address_write + nb_write) > mb_mapping->nb_registers) {",
+  "confidence": 0.93
+}
+{
+  "rank": 2,
+  "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 965},
+  "explanation": "Even with a correct mapping_address_write < 0 test, the upper-bound clause is a signed add: (mapping_address_write + nb_write) > nb_registers. If mapping_address_write were extreme enough for that add to overflow, the overflowed sum could compare as not greater than nb_registers and the same write loop at 980 would still run out of bounds. In this tree address_write is uint16_t and nb_write is capped by MODBUS_MAX_WR_WRITE_REGISTERS, so overflow is not reachable unless start_registers is a pathological negative; it is not the crash that ASan showed.",
+  "fix": "Reject with an overflow-safe test, e.g. mapping_address_write < 0 || nb_write > mb_mapping->nb_registers - mapping_address_write (after the < 0 check), or equivalent unsigned comparison against (unsigned)nb_registers.",
+  "confidence": 0.18
+}
+{
+  "rank": 3,
+  "root_cause": {"file": "libmodbus/src/modbus.c", "function": "modbus_reply", "line": 962},
+  "explanation": "The read-side half of the same else-if (mapping_address < 0 || mapping_address + nb > nb_registers) is well-formed and is not the instruction that ASan blamed. A failure there would skip the write loop entirely (exception path) or, if it passed, would OOB on the later read-into-rsp loop at 985-987, not on the write at 980. Included only as a possible mis-attribution of the duplicated < 0 test.",
+  "fix": "No change required on the read-side test; keep mapping_address < 0 || (mapping_address + nb) > mb_mapping->nb_registers and fix the write-side copy-paste at line 964.",
+  "confidence": 0.08
+}

