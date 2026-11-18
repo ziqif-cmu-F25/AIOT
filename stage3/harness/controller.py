@@ -36,6 +36,9 @@ class Model(Protocol):
     def complete(self, messages: list[dict]) -> str:
         """Return the model text for *messages*."""
 
+    def last_usage(self) -> dict | None:
+        """Usage dict for the most recent complete() call. cost is USD if known."""
+
 
 @dataclass
 class RunOutcome:
@@ -43,9 +46,22 @@ class RunOutcome:
 
     stop_reason: str
     steps_used: int
+    spent_usd: float = 0.0
     messages: list[dict] = field(default_factory=list)
     candidate: dict | None = None
-    usages: list[dict] = field(default_factory=list)
+    charges: list[dict] = field(default_factory=list)
+
+
+def charge_for_call(usage: dict | None, cap_usd: float) -> tuple[float, str]:
+    """Return the dollars this call counts toward the cap, and why.
+
+    A reported OpenRouter cost is used as-is. If the response has no dollar
+    cost, the call consumes the whole cap so the loop cannot continue on an
+    unknown bill.
+    """
+    if usage and usage.get("cost") is not None:
+        return max(0.0, float(usage["cost"])), "reported"
+    return cap_usd, "unknown"
 
 
 def extract_json_object(text: str) -> dict | None:
@@ -104,10 +120,31 @@ def run_loop(pack: TargetPack, toolbox: ToolBox, model: Model) -> RunOutcome:
         {"role": "user", "content": _source_index(pack)},
     ]
     max_steps = int(pack.limits["max_steps"])
+    cap_usd = float(pack.limits["max_cost_usd"])
     outcome = RunOutcome(stop_reason="max_steps", steps_used=0, messages=messages)
     for step in range(1, max_steps + 1):
+        if outcome.spent_usd >= cap_usd:
+            outcome.stop_reason = "max_cost"
+            break
         text = model.complete(messages)
-        messages.append({"role": "assistant", "content": text, "step": step})
+        usage = model.last_usage()
+        charged, source = charge_for_call(usage, cap_usd)
+        outcome.spent_usd = round(outcome.spent_usd + charged, 8)
+        outcome.charges.append({
+            "step": step,
+            "cost_usd": None if not usage or usage.get("cost") is None else float(usage["cost"]),
+            "charged_usd": charged,
+            "source": source,
+            "prompt_tokens": int((usage or {}).get("prompt_tokens") or 0),
+            "completion_tokens": int((usage or {}).get("completion_tokens") or 0),
+        })
+        messages.append({
+            "role": "assistant",
+            "content": text,
+            "step": step,
+            "charged_usd": charged,
+            "cost_source": source,
+        })
         outcome.steps_used = step
         action = extract_json_object(text)
         if action is None:

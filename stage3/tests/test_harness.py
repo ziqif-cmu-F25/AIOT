@@ -11,7 +11,7 @@ from pathlib import Path
 STAGE3 = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(STAGE3))
 
-from harness.controller import run_loop
+from harness.controller import charge_for_call, run_loop
 from harness.run_harness import main
 from harness.target_config import TargetError, load_target
 from harness.tools import ToolBox, ToolError
@@ -49,6 +49,9 @@ class HarnessTests(unittest.TestCase):
             class Once:
                 def __init__(self):
                     self.calls = 0
+
+                def last_usage(self):
+                    return {"cost": 0, "prompt_tokens": 0, "completion_tokens": 0}
 
                 def complete(self, messages):
                     del messages
@@ -111,6 +114,61 @@ class HarnessTests(unittest.TestCase):
                 guest_path("/workspace/results/stage3-inputs", dest.name),
                 "/workspace/results/stage3-inputs/input-001.bin",
             )
+
+    def test_cost_cap_stops_before_the_next_call(self) -> None:
+        pack = load_target(FIXTURE)
+        capped = pack.limits.copy()
+        capped["max_cost_usd"] = 0.10
+        pack.limits.clear()
+        pack.limits.update(capped)
+        read = json.dumps({
+            "action": "tool",
+            "tool": "read_source",
+            "args": {"path": "mini.c", "start_line": 1, "end_line": 5},
+            "hypothesis": "look",
+        })
+
+        class Priced:
+            def __init__(self):
+                self.calls = 0
+                self._usage = {"cost": 0.06, "prompt_tokens": 10, "completion_tokens": 5}
+
+            def last_usage(self):
+                return self._usage
+
+            def complete(self, messages):
+                del messages
+                self.calls += 1
+                return read
+
+        with tempfile.TemporaryDirectory() as tmp:
+            box = ToolBox(pack, Path(tmp), source_only=False)
+            model = Priced()
+            outcome = run_loop(pack, box, model)
+        self.assertEqual(outcome.stop_reason, "max_cost")
+        self.assertEqual(model.calls, 2)
+        self.assertEqual(outcome.spent_usd, 0.12)
+
+    def test_missing_dollar_cost_consumes_the_cap(self) -> None:
+        charged, source = charge_for_call({"prompt_tokens": 10}, 0.10)
+        self.assertEqual((charged, source), (0.10, "unknown"))
+        charged, source = charge_for_call({"cost": 0.02}, 0.10)
+        self.assertEqual((charged, source), (0.02, "reported"))
+
+    def test_non_positive_cost_cap_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "bad.yaml"
+            path.write_text(
+                "target_id: x\nanalyst_brief: hi\nsource_root: .\n"
+                "run_target:\n  argv: ['python3']\n  cwd: .\n"
+                "limits:\n  max_steps: 1\n  max_output_tokens: 10\n  max_cost_usd: 0\n"
+                "  max_read_lines: 1\n  max_output_chars: 10\n"
+                "  tool_timeout_s: 1\n  python_timeout_s: 1\n  target_timeout_s: 1\n"
+                "model:\n  default: openai/gpt-4o-mini\n  temperature: 0\n",
+                encoding="utf-8",
+            )
+            with self.assertRaises(TargetError):
+                load_target(path)
 
     def test_missing_target_field_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

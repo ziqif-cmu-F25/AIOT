@@ -20,7 +20,7 @@ REPO_ROOT = STAGE3_ROOT.parent
 COST_FIELDS = (
     "timestamp_utc", "run_id", "target_id", "stop_reason",
     "model_requested", "model_resolved", "steps",
-    "prompt_tokens", "completion_tokens", "total_tokens", "cost_usd",
+    "prompt_tokens", "completion_tokens", "total_tokens", "cost_usd", "spent_usd",
 )
 
 
@@ -44,6 +44,11 @@ class ScriptedModel:
 
     def __init__(self, replies: list[str]):
         self._replies = list(replies)
+        self._last_usage = {"cost": 0, "prompt_tokens": 0, "completion_tokens": 0}
+
+    def last_usage(self) -> dict | None:
+        """Scripted calls are free."""
+        return self._last_usage
 
     def complete(self, messages: list[dict]) -> str:
         """Return the next scripted reply."""
@@ -80,6 +85,10 @@ class OpenRouterModel:
         self.resolved = completion.resolved_model
         self.usages.append(completion.usage or {})
         return completion.text
+
+    def last_usage(self) -> dict | None:
+        """Usage reported for the latest completion, including cost when present."""
+        return self.usages[-1] if self.usages else None
 
 
 def _sum_usage(usages: list[dict]) -> dict:
@@ -123,6 +132,10 @@ def write_run(run_dir: Path, pack, outcome, model_name: str, resolved: str | Non
     (run_dir / "candidate.json").write_text(
         json.dumps(outcome.candidate, indent=2) + "\n", encoding="utf-8"
     )
+    (run_dir / "usage.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in outcome.charges),
+        encoding="utf-8",
+    )
     (run_dir / "run.yaml").write_text(
         "\n".join([
             f"run_id: {run_dir.name}",
@@ -135,6 +148,9 @@ def write_run(run_dir: Path, pack, outcome, model_name: str, resolved: str | Non
             f"end_utc: {utc_now()}",
             f"steps_used: {outcome.steps_used}",
             f"max_steps: {pack.limits['max_steps']}",
+            f"max_output_tokens: {pack.max_output_tokens}",
+            f"max_cost_usd: {pack.limits['max_cost_usd']}",
+            f"spent_usd: {outcome.spent_usd}",
             f"stop_reason: {outcome.stop_reason}",
             "oracle_verdict: pending",
         ]) + "\n",
@@ -155,9 +171,10 @@ def build_model(args, pack) -> tuple[Model, str, list[dict], dict]:
 
     settings = load_settings(REPO_ROOT / ".env")
     requested = args.model or settings.model or pack.model_default
-    sampling = {"temperature": pack.temperature}
-    if pack.max_tokens:
-        sampling["max_tokens"] = pack.max_tokens
+    sampling = {
+        "temperature": pack.temperature,
+        "max_tokens": pack.max_output_tokens,
+    }
     client = OpenRouterClient(settings)
     model = OpenRouterModel(client, requested, sampling)
     return model, requested, model.usages, {"model_obj": model}
@@ -203,6 +220,7 @@ def main(argv: list[str] | None = None) -> int:
         "completion_tokens": totals["completion_tokens"],
         "total_tokens": totals["total_tokens"],
         "cost_usd": "" if totals["cost_usd"] is None else totals["cost_usd"],
+        "spent_usd": outcome.spent_usd,
     })
     print(run_dir)
     return 0

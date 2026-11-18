@@ -21,7 +21,12 @@ run_target:
   argv: ["python3", "/absolute/path/to/your_client.py", "send", "--input", "{input_file}", "--output-dir", "/tmp/stage3-out", "--stem", "agent"]
   cwd: /absolute/path/to/the/client/working/directory
 limits:
+  # Three budgets. The run stops when any one is reached.
+  # max_cost_usd is checked before the next API call, so the last call can
+  # land slightly above the cap. 0.10 is enough for gpt-4o-mini at 12 steps.
   max_steps: 12
+  max_output_tokens: 1500
+  max_cost_usd: 0.10
   max_read_lines: 120
   max_output_chars: 4000
   tool_timeout_s: 20
@@ -30,4 +35,3 @@ limits:
 model:
   default: openai/gpt-4o-mini
   temperature: 0.2
-  max_tokens: 1500

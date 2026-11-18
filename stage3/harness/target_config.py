@@ -12,6 +12,8 @@ STAGE3_ROOT = Path(__file__).resolve().parents[1]
 
 REQUIRED_LIMITS = (
     "max_steps",
+    "max_output_tokens",
+    "max_cost_usd",
     "max_read_lines",
     "max_output_chars",
     "tool_timeout_s",
@@ -36,10 +38,24 @@ class TargetPack:
     limits: dict[str, Any]
     model_default: str
     temperature: float
-    max_tokens: int | None
+    max_output_tokens: int
     allowed_suffixes: tuple[str, ...]
     raw: dict[str, Any]
     config_path: Path
+
+
+def _check_budgets(path: Path, limits: dict) -> None:
+    """Reject budgets that cannot actually stop a run."""
+    try:
+        steps = int(limits["max_steps"])
+        output_tokens = int(limits["max_output_tokens"])
+        cost = float(limits["max_cost_usd"])
+    except (TypeError, ValueError) as exc:
+        raise TargetError(f"{path}: max_steps, max_output_tokens, and max_cost_usd must be numbers") from exc
+    if steps < 1 or output_tokens < 1 or cost <= 0:
+        raise TargetError(
+            f"{path}: max_steps and max_output_tokens must be >= 1, and max_cost_usd must be > 0"
+        )
 
 
 def _resolve(stage3_root: Path, value: str) -> Path:
@@ -65,6 +81,7 @@ def load_target(path: Path, stage3_root: Path = STAGE3_ROOT) -> TargetPack:
     missing = [name for name in REQUIRED_LIMITS if name not in limits]
     if missing:
         raise TargetError(f"{path}: limits missing {missing}")
+    _check_budgets(path, limits)
     model = data["model"]
     if "default" not in model or "temperature" not in model:
         raise TargetError(f"{path}: model.default and model.temperature are required")
@@ -81,7 +98,7 @@ def load_target(path: Path, stage3_root: Path = STAGE3_ROOT) -> TargetPack:
         limits=dict(limits),
         model_default=str(model["default"]),
         temperature=float(model["temperature"]),
-        max_tokens=int(model["max_tokens"]) if model.get("max_tokens") else None,
+        max_output_tokens=int(limits["max_output_tokens"]),
         allowed_suffixes=suffixes,
         raw=data,
         config_path=path,

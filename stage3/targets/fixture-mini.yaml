@@ -12,6 +12,8 @@ run_target:
   cwd: targets/fixture
 limits:
   max_steps: 8
+  max_output_tokens: 400
+  max_cost_usd: 1.00
   max_read_lines: 80
   max_output_chars: 4000
   tool_timeout_s: 15
@@ -20,4 +22,3 @@ limits:
 model:
   default: openai/gpt-4o-mini
   temperature: 0.2
-  max_tokens: 1200
