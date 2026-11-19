@@ -77,10 +77,25 @@ pushed to `main`.
 | 3 | `run_target` |
 | 4 | `finish` |
 
-`candidate.json` has `status: candidate` and `oracle_verdict: pending`.
-The single `run_target` observation was an ordinary protocol response, not
-a validated finding. The saved request bytes are in
-`stage3/results/run-001/scratch/`. They are not part of this note.
+`candidate.json` has `status: candidate`. The harness left
+`oracle_verdict: pending`. The saved request bytes are in
+`stage3/results/run-001/scratch/`. They are not copied into this note.
 
-The raw run directory and `cost_log.csv` are gitignored. This file is the
-copy that stays on the branch.
+## Oracle, after the run
+
+Judged outside the harness with the Stage 2 oracle. The harness file is
+unchanged.
+
+| Check | Result |
+| --- | --- |
+| Replay of `scratch/input-001.bin` | 249 bytes, sha256 `cbca7ce2b5fa3aa3a8f8a48dd1f7daf3b6ced28aeaad948cb91f9feb81ed24cc`. Connected, `timed_out` false. |
+| Response | `HTTP/1.1 404 Not Found`, 65 bytes, sha256 `47f3a44ab073dfa02b051fb406bbdd1723efbfe8d6ae4a98efad2da410d65659`. |
+| Chunked body | None. The request uses `Content-Length` and a multipart body, so the exact-buffer differential was not run. |
+| Health check after replay | `health_ok` true, `HTTP/1.1 200 OK`. |
+| `ORACLE_MATCH` | `no` |
+| Classification | False candidate. |
+
+Harness numbers next to that verdict: `steps_used` 4, `spent_usd` 0.00138495, `stop_reason` finish.
+
+The same text is in `stage3/results/run-001/verdict.md`. That directory and
+`cost_log.csv` are gitignored. This file is the copy that stays on the branch.
