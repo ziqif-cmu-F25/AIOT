@@ -7,6 +7,10 @@ it afterwards with the same oracle you used in Stage 2.
 `source_root` is only the source tree the agent may read. Sending a packet
 is a different setting, `run_target`.
 
+Teammates: follow `KICKSTART.md`. It is the target-agnostic procedure.
+`SELF_TRIAL_RECORD.md` is one completed pass of that procedure, with the
+metrics that pass produced.
+
 ## Budgets
 
 Set these three in your target YAML under `limits`. The run stops when any
